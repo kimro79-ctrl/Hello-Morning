@@ -1,21 +1,36 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.example.hello_morning">
+
     <uses-permission android:name="android.permission.SEND_SMS" />
     <uses-permission android:name="android.permission.READ_CONTACTS" />
-    
+    <uses-permission android:name="android.permission.INTERNET" />
+
     <application
         android:label="하루 안부 지킴이"
-        android:name="${applicationName}">
-        ```
+        android:name="${applicationName}"
+        android:icon="@mipmap/ic_launcher">
+        
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTop"
+            android:theme="@style/LaunchTheme"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
+            android:hardwareAccelerated="true"
+            android:windowSoftInputMode="adjustResize">
+            
+            <meta-data
+                android:name="io.flutter.embedding.android.NormalTheme"
+                android:resource="@style/NormalTheme" />
 
-### **2. `pubspec.yaml` (문자 라이브러리 교체)**
-화면을 띄우지 않고 바로 문자를 보낼 수 있는 `telephony` 라이브러리를 사용합니다.
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity>
 
-```yaml
-dependencies:
-  flutter:
-    sdk: flutter
-  telephony: ^0.2.0  # 화면 없이 문자 발송이 가능한 라이브러리
-  shared_preferences: ^2.2.2
-  contacts_service: ^0.6.3
-  intl: ^0.19.0
-  permission_handler: ^11.3.0
+        <meta-data
+            android:name="flutterEmbedding"
+            android:value="2" />
+    </application>
+</manifest>
