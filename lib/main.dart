@@ -24,9 +24,10 @@ void callbackDispatcher() {
         
         for (var item in decoded) {
           String number = item['number'].toString();
+          // 에러 해결: 'address'를 'phone'으로 변경
           directSms.sendSms(
-            message: "[안부 지킴이] 5분간 확인이 없어 자동 발송된 메시지입니다.",
-            address: number,
+            message: "[안부 지킴이] 5분간 확인이 없어 자동 발송되었습니다.",
+            phone: number, 
           );
         }
       }
@@ -39,7 +40,6 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Workmanager().initialize(callbackDispatcher, isInDebugMode: false);
   
-  // 15분마다 깨어나서 5분 경과 여부 확인
   await Workmanager().registerPeriodicTask(
     "safety_check",
     "checkTask",
@@ -55,7 +55,10 @@ class DailySafetyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(primarySwatch: Colors.orange, useMaterial3: true),
+      theme: ThemeData(
+        primarySwatch: Colors.orange,
+        useMaterial3: true,
+      ),
       home: const MainScreen(),
     );
   }
@@ -79,7 +82,12 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   Future<void> _requestPermissions() async {
-    await [Permission.sms, Permission.contacts, Permission.ignoreBatteryOptimizations].request();
+    // 필수 권한 요청
+    await [
+      Permission.sms,
+      Permission.contacts,
+      Permission.ignoreBatteryOptimizations
+    ].request();
   }
 
   Future<void> _loadData() async {
@@ -88,7 +96,8 @@ class _MainScreenState extends State<MainScreen> {
       _lastCheckIn = prefs.getString('lastCheckIn') ?? "오늘의 안부를 확인해주세요";
       String? contactJson = prefs.getString('contacts');
       if (contactJson != null) {
-        _contacts = List<Map<String, String>>.from(json.decode(contactJson).map((i) => Map<String, String>.from(i)));
+        _contacts = List<Map<String, String>>.from(
+            json.decode(contactJson).map((i) => Map<String, String>.from(i)));
       }
     });
   }
@@ -100,27 +109,56 @@ class _MainScreenState extends State<MainScreen> {
     setState(() => _lastCheckIn = now);
   }
 
-  // UI 구성 (기존 디자인 유지)
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("하루 안부 지킴이"), backgroundColor: Colors.orangeAccent),
+      backgroundColor: const Color(0xFFF8F9FA),
+      appBar: AppBar(
+        title: const Text("하루 안부 지킴이", style: TextStyle(fontWeight: FontWeight.bold)),
+        backgroundColor: Colors.orangeAccent,
+        centerTitle: true,
+        elevation: 0,
+      ),
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text("마지막 확인: $_lastCheckIn"),
-            const SizedBox(height: 50),
+            const Text("마지막 확인 시간", style: TextStyle(color: Colors.grey, fontSize: 14)),
+            const SizedBox(height: 5),
+            Text(_lastCheckIn, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 60),
             GestureDetector(
               onTap: _checkIn,
-              child: CircleAvatar(
-                radius: 80,
-                backgroundColor: Colors.yellow[200],
-                child: ClipOval(child: Image.asset('assets/smile.png', width: 120)),
+              child: Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.1),
+                      blurRadius: 20,
+                      offset: const Offset(0, 10),
+                    )
+                  ],
+                ),
+                child: CircleAvatar(
+                  radius: 80,
+                  backgroundColor: Colors.yellow[200],
+                  child: ClipOval(
+                    // 이미지가 없을 경우를 대비해 아이콘으로 대체 가능하도록 설정
+                    child: Image.asset(
+                      'assets/smile.png', 
+                      width: 120,
+                      errorBuilder: (context, error, stackTrace) => const Icon(Icons.sentiment_satisfied_alt, size: 100, color: Colors.orange),
+                    ),
+                  ),
+                ),
               ),
             ),
-            const SizedBox(height: 20),
-            const Text("5분 미확인 시 자동 문자 발송 테스트 중"),
+            const SizedBox(height: 40),
+            const Text("5분 미확인 시 등록된 보호자에게", style: TextStyle(color: Colors.redAccent)),
+            const Text("자동으로 문자가 전송됩니다.", style: TextStyle(color: Colors.redAccent)),
           ],
         ),
       ),
