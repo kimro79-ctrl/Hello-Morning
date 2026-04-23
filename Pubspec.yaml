@@ -1,7 +1,5 @@
 name: hello_morning
-description: A new Flutter project for preventing lonely death with a bright smile.
-
-# 프로젝트 버전 정보
+description: A new Flutter project.
 publish_to: 'none'
 version: 1.0.0+1
 
@@ -11,23 +9,11 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-
-  # 데이터 저장용 (마지막 접속 시간, 연락처 정보 저장)
   shared_preferences: ^2.2.2
-
-  # 연락처 동기화 및 선택용
   contacts_service: ^0.6.3
-
-  # 날짜 형식 포맷용
   intl: ^0.19.0
-
-  # 권한 요청용 (연락처 접근 권한 등)
   permission_handler: ^11.3.0
-
-  # 비상시 전화나 메시지 앱 연결용
   url_launcher: ^6.2.5
-
-  # 아이콘 라이브러리
   cupertino_icons: ^1.0.6
 
 dev_dependencies:
