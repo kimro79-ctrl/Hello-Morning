@@ -4,7 +4,7 @@
     <uses-permission android:name="android.permission.INTERNET" />
     
     <application
-        android:label="hello_morning"
+        android:label="하루 안부 지킴이" 
         android:name="${applicationName}">
         
         <activity
