@@ -1,5 +1,5 @@
 name: hello_morning
-description: A new Flutter project.
+description: 하루 안부 지킴이 - 매일 아침 나의 평안을 알리는 앱
 publish_to: 'none'
 version: 1.0.0+1
 
@@ -14,7 +14,6 @@ dependencies:
   intl: ^0.19.0
   permission_handler: ^11.3.0
   url_launcher: ^6.2.5
-  cupertino_icons: ^1.0.6
 
 dev_dependencies:
   flutter_test:
