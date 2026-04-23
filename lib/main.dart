@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:another_telephony/telephony.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:contacts_service/contacts_service.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'dart:async';
 
 void main() => runApp(const DailySafetyApp());
@@ -34,7 +34,6 @@ class MainScreen extends StatefulWidget {
 }
 
 class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateMixin {
-  final Telephony telephony = Telephony.instance;
   String _lastCheckIn = "기록 없음";
   String _emergencyContact = "미설정";
   String _contactName = "보호자";
@@ -69,26 +68,21 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
     });
   }
 
-  // 화면 이동 없이 즉시 문자를 보내는 도전형 핵심 기능
-  Future<void> _sendDirectSMS() async {
-    if (_emergencyContact == "미설정") {
-      _showSnackBar("먼저 보호자 연락처를 설정해주세요.");
-      return;
-    }
+  // 시스템 표준 방식을 사용하여 에러 없이 문자 앱을 띄웁니다.
+  Future<void> _sendEmergencySMS() async {
+    if (_emergencyContact == "미설정") return;
+    
+    final String message = "[하루 안부 지킴이] 사용자의 안부 확인이 지연되었습니다.";
+    final Uri smsUri = Uri.parse('sms:$_emergencyContact?body=${Uri.encodeComponent(message)}');
 
-    bool? permissionsGranted = await telephony.requestSmsPermissions;
-    if (permissionsGranted == true) {
-      try {
-        await telephony.sendSms(
-          to: _emergencyContact,
-          message: "[하루 안부 지킴이] 사용자의 안부 확인이 지연되고 있습니다. 확인 부탁드립니다.",
-        );
-        _showSnackBar("보호자에게 안부 문자를 자동 발송했습니다.");
-      } catch (e) {
-        _showSnackBar("발송 실패: $e");
-      }
+    if (await canLaunchUrl(smsUri)) {
+      await launchUrl(smsUri);
     } else {
-      _showSnackBar("문자 발송 권한이 거부되었습니다.");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("문자 앱을 열 수 없습니다.")),
+        );
+      }
     }
   }
 
@@ -106,7 +100,12 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
           _isWinking = false;
           _lastCheckIn = now;
         });
-        _showSnackBar("안부가 확인되었습니다. 좋은 하루 되세요!");
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("안부가 확인되었습니다!", style: TextStyle(fontWeight: FontWeight.bold)),
+            backgroundColor: Colors.orangeAccent,
+          ),
+        );
       }
     });
   }
@@ -132,16 +131,6 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
     }
   }
 
-  void _showSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message, style: const TextStyle(fontWeight: FontWeight.bold)),
-        backgroundColor: Colors.orangeAccent,
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -154,9 +143,7 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Text("최근 안부 확인 시간", style: TextStyle(fontSize: 14, color: Colors.grey)),
-            const SizedBox(height: 5),
-            Text(_lastCheckIn, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            Text("마지막 확인: $_lastCheckIn"),
             const SizedBox(height: 50),
             GestureDetector(
               onTap: _checkIn,
@@ -174,18 +161,19 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
               ),
             ),
             const SizedBox(height: 50),
-            ElevatedButton.icon(
-              onPressed: _sendDirectSMS,
-              icon: const Icon(Icons.send),
-              label: const Text("자동 문자 발송 테스트"),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.orange[50],
-                foregroundColor: Colors.orange[900],
+            if (_emergencyContact != "미설정")
+              ElevatedButton.icon(
+                onPressed: _sendEmergencySMS,
+                icon: const Icon(Icons.warning_amber_rounded),
+                label: const Text("보호자에게 문자 보내기"),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red[50],
+                  foregroundColor: Colors.red,
+                ),
               ),
-            ),
-            const SizedBox(height: 30),
-            Text("보호자: $_contactName", style: const TextStyle(fontSize: 16)),
-            TextButton(onPressed: _pickContact, child: const Text("연락처 설정 변경")),
+            const SizedBox(height: 20),
+            Text("보호자: $_contactName ($_emergencyContact)"),
+            TextButton(onPressed: _pickContact, child: const Text("연락처 설정")),
           ],
         ),
       ),
