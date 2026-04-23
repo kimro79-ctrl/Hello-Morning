@@ -22,10 +22,14 @@ void callbackDispatcher() {
         List<dynamic> decoded = json.decode(contactJson);
         final DirectSms directSms = DirectSms();
         for (var item in decoded) {
-          directSms.sendSms(
-            message: "[안부 지킴이] 설정하신 $waitMinutes분간 확인이 없어 자동 발송되었습니다.",
-            phone: item['number'].toString(),
-          );
+          try {
+            await directSms.sendSms(
+              message: "[안부 지킴이] 설정하신 $waitMinutes분간 확인이 없어 자동 발송되었습니다.",
+              phone: item['number'].toString(),
+            );
+          } catch (e) {
+            print("SMS 발송 실패: $e");
+          }
         }
       }
     }
@@ -102,21 +106,17 @@ class _MainScreenState extends State<MainScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // 1. 시간 설정 섹션 (연한 살구/핑크 파스텔 그라데이션)
+                // 1. 시간 설정 (연한 파스텔 핑크/피치)
                 Container(
                   width: double.infinity,
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFFFFE5D9), Color(0xFFFFCAD4)], // 매우 연한 핑크 톤
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
+                    gradient: const LinearGradient(colors: [Color(0xFFFFF0F0), Color(0xFFFFE5E5)]),
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Column(
                     children: [
-                      const Text("안부 확인 대기 시간", style: TextStyle(color: Color(0xFF8D5B5B), fontWeight: FontWeight.bold)),
+                      const Text("안부 확인 대기 시간", style: TextStyle(color: Color(0xFF9E7E7E), fontWeight: FontWeight.bold)),
                       const SizedBox(height: 15),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
@@ -131,40 +131,38 @@ class _MainScreenState extends State<MainScreen> {
                 ),
                 const SizedBox(height: 15),
 
-                // 2. 보호자 설정 섹션 (연한 민트/스카이 파스텔 그라데이션)
+                // 2. 보호자 설정 (연한 파스텔 블루/민트)
                 Container(
                   width: double.infinity,
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFFD8E2DC), Color(0xFFB9D6F2)], // 매우 연한 블루/민트 톤
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
+                    gradient: const LinearGradient(colors: [Color(0xFFF0F7FF), Color(0xFFE5F1FF)]),
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Column(
                     children: [
-                      const Text("보호자 연락처", style: TextStyle(color: Color(0xFF4A6572), fontWeight: FontWeight.bold)),
+                      const Text("보호자 연락처", style: TextStyle(color: Color(0xFF7E8D9E), fontWeight: FontWeight.bold)),
                       const SizedBox(height: 10),
                       ..._contacts.map((c) => Container(
                         margin: const EdgeInsets.only(bottom: 8),
-                        decoration: BoxDecoration(color: Colors.white.withOpacity(0.5), borderRadius: BorderRadius.circular(10)),
+                        decoration: BoxDecoration(color: Colors.white.withOpacity(0.7), borderRadius: BorderRadius.circular(10)),
                         child: ListTile(
                           dense: true,
-                          title: Text(c['name']!, style: const TextStyle(color: Color(0xFF4A6572), fontWeight: FontWeight.bold)),
-                          subtitle: Text(c['number']!, style: const TextStyle(color: Color(0xFF78909C))),
-                          trailing: IconButton(icon: const Icon(Icons.remove_circle_outline, color: Color(0xFFE57373)), onPressed: () async {
-                            _contacts.remove(c);
-                            final prefs = await SharedPreferences.getInstance();
-                            await prefs.setString('contacts', json.encode(_contacts));
-                            setModalState(() {});
-                            setState(() {});
-                          }),
+                          title: Text(c['name']!, style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF5C6B7A))),
+                          subtitle: Text(c['number']!),
+                          trailing: IconButton(
+                            icon: const Icon(Icons.remove_circle_outline, color: Color(0xFFCF9E9E), size: 20),
+                            onPressed: () async {
+                              _contacts.remove(c);
+                              final prefs = await SharedPreferences.getInstance();
+                              await prefs.setString('contacts', json.encode(_contacts));
+                              setModalState(() {});
+                              setState(() {});
+                            },
+                          ),
                         ),
                       )),
-                      const SizedBox(height: 5),
-                      ElevatedButton.icon(
+                      TextButton.icon(
                         onPressed: () async {
                           Contact? contact = await ContactsService.openDeviceContactPicker();
                           if (contact != null && contact.phones!.isNotEmpty) {
@@ -175,14 +173,9 @@ class _MainScreenState extends State<MainScreen> {
                             setState(() {});
                           }
                         },
-                        icon: const Icon(Icons.add, size: 18),
+                        icon: const Icon(Icons.add_circle_outline, size: 20),
                         label: const Text("연락처 추가"),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.white.withOpacity(0.8),
-                          foregroundColor: const Color(0xFF4A6572),
-                          elevation: 0,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        ),
+                        style: TextButton.styleFrom(foregroundColor: const Color(0xFF7E8D9E)),
                       ),
                     ],
                   ),
@@ -208,8 +201,39 @@ class _MainScreenState extends State<MainScreen> {
       },
       child: Container(
         margin: const EdgeInsets.symmetric(horizontal: 5),
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
           color: isSel ? Colors.white : Colors.white.withOpacity(0.3),
-          borderRadius: BorderRadius.circular(15),
-          boxShadow
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: isSel ? const Color(0xFFCF9E9E) : Colors.transparent),
+        ),
+        child: Text(label, style: TextStyle(color: isSel ? const Color(0xFFCF9E9E) : Colors.grey, fontWeight: FontWeight.bold)),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFF8F9FB),
+      appBar: AppBar(
+        title: const Text("DAILY SAFETY", style: TextStyle(color: Color(0xFFB0BEC5), letterSpacing: 2, fontWeight: FontWeight.w900, fontSize: 14)),
+        backgroundColor: Colors.transparent,
+        elevation: 0, centerTitle: true,
+      ),
+      body: Column(
+        children: [
+          const Spacer(),
+          const Text("마지막 확인 시간", style: TextStyle(color: Colors.grey, fontSize: 13)),
+          const SizedBox(height: 8),
+          Text(_lastCheckIn, style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w200, color: Colors.black87)),
+          const Spacer(),
+          
+          GestureDetector(
+            onTap: _saveCheckIn,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 150),
+              width: 220, height: 220,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: const Color(0xFFF8F9FB
