@@ -30,6 +30,9 @@ android {
     buildTypes {
         release {
             signingConfig signingConfigs.debug
+            // 리소스가 없어도 빌드를 진행하도록 설정
+            shrinkResources false
+            minifyEnabled false
         }
     }
 }
