@@ -24,11 +24,11 @@ void callbackDispatcher() {
         for (var item in decoded) {
           try {
             await directSms.sendSms(
-              message: "[안부 지킴이] 설정하신 $waitMinutes분간 확인이 없어 자동 발송되었습니다.",
+              message: "[안부 지킴이] 설정하신 시간 동안 확인이 없어 자동 발송되었습니다.",
               phone: item['number'].toString(),
             );
           } catch (e) {
-            print("SMS 발송 실패: $e");
+            debugPrint("SMS 발송 실패: $e");
           }
         }
       }
@@ -106,7 +106,7 @@ class _MainScreenState extends State<MainScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // 1. 시간 설정 (연한 파스텔 핑크/피치)
+                // 1. 시간 설정 (연한 파스텔 핑크)
                 Container(
                   width: double.infinity,
                   padding: const EdgeInsets.all(20),
@@ -130,8 +130,7 @@ class _MainScreenState extends State<MainScreen> {
                   ),
                 ),
                 const SizedBox(height: 15),
-
-                // 2. 보호자 설정 (연한 파스텔 블루/민트)
+                // 2. 보호자 설정 (연한 파스텔 블루)
                 Container(
                   width: double.infinity,
                   padding: const EdgeInsets.all(20),
@@ -217,7 +216,7 @@ class _MainScreenState extends State<MainScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FB),
       appBar: AppBar(
-        title: const Text("DAILY SAFETY", style: TextStyle(color: Color(0xFFB0BEC5), letterSpacing: 2, fontWeight: FontWeight.w900, fontSize: 14)),
+        title: const Text("하루 안부 지킴이", style: TextStyle(color: Color(0xFFB0BEC5), letterSpacing: 1, fontWeight: FontWeight.bold, fontSize: 18)),
         backgroundColor: Colors.transparent,
         elevation: 0, centerTitle: true,
       ),
@@ -226,9 +225,8 @@ class _MainScreenState extends State<MainScreen> {
           const Spacer(),
           const Text("마지막 확인 시간", style: TextStyle(color: Colors.grey, fontSize: 13)),
           const SizedBox(height: 8),
-          Text(_lastCheckIn, style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w200, color: Colors.black87)),
+          Text(_lastCheckIn, style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w300, color: Colors.black87)),
           const Spacer(),
-          
           GestureDetector(
             onTap: _saveCheckIn,
             child: AnimatedContainer(
@@ -236,4 +234,55 @@ class _MainScreenState extends State<MainScreen> {
               width: 220, height: 220,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: const Color(0xFFF8F9FB
+                color: const Color(0xFFF8F9FB),
+                border: Border.all(
+                  color: _isPressed ? Colors.orangeAccent.withOpacity(0.4) : Colors.transparent,
+                  width: 3,
+                ),
+                boxShadow: _isPressed ? [] : [
+                  const BoxShadow(color: Colors.white, offset: Offset(-10, -10), blurRadius: 20),
+                  BoxShadow(color: Colors.black.withOpacity(0.05), offset: const Offset(10, 10), blurRadius: 20),
+                ],
+              ),
+              child: Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Image.asset('assets/smile.png', width: 130, 
+                      errorBuilder: (context, e, s) => Icon(Icons.face_retouching_natural, size: 100, color: Colors.grey[200])),
+                    const SizedBox(height: 8),
+                    Text("CLICK", style: TextStyle(
+                      fontSize: 13, fontWeight: FontWeight.w900, letterSpacing: 4,
+                      color: _isPressed ? Colors.orangeAccent : Colors.grey[300]
+                    )),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const Spacer(),
+          Text("${_waitTime ~/ 60}시간 미확인 시 자동 발송", style: const TextStyle(color: Color(0xFFCF9E9E), fontSize: 12, fontWeight: FontWeight.w500)),
+          const SizedBox(height: 40),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 60),
+            child: OutlinedButton(
+              onPressed: _showSettings,
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(color: Color(0xFFE0E0E0)),
+                backgroundColor: Colors.white,
+                foregroundColor: const Color(0xFF90A4AE),
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              ),
+              child: const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [Icon(Icons.tune, size: 16), SizedBox(width: 8), Text("시스템 설정")],
+              ),
+            ),
+          ),
+          const SizedBox(height: 50),
+        ],
+      ),
+    );
+  }
+}
