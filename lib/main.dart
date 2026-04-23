@@ -106,7 +106,6 @@ class _MainScreenState extends State<MainScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // 1. 시간 설정 (연한 파스텔 핑크)
                 Container(
                   width: double.infinity,
                   padding: const EdgeInsets.all(20),
@@ -116,7 +115,7 @@ class _MainScreenState extends State<MainScreen> {
                   ),
                   child: Column(
                     children: [
-                      const Text("안부 확인 대기 시간", style: TextStyle(color: Color(0xFF9E7E7E), fontWeight: FontWeight.bold)),
+                      const Text("안부 확인 대기 시간", style: TextStyle(color: Color(0xFF8D6E63), fontWeight: FontWeight.bold)),
                       const SizedBox(height: 15),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
@@ -130,7 +129,6 @@ class _MainScreenState extends State<MainScreen> {
                   ),
                 ),
                 const SizedBox(height: 15),
-                // 2. 보호자 설정 (연한 파스텔 블루)
                 Container(
                   width: double.infinity,
                   padding: const EdgeInsets.all(20),
@@ -140,17 +138,17 @@ class _MainScreenState extends State<MainScreen> {
                   ),
                   child: Column(
                     children: [
-                      const Text("보호자 연락처", style: TextStyle(color: Color(0xFF7E8D9E), fontWeight: FontWeight.bold)),
+                      const Text("보호자 연락처", style: TextStyle(color: Color(0xFF546E7A), fontWeight: FontWeight.bold)),
                       const SizedBox(height: 10),
                       ..._contacts.map((c) => Container(
                         margin: const EdgeInsets.only(bottom: 8),
-                        decoration: BoxDecoration(color: Colors.white.withOpacity(0.7), borderRadius: BorderRadius.circular(10)),
+                        decoration: BoxDecoration(color: Colors.white.withOpacity(0.8), borderRadius: BorderRadius.circular(10)),
                         child: ListTile(
                           dense: true,
-                          title: Text(c['name']!, style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF5C6B7A))),
-                          subtitle: Text(c['number']!),
+                          title: Text(c['name']!, style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF455A64))),
+                          subtitle: Text(c['number']!, style: const TextStyle(color: Color(0xFF78909C))),
                           trailing: IconButton(
-                            icon: const Icon(Icons.remove_circle_outline, color: Color(0xFFCF9E9E), size: 20),
+                            icon: const Icon(Icons.remove_circle, color: Color(0xFFEF9A9A), size: 22),
                             onPressed: () async {
                               _contacts.remove(c);
                               final prefs = await SharedPreferences.getInstance();
@@ -172,9 +170,9 @@ class _MainScreenState extends State<MainScreen> {
                             setState(() {});
                           }
                         },
-                        icon: const Icon(Icons.add_circle_outline, size: 20),
-                        label: const Text("연락처 추가"),
-                        style: TextButton.styleFrom(foregroundColor: const Color(0xFF7E8D9E)),
+                        icon: const Icon(Icons.add_circle, size: 20),
+                        label: const Text("연락처 추가", style: TextStyle(fontWeight: FontWeight.bold)),
+                        style: TextButton.styleFrom(foregroundColor: const Color(0xFF546E7A)),
                       ),
                     ],
                   ),
@@ -202,11 +200,11 @@ class _MainScreenState extends State<MainScreen> {
         margin: const EdgeInsets.symmetric(horizontal: 5),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
-          color: isSel ? Colors.white : Colors.white.withOpacity(0.3),
+          color: isSel ? Colors.white : Colors.white.withOpacity(0.4),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: isSel ? const Color(0xFFCF9E9E) : Colors.transparent),
+          border: Border.all(color: isSel ? const Color(0xFF8D6E63) : Colors.white.withOpacity(0.5), width: 1.5),
         ),
-        child: Text(label, style: TextStyle(color: isSel ? const Color(0xFFCF9E9E) : Colors.grey, fontWeight: FontWeight.bold)),
+        child: Text(label, style: TextStyle(color: isSel ? const Color(0xFF8D6E63) : Colors.grey[600], fontWeight: FontWeight.bold)),
       ),
     );
   }
@@ -216,16 +214,16 @@ class _MainScreenState extends State<MainScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FB),
       appBar: AppBar(
-        title: const Text("하루 안부 지킴이", style: TextStyle(color: Color(0xFFB0BEC5), letterSpacing: 1, fontWeight: FontWeight.bold, fontSize: 18)),
+        title: const Text("하루 안부 지킴이", style: TextStyle(color: Color(0xFF78909C), letterSpacing: 1, fontWeight: FontWeight.w900, fontSize: 18)),
         backgroundColor: Colors.transparent,
         elevation: 0, centerTitle: true,
       ),
       body: Column(
         children: [
           const Spacer(),
-          const Text("마지막 확인 시간", style: TextStyle(color: Colors.grey, fontSize: 13)),
+          const Text("마지막 확인 시간", style: TextStyle(color: Color(0xFF90A4AE), fontSize: 13, fontWeight: FontWeight.bold)),
           const SizedBox(height: 8),
-          Text(_lastCheckIn, style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w300, color: Colors.black87)),
+          Text(_lastCheckIn, style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w400, color: Color(0xFF37474F))),
           const Spacer(),
           GestureDetector(
             onTap: _saveCheckIn,
@@ -236,12 +234,14 @@ class _MainScreenState extends State<MainScreen> {
                 shape: BoxShape.circle,
                 color: const Color(0xFFF8F9FB),
                 border: Border.all(
-                  color: _isPressed ? Colors.orangeAccent.withOpacity(0.4) : Colors.transparent,
-                  width: 3,
+                  color: _isPressed ? Colors.orange : const Color(0xFFECEFF1),
+                  width: 4,
                 ),
-                boxShadow: _isPressed ? [] : [
+                boxShadow: _isPressed ? [
+                  BoxShadow(color: Colors.orange.withOpacity(0.2), blurRadius: 15, spreadRadius: 2)
+                ] : [
                   const BoxShadow(color: Colors.white, offset: Offset(-10, -10), blurRadius: 20),
-                  BoxShadow(color: Colors.black.withOpacity(0.05), offset: const Offset(10, 10), blurRadius: 20),
+                  BoxShadow(color: Colors.black.withOpacity(0.08), offset: const Offset(10, 10), blurRadius: 20),
                 ],
               ),
               child: Center(
@@ -249,11 +249,11 @@ class _MainScreenState extends State<MainScreen> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Image.asset('assets/smile.png', width: 130, 
-                      errorBuilder: (context, e, s) => Icon(Icons.face_retouching_natural, size: 100, color: Colors.grey[200])),
+                      errorBuilder: (context, e, s) => Icon(Icons.face_retouching_natural, size: 100, color: Colors.grey[300])),
                     const SizedBox(height: 8),
                     Text("CLICK", style: TextStyle(
-                      fontSize: 13, fontWeight: FontWeight.w900, letterSpacing: 4,
-                      color: _isPressed ? Colors.orangeAccent : Colors.grey[300]
+                      fontSize: 14, fontWeight: FontWeight.w900, letterSpacing: 4,
+                      color: _isPressed ? Colors.orange : const Color(0xFFCFD8DC)
                     )),
                   ],
                 ),
@@ -261,22 +261,22 @@ class _MainScreenState extends State<MainScreen> {
             ),
           ),
           const Spacer(),
-          Text("${_waitTime ~/ 60}시간 미확인 시 자동 발송", style: const TextStyle(color: Color(0xFFCF9E9E), fontSize: 12, fontWeight: FontWeight.w500)),
+          Text("${_waitTime ~/ 60}시간 미확인 시 자동 발송", style: const TextStyle(color: Color(0xFFE57373), fontSize: 13, fontWeight: FontWeight.bold)),
           const SizedBox(height: 40),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 60),
             child: OutlinedButton(
               onPressed: _showSettings,
               style: OutlinedButton.styleFrom(
-                side: const BorderSide(color: Color(0xFFE0E0E0)),
+                side: const BorderSide(color: Color(0xFFCFD8DC), width: 1.5),
                 backgroundColor: Colors.white,
-                foregroundColor: const Color(0xFF90A4AE),
+                foregroundColor: const Color(0xFF607D8B),
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
               ),
               child: const Row(
                 mainAxisAlignment: MainAxisAlignment.center,
-                children: [Icon(Icons.tune, size: 16), SizedBox(width: 8), Text("시스템 설정")],
+                children: [Icon(Icons.tune, size: 18), SizedBox(width: 8), Text("시스템 설정", style: TextStyle(fontWeight: FontWeight.bold))],
               ),
             ),
           ),
