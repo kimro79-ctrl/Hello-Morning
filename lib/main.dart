@@ -18,7 +18,8 @@ class DailySafetyApp extends StatelessWidget {
       title: '하루 안부 지킴이',
       theme: ThemeData(
         primarySwatch: Colors.orange,
-        scaffoldBackgroundColor: Colors.white,
+        // 버튼의 그림자가 잘 보이도록 배경을 아주 연한 회색으로 설정
+        scaffoldBackgroundColor: const Color(0xFFEFF0F3),
         useMaterial3: true,
       ),
       home: const MainScreen(),
@@ -37,7 +38,7 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
   String _lastCheckIn = "기록 없음";
   String _emergencyContact = "미설정";
   String _contactName = "보호자";
-  bool _isWinking = false;
+  bool _isPressed = false; // 버튼 눌림 상태 감지
 
   late AnimationController _controller;
   late Animation<double> _scaleAnimation;
@@ -48,9 +49,9 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
     _loadData();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 150),
+      duration: const Duration(milliseconds: 100),
     );
-    _scaleAnimation = Tween<double>(begin: 1.0, end: 0.9).animate(_controller);
+    _scaleAnimation = Tween<double>(begin: 1.0, end: 0.92).animate(_controller);
   }
 
   @override
@@ -70,43 +71,38 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
 
   Future<void> _sendEmergencySMS() async {
     if (_emergencyContact == "미설정") return;
-    
     final String message = "[하루 안부 지킴이] 사용자의 안부 확인이 지연되었습니다.";
     final Uri smsUri = Uri.parse('sms:$_emergencyContact?body=${Uri.encodeComponent(message)}');
-
     if (await canLaunchUrl(smsUri)) {
       await launchUrl(smsUri);
-    } else {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("문자 앱을 열 수 없습니다.")),
-        );
-      }
     }
   }
 
   Future<void> _checkIn() async {
+    // 1. 애니메이션 실행
     _controller.forward().then((_) => _controller.reverse());
-    setState(() => _isWinking = true);
     
+    // 2. 상태 업데이트 (스위치 켜짐 효과)
+    setState(() => _isPressed = true);
+
     final prefs = await SharedPreferences.getInstance();
     String now = DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now());
     await prefs.setString('lastCheckIn', now);
     
-    Timer(const Duration(milliseconds: 600), () {
-      if (mounted) {
-        setState(() {
-          _isWinking = false;
-          _lastCheckIn = now;
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("안부가 확인되었습니다!", style: TextStyle(fontWeight: FontWeight.bold)),
-            backgroundColor: Colors.orangeAccent,
-          ),
-        );
-      }
+    // 3. 1.5초 후 스위치 색상 복구 (다시 누를 수 있는 상태)
+    Timer(const Duration(milliseconds: 1500), () {
+      if (mounted) setState(() => _isPressed = false);
     });
+
+    setState(() => _lastCheckIn = now);
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text("안부가 확인되었습니다!", style: TextStyle(color: Colors.white)),
+        backgroundColor: Colors.orangeAccent,
+        duration: Duration(seconds: 1),
+      ),
+    );
   }
 
   Future<void> _pickContact() async {
@@ -125,7 +121,7 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
           });
         }
       } catch (e) {
-        debugPrint("오류: $e");
+        debugPrint("연락처 선택 오류: $e");
       }
     }
   }
@@ -136,46 +132,106 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
       appBar: AppBar(
         title: const Text("하루 안부 지킴이", style: TextStyle(fontWeight: FontWeight.bold)),
         backgroundColor: Colors.orangeAccent,
+        elevation: 0,
         centerTitle: true,
       ),
-      body: Center(
+      body: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 20),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text("마지막 확인: $_lastCheckIn"),
-            const SizedBox(height: 50),
+            const Text("마지막 확인 시간", style: TextStyle(fontSize: 14, color: Colors.grey)),
+            const SizedBox(height: 8),
+            Text(_lastCheckIn, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+            const SizedBox(height: 60),
+            
+            // --- 입체형 스위치 버튼 ---
             GestureDetector(
               onTap: _checkIn,
               child: ScaleTransition(
                 scale: _scaleAnimation,
-                child: CircleAvatar(
-                  radius: 110, // 이미지가 크니까 지름을 조금 키웁니다.
-                  backgroundColor: Colors.yellow[400],
-                  child: ClipOval(
-                    child: Image.asset(
-                      'assets/smile.png', // 우리가 등록한 이미지 경로
-                      width: 180,
-                      height: 180,
-                      fit: BoxFit.cover, // 원에 꽉 차게 조절
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  width: 220,
+                  height: 220,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: _isPressed ? Colors.orange[50] : const Color(0xFFEFF0F3),
+                    boxShadow: _isPressed
+                        ? [
+                            // 눌렸을 때: 안으로 들어간 듯한 그림자
+                            BoxShadow(color: Colors.black.withOpacity(0.05), offset: const Offset(4, 4), blurRadius: 4, spreadRadius: 1),
+                            const BoxShadow(color: Colors.white, offset: Offset(-4, -4), blurRadius: 4, spreadRadius: 1),
+                          ]
+                        : [
+                            // 평상시: 밖으로 튀어나온 듯한 그림자
+                            BoxShadow(color: Colors.black.withOpacity(0.15), offset: const Offset(10, 10), blurRadius: 20),
+                            const BoxShadow(color: Colors.white, offset: Offset(-10, -10), blurRadius: 20),
+                          ],
+                  ),
+                  child: Center(
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: _isPressed ? Colors.orangeAccent : Colors.white.withOpacity(0.5),
+                          width: 4,
+                        ),
+                      ),
+                      child: CircleAvatar(
+                        radius: 85,
+                        backgroundColor: Colors.transparent,
+                        child: ClipOval(
+                          child: Image.asset(
+                            'assets/smile.png',
+                            width: 170,
+                            height: 170,
+                            fit: BoxFit.cover,
+                          ),
+                        ),
+                      ),
                     ),
                   ),
                 ),
               ),
             ),
-            const SizedBox(height: 50),
+            // ------------------------
+
+            const SizedBox(height: 60),
             if (_emergencyContact != "미설정")
-              ElevatedButton.icon(
-                onPressed: _sendEmergencySMS,
-                icon: const Icon(Icons.warning_amber_rounded),
-                label: const Text("보호자에게 문자 보내기"),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.red[50],
-                  foregroundColor: Colors.red,
+              Container(
+                padding: const EdgeInsets.all(15),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.5),
+                  borderRadius: BorderRadius.circular(15),
+                ),
+                child: Column(
+                  children: [
+                    Text("수신 보호자: $_contactName", style: const TextStyle(fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 5),
+                    Text(_emergencyContact, style: const TextStyle(color: Colors.grey)),
+                    const SizedBox(height: 10),
+                    ElevatedButton.icon(
+                      onPressed: _sendEmergencySMS,
+                      icon: const Icon(Icons.mail_outline),
+                      label: const Text("수동 문자 발송 테스트"),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        foregroundColor: Colors.redAccent,
+                        elevation: 0,
+                        side: const BorderSide(color: Colors.redAccent),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            const SizedBox(height: 20),
-            Text("보호자: $_contactName ($_emergencyContact)"),
-            TextButton(onPressed: _pickContact, child: const Text("연락처 설정")),
+            const SizedBox(height: 10),
+            TextButton(
+              onPressed: _pickContact,
+              child: const Text("보호자 연락처 설정 변경"),
+            ),
           ],
         ),
       ),
