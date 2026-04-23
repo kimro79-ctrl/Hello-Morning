@@ -68,7 +68,6 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
     });
   }
 
-  // 시스템 표준 방식을 사용하여 에러 없이 문자 앱을 띄웁니다.
   Future<void> _sendEmergencySMS() async {
     if (_emergencyContact == "미설정") return;
     
@@ -150,12 +149,15 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
               child: ScaleTransition(
                 scale: _scaleAnimation,
                 child: CircleAvatar(
-                  radius: 90,
+                  radius: 110, // 이미지가 크니까 지름을 조금 키웁니다.
                   backgroundColor: Colors.yellow[400],
-                  child: Icon(
-                    _isWinking ? Icons.face_retouching_natural : Icons.sentiment_very_satisfied_rounded,
-                    size: 100,
-                    color: Colors.brown[700],
+                  child: ClipOval(
+                    child: Image.asset(
+                      'assets/smile.png', // 우리가 등록한 이미지 경로
+                      width: 180,
+                      height: 180,
+                      fit: BoxFit.cover, // 원에 꽉 차게 조절
+                    ),
                   ),
                 ),
               ),
