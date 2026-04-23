@@ -13,12 +13,8 @@ dependencies:
   contacts_service: ^0.6.3
   intl: ^0.19.0
   permission_handler: ^11.3.0
-  url_launcher: ^6.2.5
-
-dev_dependencies:
-  flutter_test:
-    sdk: flutter
-  flutter_lints: ^3.0.0
+  flutter_sms: ^3.1.0
+  workmanager: ^0.5.2 # 백그라운드 작업 예약용
 
 flutter:
   uses-material-design: true
