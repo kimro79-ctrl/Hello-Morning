@@ -13,8 +13,8 @@ dependencies:
   contacts_service: ^0.6.3
   intl: ^0.19.0
   permission_handler: ^11.3.0
-  flutter_sms: ^3.1.0
-  workmanager: ^0.5.2 # 백그라운드 작업 예약용
+  flutter_sms: 2.3.3  # 오류 메시지에 따라 호환 버전으로 하향 조정
+  workmanager: ^0.5.2
 
 flutter:
   uses-material-design: true
