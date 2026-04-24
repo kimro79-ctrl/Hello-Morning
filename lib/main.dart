@@ -3,226 +3,292 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:contacts_service/contacts_service.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:intl/intl.dart';
-import 'package:workmanager/workmanager.dart';
-import 'package:direct_sms/direct_sms.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'dart:async';
-import 'dart:convert';
+import 'dart:convert'; // 연락처 저장을 위한 json 디코더
 
-@pragma('vm:entry-point')
-void callbackDispatcher() {
-  Workmanager().executeTask((task, inputData) async {
-    final prefs = await SharedPreferences.getInstance();
-    final lastTimeStr = prefs.getString('lastCheckIn');
-    final contactJson = prefs.getString('contacts');
-    final int waitMinutes = prefs.getInt('waitTime') ?? 1440;
+void main() => runApp(const DailySafetyApp());
 
-    if (lastTimeStr != null && contactJson != null) {
-      DateTime lastTime = DateFormat('yyyy-MM-dd HH:mm').parse(lastTimeStr);
-      if (DateTime.now().difference(lastTime).inMinutes >= waitMinutes) {
-        List<dynamic> decoded = json.decode(contactJson);
-        final DirectSms directSms = DirectSms();
-        for (var item in decoded) {
-          try {
-            await directSms.sendSms(
-              message: "[하루 안부 지킴이] 안부 확인이 없어 발송된 메시지입니다.",
-              phone: item['number'].toString(),
-            );
-          } catch (e) {
-            debugPrint("SMS 발송 에러: $e");
-          }
-        }
-      }
-    }
-    return Future.value(true);
-  });
-}
+class DailySafetyApp extends StatelessWidget {
+  const DailySafetyApp({super.key});
 
-void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  await Workmanager().initialize(callbackDispatcher);
-  await Workmanager().registerPeriodicTask(
-    "1", "safety_check", 
-    frequency: const Duration(minutes: 15),
-    existingWorkPolicy: ExistingWorkPolicy.replace,
-  );
-  runApp(const MaterialApp(home: MainScreen(), debugShowCheckedModeBanner: false));
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      title: '하루 안부 지킴이',
+      theme: ThemeData(
+        primarySwatch: Colors.orange,
+        scaffoldBackgroundColor: const Color(0xFFEFF0F3),
+        useMaterial3: true,
+      ),
+      home: const MainScreen(),
+    );
+  }
 }
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
+
   @override
   State<MainScreen> createState() => _MainScreenState();
 }
 
-class _MainScreenState extends State<MainScreen> {
-  String _lastCheckIn = "안부를 확인해주세요!";
-  List<Map<String, String>> _contacts = [];
-  int _waitTime = 1440;
+class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateMixin {
+  String _lastCheckIn = "기록 없음";
+  List<Map<String, String>> _contacts = []; // 연락처 5개를 위한 리스트
   bool _isPressed = false;
+
+  late AnimationController _controller;
+  late Animation<double> _scaleAnimation;
 
   @override
   void initState() {
     super.initState();
     _loadData();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 100),
+    );
+    _scaleAnimation = Tween<double>(begin: 1.0, end: 0.95).animate(_controller);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
   }
 
   Future<void> _loadData() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
       _lastCheckIn = prefs.getString('lastCheckIn') ?? "오늘의 안부를 확인해주세요!";
-      _waitTime = prefs.getInt('waitTime') ?? 1440;
-      String? contactJson = prefs.getString('contacts');
+      String? contactJson = prefs.getString('contacts_list');
       if (contactJson != null) {
-        _contacts = List<Map<String, String>>.from(json.decode(contactJson).map((i) => Map<String, String>.from(i)));
+        _contacts = List<Map<String, String>>.from(
+            json.decode(contactJson).map((i) => Map<String, String>.from(i)));
       }
     });
   }
 
-  Future<void> _saveCheckIn() async {
+  Future<void> _saveContacts() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('contacts_list', json.encode(_contacts));
+  }
+
+  Future<void> _sendEmergencySMS() async {
+    if (_contacts.isEmpty) return;
+    // 첫 번째 보호자에게 테스트 문자 발송
+    final String number = _contacts.first['number']!;
+    final String message = "[하루 안부 지킴이] 사용자의 안부 확인이 지연되었습니다.";
+    final Uri smsUri = Uri.parse('sms:$number?body=${Uri.encodeComponent(message)}');
+    if (await canLaunchUrl(smsUri)) {
+      await launchUrl(smsUri);
+    }
+  }
+
+  Future<void> _checkIn() async {
+    _controller.forward().then((_) => _controller.reverse());
     setState(() => _isPressed = true);
+
     final prefs = await SharedPreferences.getInstance();
     String now = DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now());
     await prefs.setString('lastCheckIn', now);
-    setState(() {
-      _lastCheckIn = now;
-      Timer(const Duration(milliseconds: 500), () => setState(() => _isPressed = false));
+    
+    Timer(const Duration(milliseconds: 1500), () {
+      if (mounted) setState(() => _isPressed = false);
     });
+
+    setState(() => _lastCheckIn = now);
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text("안부가 확인되었습니다!", style: TextStyle(color: Colors.white)),
+        backgroundColor: Colors.orangeAccent,
+        duration: Duration(seconds: 1),
+      ),
+    );
   }
 
-  void _showSettings() {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) {
-        return StatefulBuilder(builder: (context, setModalState) {
-          return Container(
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
-            ),
-            padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom, left: 25, right: 25, top: 30),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text("보호자 연락처 설정", style: TextStyle(fontSize: 16, fontWeight: FontWeight.normal, color: Colors.black87)),
-                const SizedBox(height: 20),
-                
-                ..._contacts.map((c) => Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Row(
-                    children: [
-                      Expanded(child: Text("${c['name']} (${c['number']})", style: const TextStyle(fontSize: 14, color: Colors.black45))),
-                      IconButton(
-                        icon: const Icon(Icons.remove_circle_outline, color: Colors.black26, size: 20),
-                        onPressed: () async {
-                          _contacts.remove(c);
-                          final prefs = await SharedPreferences.getInstance();
-                          await prefs.setString('contacts', json.encode(_contacts));
-                          setModalState(() {}); setState(() {});
-                        },
-                      ),
-                    ],
-                  ),
-                )),
+  Future<void> _pickContact() async {
+    if (_contacts.length >= 5) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("연락처는 최대 5개까지 등록 가능합니다."))
+      );
+      return;
+    }
 
-                if (_contacts.length < 5)
-                  InkWell(
-                    onTap: () async {
-                      if (await Permission.contacts.request().isGranted) {
-                        Contact? contact = await ContactsService.openDeviceContactPicker();
-                        if (contact != null && contact.phones!.isNotEmpty) {
-                          _contacts.add({'name': contact.displayName ?? "보호자", 'number': contact.phones!.first.value!});
-                          final prefs = await SharedPreferences.getInstance();
-                          await prefs.setString('contacts', json.encode(_contacts));
-                          setModalState(() {}); setState(() {});
-                        }
-                      }
-                    },
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: const [
-                          Icon(Icons.add, color: Colors.blueAccent, size: 18),
-                          SizedBox(width: 6),
-                          Text("연락처 추가하기", style: TextStyle(color: Colors.blueAccent, fontSize: 15, fontWeight: FontWeight.normal)),
-                        ],
-                      ),
-                    ),
-                  ),
-                const SizedBox(height: 5),
-                const Divider(thickness: 0.5),
-                TextButton(
-                  onPressed: () => openAppSettings(),
-                  child: const Text("배터리 최적화 제외 (수동 설정)", style: TextStyle(color: Colors.grey, fontSize: 12, decoration: TextDecoration.underline)),
-                ),
-                const SizedBox(height: 15),
-              ],
-            ),
-          );
-        });
-      },
-    );
+    if (await Permission.contacts.request().isGranted) {
+      try {
+        final Contact? contact = await ContactsService.openDeviceContactPicker();
+        if (contact != null && contact.phones!.isNotEmpty) {
+          setState(() {
+            _contacts.add({
+              'name': contact.displayName ?? "보호자",
+              'number': contact.phones!.first.value ?? ""
+            });
+          });
+          await _saveContacts();
+        }
+      } catch (e) {
+        debugPrint("연락처 선택 오류: $e");
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F5F5),
-      appBar: AppBar(
-        title: const Text("하루 안부 지킴이", style: TextStyle(color: Colors.black87, fontWeight: FontWeight.normal, fontSize: 17)),
-        backgroundColor: const Color(0xFFF7B13E),
-        elevation: 0, centerTitle: true,
+      appBar: PreferredSize(
+        preferredSize: const Size.fromHeight(kToolbarHeight),
+        child: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.centerLeft,
+              end: Alignment.centerRight,
+              colors: [Color(0xFFFFA726), Color(0xFFFFB74D)],
+            ),
+            boxShadow: [BoxShadow(color: Colors.black12, offset: Offset(0, 3), blurRadius: 5)],
+          ),
+          child: AppBar(
+            title: const Text("하루 안부 지킴이", style: TextStyle(fontWeight: FontWeight.bold)),
+            backgroundColor: Colors.transparent,
+            elevation: 0,
+            centerTitle: true,
+          ),
+        ),
       ),
-      body: Column(
-        children: [
-          const SizedBox(height: 50),
-          const Text("마지막 확인 시간", style: TextStyle(color: Colors.grey, fontSize: 13)),
-          const SizedBox(height: 6),
-          Text(_lastCheckIn, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.normal, color: Colors.black54)),
-          const Spacer(),
-          GestureDetector(
-            onTap: _saveCheckIn,
-            child: Container(
-              width: 210, height: 210,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.white,
-                border: Border.all(color: const Color(0xFFF7B13E).withOpacity(0.7), width: 5),
-                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 5))],
-              ),
-              child: Center(
-                child: ClipOval(
-                  child: Image.asset(
-                    'assets/smile.png',
-                    width: 150, height: 150,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) => const Icon(Icons.face, size: 90, color: Color(0xFFF7B13E)),
+      body: SingleChildScrollView( // 연락처가 많아질 경우 대비
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 40),
+          child: Column(
+            children: [
+              const Text("마지막 확인 시간", style: TextStyle(fontSize: 14, color: Colors.grey)),
+              const SizedBox(height: 8),
+              Text(_lastCheckIn, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+              const SizedBox(height: 60),
+              
+              GestureDetector(
+                onTap: _checkIn,
+                child: ScaleTransition(
+                  scale: _scaleAnimation,
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    width: 220,
+                    height: 220,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: const Color(0xFFEFF0F3),
+                      boxShadow: _isPressed
+                          ? [
+                              BoxShadow(color: Colors.black.withOpacity(0.05), offset: const Offset(4, 4), blurRadius: 4, spreadRadius: 1),
+                              const BoxShadow(color: Colors.white, offset: Offset(-4, -4), blurRadius: 4, spreadRadius: 1),
+                            ]
+                          : [
+                              BoxShadow(color: Colors.black.withOpacity(0.15), offset: const Offset(10, 10), blurRadius: 20),
+                              const BoxShadow(color: Colors.white, offset: Offset(-10, -10), blurRadius: 20),
+                            ],
+                    ),
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: _isPressed ? Colors.orangeAccent : Colors.white.withOpacity(0.5),
+                              width: 4,
+                            ),
+                          ),
+                          child: CircleAvatar(
+                            radius: 85,
+                            backgroundColor: Colors.transparent,
+                            child: ClipOval(
+                              child: Image.asset(
+                                'assets/smile.png',
+                                width: 170,
+                                height: 170,
+                                fit: BoxFit.cover,
+                              ),
+                            ),
+                          ),
+                        ),
+                        Positioned(
+                          bottom: 25,
+                          child: Text(
+                            "CLICK",
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: _isPressed ? Colors.orange : Colors.grey[400],
+                              letterSpacing: 2.0,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
-            ),
-          ),
-          const Spacer(),
-          const Text("5분 미확인 시 자동으로 문자가 발송됩니다.", style: TextStyle(color: Colors.redAccent, fontSize: 12, fontWeight: FontWeight.normal)),
-          const SizedBox(height: 25),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 70),
-            child: ElevatedButton(
-              onPressed: _showSettings,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.white,
-                foregroundColor: Colors.black54,
-                elevation: 1,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                padding: const EdgeInsets.symmetric(vertical: 12),
+              const SizedBox(height: 60),
+              
+              // 보호자 연락처 목록 (최대 5개)
+              if (_contacts.isNotEmpty)
+                Container(
+                  padding: const EdgeInsets.all(15),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.5),
+                    borderRadius: BorderRadius.circular(15),
+                  ),
+                  child: Column(
+                    children: [
+                      ..._contacts.map((contact) => ListTile(
+                        dense: true,
+                        title: Text(contact['name']!, style: const TextStyle(fontWeight: FontWeight.bold)),
+                        subtitle: Text(contact['number']!),
+                        trailing: IconButton(
+                          icon: const Icon(Icons.remove_circle_outline, color: Colors.grey),
+                          onPressed: () async {
+                            setState(() => _contacts.remove(contact));
+                            await _saveContacts();
+                          },
+                        ),
+                      )),
+                      const Divider(),
+                      ElevatedButton.icon(
+                        onPressed: _sendEmergencySMS,
+                        icon: const Icon(Icons.mail_outline),
+                        label: const Text("수동 문자 발송 테스트"),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.white,
+                          foregroundColor: Colors.redAccent,
+                          elevation: 0,
+                          side: const BorderSide(color: Colors.redAccent),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              
+              const SizedBox(height: 10),
+              TextButton.icon(
+                onPressed: _pickContact,
+                icon: const Icon(Icons.person_add_alt),
+                label: Text("보호자 연락처 추가 (${_contacts.length}/5)"),
               ),
-              child: const Text("보호자 및 시스템 설정", style: TextStyle(fontSize: 14, fontWeight: FontWeight.normal)),
-            ),
+              
+              // 배터리 최적화 제외 수동 권한 버튼
+              TextButton.icon(
+                onPressed: () => openAppSettings(),
+                icon: const Icon(Icons.battery_alert, size: 16),
+                label: const Text("문자가 안 오나요? (배터리 제한 해제)", 
+                  style: TextStyle(fontSize: 12, color: Colors.grey, decoration: TextDecoration.underline)),
+              ),
+            ],
           ),
-          const SizedBox(height: 50),
-        ],
+        ),
       ),
     );
   }
