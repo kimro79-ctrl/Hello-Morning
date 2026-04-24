@@ -29,23 +29,6 @@ class DailySafetyApp extends StatelessWidget {
   }
 }
 
-// 상단 파스텔 그라데이션 타이틀
-class GradientText extends StatelessWidget {
-  const GradientText(this.text, {super.key, required this.gradient, this.style});
-  final String text;
-  final Gradient gradient;
-  final TextStyle? style;
-
-  @override
-  Widget build(BuildContext context) {
-    return ShaderMask(
-      blendMode: BlendMode.srcIn,
-      shaderCallback: (bounds) => gradient.createShader(Rect.fromLTWH(0, 0, bounds.width, bounds.height)),
-      child: Text(text, style: style),
-    );
-  }
-}
-
 class MainNavigation extends StatefulWidget {
   const MainNavigation({super.key});
   @override
@@ -67,7 +50,6 @@ class _MainNavigationState extends State<MainNavigation> {
         onTap: (index) => setState(() => _currentIndex = index),
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home_filled), label: '홈'),
-          // 사람 둘이 있는 아이콘으로 변경
           BottomNavigationBarItem(icon: Icon(Icons.people_rounded), label: '설정'),
         ],
       ),
@@ -86,13 +68,6 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _isPressed = false;
   int _selectedMinutes = 5; 
   Timer? _timer;
-
-  final List<Map<String, dynamic>> _options = [
-    {'label': '5분', 'min': 5},
-    {'label': '1시간', 'min': 60},
-    {'label': '12시간', 'min': 720},
-    {'label': '24시간', 'min': 1440},
-  ];
 
   @override
   void initState() {
@@ -122,12 +97,12 @@ class _HomeScreenState extends State<HomeScreen> {
     if (DateTime.now().difference(lastTime).inMinutes >= _selectedMinutes) {
       try {
         Position pos = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
-        String link = "http://maps.google.com/?q=${pos.latitude},${pos.longitude}";
+        String link = "https://www.google.com/maps?q=${pos.latitude},${pos.longitude}";
         List list = json.decode(contacts);
         for (var c in list) {
           await BackgroundSms.sendMessage(
             phoneNumber: c['number'],
-            message: "[하루 한번 안심지킴이] 미응답 감지!\n마지막 확인: $last\n위치확인: $link",
+            message: "[하루 한번 안심지킴이] 미응답 감지!\n마지막 확인: $last\n위치: $link",
           );
         }
         _updateCheckInSilent();
@@ -145,69 +120,44 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const GradientText(
-          "하루 한번 안심지킴이",
-          gradient: LinearGradient(colors: [Color(0xFFFF8A65), Color(0xFFE57373)]),
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
-        ),
+        title: const Text("하루 한번 안심지킴이", style: TextStyle(color: Color(0xFFFF8A65), fontWeight: FontWeight.bold, fontSize: 18)),
         backgroundColor: const Color(0xFFFFF3E0),
         centerTitle: true,
         elevation: 0,
       ),
       body: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const SizedBox(height: 30),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: _options.map((o) => ChoiceChip(
-              label: Text(o['label'], style: TextStyle(color: _selectedMinutes == o['min'] ? Colors.white : const Color(0xFF546E7A))),
-              selected: _selectedMinutes == o['min'],
-              selectedColor: const Color(0xFFFFAB91),
-              onSelected: (val) async {
-                setState(() => _selectedMinutes = o['min']);
-                (await SharedPreferences.getInstance()).setInt('selectedMinutes', o['min']);
-              },
-            )).toList(),
-          ),
-          const Spacer(),
-          const Text("마지막 체크인 기록", style: TextStyle(color: Color(0xFF90A4AE), fontSize: 14)),
-          const SizedBox(height: 10),
+          const Text("마지막 체크인 시간", style: TextStyle(color: Color(0xFF90A4AE))),
           Text(_lastCheckIn, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Color(0xFF455A64))),
-          const Spacer(),
-          GestureDetector(
-            onTap: () {
-              setState(() => _isPressed = true);
-              _updateCheckInSilent();
-              Future.delayed(const Duration(milliseconds: 300), () => setState(() => _isPressed = false));
-            },
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 150),
-              width: 260, height: 260,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle, color: Colors.white,
-                border: Border.all(color: _isPressed ? const Color(0xFFFFCCBC) : Colors.white, width: 12),
-                boxShadow: const [BoxShadow(color: Color(0x1A000000), blurRadius: 25, spreadRadius: 5)],
-              ),
-              child: ClipOval(
-                child: Image.asset('assets/smile.png', fit: BoxFit.contain,
-                  errorBuilder: (context, error, stackTrace) => const Icon(Icons.sentiment_satisfied_alt, size: 100, color: Color(0xFFFFAB91))),
-              ),
-            ),
-          ),
-          const Spacer(),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 40),
-            child: Container(
-              padding: const EdgeInsets.all(15),
-              decoration: BoxDecoration(color: const Color(0xFFFFEBEE), borderRadius: BorderRadius.circular(15)),
-              child: Text(
-                "${_selectedMinutes >= 60 ? _selectedMinutes ~/ 60 : _selectedMinutes}${_selectedMinutes >= 60 ? '시간' : '분'} 미응답 시 비상 문자가 전송됩니다.",
-                textAlign: TextAlign.center,
-                style: const TextStyle(color: Color(0xFFD32F2F), fontSize: 12, fontWeight: FontWeight.w600),
+          const SizedBox(height: 50),
+          Center(
+            child: GestureDetector(
+              onTap: () {
+                setState(() => _isPressed = true);
+                _updateCheckInSilent();
+                Future.delayed(const Duration(milliseconds: 300), () => setState(() => _isPressed = false));
+              },
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 150),
+                width: 220, height: 220,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle, color: Colors.white,
+                  border: Border.all(color: _isPressed ? const Color(0xFFFFCCBC) : Colors.white, width: 10),
+                  boxShadow: const [BoxShadow(color: Color(0x1A000000), blurRadius: 20)],
+                ),
+                child: ClipOval(
+                  child: Image.asset('assets/smile.png', fit: BoxFit.contain,
+                    errorBuilder: (context, error, stackTrace) => const Icon(Icons.sentiment_satisfied_alt, size: 80, color: Color(0xFFFFAB91))),
+                ),
               ),
             ),
           ),
           const SizedBox(height: 50),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 40),
+            child: Text("미응답 시 보호자에게 비상 문자가 전송됩니다.", textAlign: TextAlign.center, style: TextStyle(color: Color(0xFFE57373), fontSize: 12)),
+          ),
         ],
       ),
     );
@@ -229,48 +179,22 @@ class _SettingScreenState extends State<SettingScreen> {
     setState(() => _contacts = json.decode(p.getString('contacts_list') ?? "[]"));
   }
 
-  // 통합 권한 설정 및 거부 시 시스템 설정창 이동
-  Future<void> _checkAndRequestPermissions() async {
-    Map<Permission, PermissionStatus> statuses = await [
-      Permission.contacts,
-      Permission.sms,
-      Permission.location,
-      Permission.ignoreBatteryOptimizations,
-    ].request();
-
-    // 하나라도 영구적으로 거부된 경우 설정창 유도
-    if (statuses[Permission.contacts]!.isPermanentlyDenied) {
-      _showPermissionDialog("연락처");
-    } else if (statuses[Permission.location]!.isPermanentlyDenied) {
-      _showPermissionDialog("위치");
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("모든 권한을 확인했습니다.")));
-    }
-  }
-
-  void _showPermissionDialog(String name) {
+  void _showPermissionDialog() {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text("$name 권한 필요"),
-        content: Text("연락처를 추가하거나 안심 서비스를 이용하려면 시스템 설정에서 $name 권한을 직접 허용해야 합니다."),
+        title: const Text("권한 설정 필요"),
+        content: const Text("연락처를 불러오려면 시스템 설정에서 권한을 허용해 주세요."),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context), child: const Text("취소")),
-          TextButton(
-            onPressed: () {
-              openAppSettings(); // 안드로이드 설정 화면으로 이동
-              Navigator.pop(context);
-            },
-            child: const Text("설정 이동"),
-          ),
+          TextButton(onPressed: () { openAppSettings(); Navigator.pop(context); }, child: const Text("설정 이동")),
         ],
       ),
     );
   }
 
-  void _addContact() async {
-    PermissionStatus status = await Permission.contacts.status;
-    
+  Future<void> _addContact() async {
+    var status = await Permission.contacts.status;
     if (status.isGranted) {
       try {
         final Contact? c = await ContactsService.openDeviceContactPicker();
@@ -282,10 +206,12 @@ class _SettingScreenState extends State<SettingScreen> {
       } catch (e) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("연락처를 가져오지 못했습니다.")));
       }
-    } else if (status.isDenied) {
-      await Permission.contacts.request();
     } else {
-      _showPermissionDialog("연락처");
+      if (await Permission.contacts.request().isGranted) {
+        _addContact();
+      } else {
+        _showPermissionDialog();
+      }
     }
   }
 
@@ -309,23 +235,10 @@ class _SettingScreenState extends State<SettingScreen> {
           )),
           Padding(
             padding: const EdgeInsets.all(25.0),
-            child: Column(
-              children: [
-                ElevatedButton.icon(
-                  onPressed: _addContact,
-                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFE1F5FE), foregroundColor: const Color(0xFF0288D1), minimumSize: const Size(double.infinity, 55)),
-                  icon: const Icon(Icons.contact_page_rounded), label: const Text("연락처에서 추가"),
-                ),
-                const SizedBox(height: 15),
-                ElevatedButton.icon(
-                  onPressed: _checkAndRequestPermissions,
-                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFF8A65), foregroundColor: Colors.white, minimumSize: const Size(double.infinity, 55)),
-                  icon: const Icon(Icons.security_rounded), label: const Text("필수 권한 설정 (클릭)"),
-                ),
-                const SizedBox(height: 10),
-                const Text("권한 설정 버튼을 눌러도 해결되지 않으면\n'설정 이동'을 통해 직접 허용해 주세요.", 
-                  textAlign: TextAlign.center, style: TextStyle(fontSize: 11, color: Color(0xFF90A4AE))),
-              ],
+            child: ElevatedButton.icon(
+              onPressed: _addContact,
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFF8A65), foregroundColor: Colors.white, minimumSize: const Size(double.infinity, 55)),
+              icon: const Icon(Icons.contact_phone), label: const Text("연락처에서 추가"),
             ),
           ),
         ],
