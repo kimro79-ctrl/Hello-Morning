@@ -18,7 +18,10 @@ class DailySafetyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(scaffoldBackgroundColor: const Color(0xFFEFF0F3), useMaterial3: true),
+      theme: ThemeData(
+        scaffoldBackgroundColor: const Color(0xFFEFF0F3),
+        useMaterial3: true,
+      ),
       home: const MainNavigation(),
     );
   }
@@ -29,6 +32,7 @@ class GradientText extends StatelessWidget {
   final String text;
   final Gradient gradient;
   final TextStyle? style;
+
   @override
   Widget build(BuildContext context) {
     return ShaderMask(
@@ -48,6 +52,7 @@ class MainNavigation extends StatefulWidget {
 class _MainNavigationState extends State<MainNavigation> {
   int _currentIndex = 0;
   final List<Widget> _screens = [const HomeScreen(), const SettingScreen()];
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -75,25 +80,38 @@ class _HomeScreenState extends State<HomeScreen> {
   String _lastCheckIn = "기록 없음";
   bool _isPressed = false;
   Timer? _autoCheckTimer;
-  String? _lastSentTime; // 마지막으로 문자를 보낸 '분'을 저장해 중복 방지
+  String? _lastSentKey;
+  
+  int _selectedThresholdHour = 24;
+  final List<int> _thresholdOptions = [1, 12, 24, 36];
 
   @override
   void initState() {
     super.initState();
     _loadData();
-    // 30초마다 더 촘촘하게 체크 (타이밍 놓침 방지)
-    _autoCheckTimer = Timer.periodic(const Duration(seconds: 30), (timer) => _checkAutoSms());
+    _autoCheckTimer = Timer.periodic(const Duration(minutes: 1), (timer) => _checkAutoSms());
   }
 
   @override
-  void dispose() { _autoCheckTimer?.cancel(); super.dispose(); }
+  void dispose() {
+    _autoCheckTimer?.cancel();
+    super.dispose();
+  }
 
   void _loadData() async {
     final prefs = await SharedPreferences.getInstance();
-    setState(() => _lastCheckIn = prefs.getString('lastCheckIn') ?? "안부를 확인해 주세요");
+    setState(() {
+      _lastCheckIn = prefs.getString('lastCheckIn') ?? "안부를 확인해 주세요";
+      _selectedThresholdHour = prefs.getInt('thresholdHour') ?? 24;
+    });
   }
 
-  // 핵심: 문자 발송 로직 강화
+  Future<void> _updateThreshold(int hour) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('thresholdHour', hour);
+    setState(() => _selectedThresholdHour = hour);
+  }
+
   Future<void> _checkAutoSms() async {
     final prefs = await SharedPreferences.getInstance();
     String? lastTimeStr = prefs.getString('lastCheckIn');
@@ -102,21 +120,20 @@ class _HomeScreenState extends State<HomeScreen> {
     if (lastTimeStr != null && contactsJson != null) {
       DateTime lastTime = DateFormat('yyyy-MM-dd HH:mm').parse(lastTimeStr);
       DateTime now = DateTime.now();
-      int difference = now.difference(lastTime).inMinutes;
-
-      // 5분 이상 지났고, 현재 '분'에 문자를 보낸 적이 없을 때만 실행
-      String currentMinute = DateFormat('yyyyMMddHHmm').format(now);
-      if (difference >= 5 && _lastSentTime != currentMinute) {
-        if (await Permission.sms.isGranted) {
-          List<dynamic> contacts = json.decode(contactsJson);
-          for (var c in contacts) {
-            await BackgroundSms.sendMessage(
-              phoneNumber: c['number'],
-              message: "[하루 안심 지키미] 5분간 안부가 확인되지 않았습니다. 현재시간: ${DateFormat('HH:mm').format(now)}",
-            );
+      
+      if (now.difference(lastTime).inHours >= _selectedThresholdHour) {
+        String currentStatusKey = DateFormat('yyyyMMddHHmm').format(now);
+        if (_lastSentKey != currentStatusKey) {
+          if (await Permission.sms.isGranted) {
+            List<dynamic> contacts = json.decode(contactsJson);
+            for (var c in contacts) {
+              await BackgroundSms.sendMessage(
+                phoneNumber: c['number'],
+                message: "[하루 안심 지키미] $_selectedThresholdHour시간 동안 활동이 없어 안부를 전합니다.",
+              );
+            }
+            _lastSentKey = currentStatusKey;
           }
-          _lastSentTime = currentMinute; // 발송 기록 업데이트
-          debugPrint("자동 문자 발송 완료: $currentMinute");
         }
       }
     }
@@ -127,7 +144,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final prefs = await SharedPreferences.getInstance();
     String now = DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now());
     await prefs.setString('lastCheckIn', now);
-    _lastSentTime = null; // 체크인 시 발송 기록 초기화 (다시 5분 카운트)
+    _lastSentKey = null;
 
     Timer(const Duration(milliseconds: 500), () {
       if (mounted) setState(() { _isPressed = false; _lastCheckIn = now; });
@@ -148,11 +165,39 @@ class _HomeScreenState extends State<HomeScreen> {
       body: Column(
         children: [
           const SizedBox(height: 20),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: _thresholdOptions.map((hour) {
+                bool isSelected = _selectedThresholdHour == hour;
+                return GestureDetector(
+                  onTap: () => _updateThreshold(hour),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: isSelected ? Colors.orangeAccent : Colors.white,
+                      borderRadius: BorderRadius.circular(15),
+                      border: Border.all(color: Colors.orangeAccent.withOpacity(0.5)),
+                    ),
+                    child: Text(
+                      "${hour}시간",
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: isSelected ? Colors.white : Colors.orangeAccent,
+                      ),
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+          const Spacer(),
           const Text("마지막 확인 시간", style: TextStyle(color: Colors.grey, fontSize: 12)),
           Text(_lastCheckIn, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
           const Spacer(),
           
-          // --- 연핑크 터치 효과 버튼 ---
           Center(
             child: GestureDetector(
               onTapDown: (_) => setState(() => _isPressed = true),
@@ -166,10 +211,10 @@ class _HomeScreenState extends State<HomeScreen> {
                   color: const Color(0xFFEFF0F3),
                   border: Border.all(
                     color: _isPressed ? const Color(0xFFFFD1DC) : Colors.white,
-                    width: _isPressed ? 8 : 2,
+                    width: _isPressed ? 10 : 2,
                   ),
                   boxShadow: _isPressed 
-                    ? [BoxShadow(color: const Color(0xFFFFD1DC).withOpacity(0.6), blurRadius: 20, spreadRadius: 5)]
+                    ? [BoxShadow(color: const Color(0xFFFFD1DC).withOpacity(0.8), blurRadius: 25, spreadRadius: 5)]
                     : [
                         BoxShadow(color: Colors.black.withOpacity(0.1), offset: const Offset(10, 10), blurRadius: 20),
                         const BoxShadow(color: Colors.white, offset: Offset(-10, -10), blurRadius: 20),
@@ -189,7 +234,15 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
           const Spacer(),
-          const Text("5분 미응답 시 자동 문자 발송", style: TextStyle(color: Colors.redAccent, fontSize: 11, fontWeight: FontWeight.bold)),
+          // 요청하신 문구 수정 및 색상 변경 (빨간색 제외, 연한 회색 톤)
+          Text(
+            "$_selectedThresholdHour시간 동안 확인이 없으면 보호자에게 문자가 발송됩니다",
+            style: TextStyle(
+              color: Colors.grey[500], // 연한 회색
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
           const SizedBox(height: 40),
         ],
       ),
@@ -243,7 +296,7 @@ class _SettingScreenState extends State<SettingScreen> {
             const Divider(height: 40),
             SizedBox(width: double.infinity, child: OutlinedButton(onPressed: () async => await [Permission.sms].request(), child: const Text("SMS 권한 확인"))),
             const SizedBox(height: 10),
-            SizedBox(width: double.infinity, child: OutlinedButton(onPressed: () => openAppSettings(), child: const Text("배터리 최적화 해제 (필수)"))),
+            SizedBox(width: double.infinity, child: OutlinedButton(onPressed: () => openAppSettings(), child: const Text("배터리 최적화 해제"))),
           ],
         ),
       ),
