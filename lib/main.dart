@@ -38,7 +38,7 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
   String _lastCheckIn = "기록 없음";
   String _emergencyContact = "미설정";
   String _contactName = "보호자";
-  bool _isPressed = false;
+  bool _isPressed = false; // 버튼 눌림 상태 관리
 
   late AnimationController _controller;
   late Animation<double> _scaleAnimation;
@@ -78,7 +78,9 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
     }
   }
 
+  // 안부 확인 버튼 클릭 시 실행
   Future<void> _checkIn() async {
+    // 애니메이션 실행 (살짝 작아졌다가 커짐)
     _controller.forward().then((_) => _controller.reverse());
     setState(() => _isPressed = true);
 
@@ -86,6 +88,7 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
     String now = DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now());
     await prefs.setString('lastCheckIn', now);
     
+    // 1.5초 후 상태 초기화 (레드 테두리 사라짐)
     Timer(const Duration(milliseconds: 1500), () {
       if (mounted) setState(() => _isPressed = false);
     });
@@ -183,8 +186,8 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
                     boxShadow: _isPressed
                         ? [
                             // 눌렸을 때: 안으로 들어간 듯한 그림자
-                            BoxShadow(color: Colors.black.withOpacity(0.05), offset: const Offset(4, 4), blurRadius: 4, spreadRadius: 1),
-                            const BoxShadow(color: Colors.white, offset: Offset(-4, -4), blurRadius: 4, spreadRadius: 1),
+                            BoxShadow(color: Colors.black.withOpacity(0.05), offset: const Offset(4, 4), blurRadius: 4, spreadRadius: SpreadRadius 1),
+                            const BoxShadow(color: Colors.white, offset: Offset(-4, -4), blurRadius: 4, spreadRadius: SpreadRadius 1),
                           ]
                         : [
                             // 평상시: 밖으로 튀어나온 듯한 그림자 (깊이감 증가)
