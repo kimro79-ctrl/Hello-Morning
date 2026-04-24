@@ -18,9 +18,10 @@ class DailySafetyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      title: '하루 한번 안심지킴이',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        scaffoldBackgroundColor: const Color(0xFFFDFCFB), // 아주 연한 베이지톤 배경
+        scaffoldBackgroundColor: const Color(0xFFFDFCFB),
         useMaterial3: true,
       ),
       home: const MainNavigation(),
@@ -28,7 +29,6 @@ class DailySafetyApp extends StatelessWidget {
   }
 }
 
-// 그라데이션 텍스트 (타이틀용)
 class GradientText extends StatelessWidget {
   const GradientText(this.text, {super.key, required this.gradient, this.style});
   final String text;
@@ -61,12 +61,13 @@ class _MainNavigationState extends State<MainNavigation> {
       body: IndexedStack(index: _currentIndex, children: _screens),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
-        selectedItemColor: const Color(0xFFFF8A65), // 파스텔 오렌지
-        unselectedItemColor: const Color(0xFF90A4AE), // 차분한 그레이블루
+        selectedItemColor: const Color(0xFFFF8A65),
+        unselectedItemColor: const Color(0xFF90A4AE),
         onTap: (index) => setState(() => _currentIndex = index),
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home_filled), label: '홈'),
-          BottomNavigationBarItem(icon: Icon(Icons.settings_rounded), label: '설정'),
+          // 사람 둘이 손잡은 느낌의 아이콘으로 변경
+          BottomNavigationBarItem(icon: Icon(Icons.people_alt_rounded), label: '설정'),
         ],
       ),
     );
@@ -125,13 +126,11 @@ class _HomeScreenState extends State<HomeScreen> {
         for (var c in list) {
           await BackgroundSms.sendMessage(
             phoneNumber: c['number'],
-            message: "[안심지키미] 미응답 감지!\n마지막 확인: $last\n위치확인: $link",
+            message: "[하루 한번 안부 지킴이] 미응답 감지!\n마지막 확인: $last\n위치: $link",
           );
         }
         _updateCheckInSilent();
-      } catch (e) {
-        // 위치 실패 시 문자만 발송
-      }
+      } catch (e) { }
     }
   }
 
@@ -154,11 +153,11 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const GradientText(
-          "DAILY SAFETY",
+          "하루 한번 안심지킴이",
           gradient: LinearGradient(colors: [Color(0xFFFF8A65), Color(0xFFE57373)]),
-          style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, letterSpacing: 1.2),
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
         ),
-        backgroundColor: const Color(0xFFFFF3E0), // 파스텔 살구 탑
+        backgroundColor: const Color(0xFFFFF3E0),
         centerTitle: true,
         elevation: 0,
       ),
@@ -181,7 +180,7 @@ class _HomeScreenState extends State<HomeScreen> {
           const Spacer(),
           const Text("마지막 체크인 기록", style: TextStyle(color: Color(0xFF90A4AE), fontSize: 14)),
           const SizedBox(height: 10),
-          Text(_lastCheckIn, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Color(0xFF455A64))), // 딥네이비 컬러 텍스트
+          Text(_lastCheckIn, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Color(0xFF455A64))),
           const Spacer(),
           GestureDetector(
             onTap: _onPressButton,
@@ -195,7 +194,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               child: ClipOval(
                 child: Image.asset('assets/smile.png', fit: BoxFit.contain,
-                  errorBuilder: (context, error, stackTrace) => const Icon(Icons.favorite, size: 100, color: Color(0xFFFFAB91))),
+                  errorBuilder: (context, error, stackTrace) => const Icon(Icons.face_retouching_natural, size: 100, color: Color(0xFFFFAB91))),
               ),
             ),
           ),
@@ -206,7 +205,7 @@ class _HomeScreenState extends State<HomeScreen> {
               padding: const EdgeInsets.all(15),
               decoration: BoxDecoration(color: const Color(0xFFFFEBEE), borderRadius: BorderRadius.circular(15)),
               child: Text(
-                "${_selectedMinutes >= 60 ? _selectedMinutes ~/ 60 : _selectedMinutes}${_selectedMinutes >= 60 ? '시간' : '분'} 동안 무반응 시 보호자에게 비상 문자가 전송됩니다.",
+                "${_selectedMinutes >= 60 ? _selectedMinutes ~/ 60 : _selectedMinutes}${_selectedMinutes >= 60 ? '시간' : '분'} 미응답 시 비상 문자가 전송됩니다.",
                 textAlign: TextAlign.center,
                 style: const TextStyle(color: Color(0xFFD32F2F), fontSize: 12, fontWeight: FontWeight.w600),
               ),
@@ -234,34 +233,59 @@ class _SettingScreenState extends State<SettingScreen> {
     setState(() => _contacts = json.decode(p.getString('contacts_list') ?? "[]"));
   }
 
-  // 요청하신 4가지 권한 로직 집중
+  // 권한 요청 시 팝업이 확실히 뜨도록 개별 확인 및 요청
   Future<void> _requestPermissions() async {
-    // 1. 연락처 & 2. 문자 권한
-    await [Permission.contacts, Permission.sms].request();
-    // 3. 위치 권한 (앱 사용 중에만 허용)
-    await Permission.location.request();
-    // 4. 수동 백그라운드 (배터리 최적화 제외)
+    // 1. 연락처 권한 (이게 수락되어야 주소록 창이 뜸)
+    var contactStatus = await Permission.contacts.status;
+    if (!contactStatus.isGranted) {
+      await Permission.contacts.request();
+    }
+
+    // 2. 문자 권한
+    var smsStatus = await Permission.sms.status;
+    if (!smsStatus.isGranted) {
+      await Permission.sms.request();
+    }
+
+    // 3. 위치 권한
+    var locStatus = await Permission.location.status;
+    if (!locStatus.isGranted) {
+      await Permission.location.request();
+    }
+
+    // 4. 배터리 최적화 제외 (백그라운드 유지)
     await Permission.ignoreBatteryOptimizations.request();
 
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("안심 설정을 위해 권한을 확인했습니다.")));
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("권한 설정을 확인했습니다.")));
   }
 
   void _addContact() async {
-    if (await Permission.contacts.isGranted) {
-      final c = await ContactsService.openDeviceContactPicker();
-      if (c != null) {
-        setState(() => _contacts.add({'name': c.displayName, 'number': c.phones?.first.value}));
-        (await SharedPreferences.getInstance()).setString('contacts_list', json.encode(_contacts));
+    // 주소록을 열기 전에 권한을 다시 한 번 명시적으로 확인
+    PermissionStatus status = await Permission.contacts.request();
+    
+    if (status.isGranted) {
+      try {
+        final Contact? c = await ContactsService.openDeviceContactPicker();
+        if (c != null && c.phones!.isNotEmpty) {
+          setState(() => _contacts.add({
+            'name': c.displayName ?? "이름없음", 
+            'number': c.phones?.first.value ?? ""
+          }));
+          final p = await SharedPreferences.getInstance();
+          await p.setString('contacts_list', json.encode(_contacts));
+        }
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("주소록을 불러오는 중 오류가 발생했습니다.")));
       }
     } else {
-      await Permission.contacts.request();
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("연락처 권한을 허용해야 추가가 가능합니다.")));
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("보호자 및 권한 설정", style: TextStyle(color: Color(0xFF455A64))), backgroundColor: const Color(0xFFFFF3E0), centerTitle: true),
+      appBar: AppBar(title: const Text("보호자 등록", style: TextStyle(color: Color(0xFF455A64))), backgroundColor: const Color(0xFFFFF3E0), centerTitle: true),
       body: Column(
         children: [
           Expanded(child: ListView.builder(
@@ -282,17 +306,17 @@ class _SettingScreenState extends State<SettingScreen> {
               children: [
                 ElevatedButton.icon(
                   onPressed: _addContact,
-                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFE1F5FE), foregroundColor: const Color(0xFF0288D1), elevation: 0, minimumSize: const Size(double.infinity, 55)),
-                  icon: const Icon(Icons.person_add_alt_1), label: const Text("보호자 연락처 추가"),
+                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFE1F5FE), foregroundColor: const Color(0xFF0288D1), minimumSize: const Size(double.infinity, 55)),
+                  icon: const Icon(Icons.person_add_alt_1_rounded), label: const Text("보호자 연락처 추가"),
                 ),
                 const SizedBox(height: 15),
                 ElevatedButton.icon(
                   onPressed: _requestPermissions,
-                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFF8A65), foregroundColor: Colors.white, elevation: 2, minimumSize: const Size(double.infinity, 55)),
-                  icon: const Icon(Icons.verified_user), label: const Text("필수 권한 및 백그라운드 설정"),
+                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFF8A65), foregroundColor: Colors.white, minimumSize: const Size(double.infinity, 55)),
+                  icon: const Icon(Icons.lock_open_rounded), label: const Text("모든 권한 허용하기"),
                 ),
-                const SizedBox(height: 15),
-                const Text("위치 권한은 '앱 사용 중에만 허용'으로,\n배터리 최적화는 '제한 없음'으로 설정해 주세요.", 
+                const SizedBox(height: 10),
+                const Text("연락처 팝업이 안 뜨면 '모든 권한 허용하기'를 먼저 누르세요.", 
                   textAlign: TextAlign.center, style: TextStyle(fontSize: 11, color: Color(0xFF90A4AE))),
               ],
             ),
