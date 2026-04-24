@@ -1,6 +1,7 @@
-name: hello_morning
-description: 하루 안부 지킴이
+name: daily_safety_app
+description: "A new Flutter project."
 publish_to: 'none'
+
 version: 1.0.0+1
 
 environment:
@@ -9,14 +10,27 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+
+  # 데이터 저장 및 시간 포맷
   shared_preferences: ^2.2.2
-  contacts_service: ^0.6.3
   intl: ^0.19.0
-  permission_handler: ^11.3.0
+
+  # 연락처 선택 및 권한 관리
+  contacts_service: ^0.6.3
+  permission_handler: ^11.3.1
+
+  # 배경 작업 및 직접 문자 발송
+  direct_sms: ^0.0.1
   workmanager: ^0.5.2
-  direct_sms: ^0.0.1  # 충돌이 적고 자동 발송에 특화된 라이브러리
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
 
 flutter:
   uses-material-design: true
+
+  # 스마일 이미지를 사용하기 위한 에셋 설정
   assets:
     - assets/smile.png
