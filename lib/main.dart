@@ -19,7 +19,10 @@ class DailySafetyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(scaffoldBackgroundColor: const Color(0xFFEFF0F3), useMaterial3: true),
+      theme: ThemeData(
+        scaffoldBackgroundColor: const Color(0xFFF8F9FA),
+        useMaterial3: true,
+      ),
       home: const MainNavigation(),
     );
   }
@@ -32,20 +35,19 @@ class MainNavigation extends StatefulWidget {
 }
 
 class _MainNavigationState extends State<MainNavigation> {
-  int _currentIndex = 0;
+  int _idx = 0;
   final List<Widget> _screens = [const HomeScreen(), const SettingScreen()];
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: IndexedStack(index: _currentIndex, children: _screens),
+      body: IndexedStack(index: _idx, children: _screens),
       bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _currentIndex,
+        currentIndex: _idx,
         selectedItemColor: Colors.orangeAccent,
-        onTap: (index) => setState(() => _currentIndex = index),
+        onTap: (i) => setState(() => _idx = i),
         items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home_filled), label: '홈'),
-          BottomNavigationBarItem(icon: Icon(Icons.settings_rounded), label: '설정'),
+          BottomNavigationBarItem(icon: Icon(Icons.home), label: '홈'),
+          BottomNavigationBarItem(icon: Icon(Icons.settings), label: '설정'),
         ],
       ),
     );
@@ -59,119 +61,123 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  String _lastCheckIn = "기록 없음";
+  String _last = "기록 없음";
   bool _isPressed = false;
-  int _selectedHour = 24;
-  final List<int> _options = [1, 12, 24, 36];
-  Timer? _checkTimer;
-  String? _lastSentKey;
+  int _min = 1440; 
+  final List<Map<String, dynamic>> _opts = [
+    {'label': '5분', 'v': 5},
+    {'label': '1시간', 'v': 60},
+    {'label': '12시간', 'v': 720},
+    {'label': '24시간', 'v': 1440},
+  ];
+  Timer? _t;
 
   @override
   void initState() {
     super.initState();
-    _loadData();
-    _checkTimer = Timer.periodic(const Duration(minutes: 1), (_) => _autoCheck());
+    _load();
+    _t = Timer.periodic(const Duration(minutes: 1), (_) => _check());
   }
 
   @override
-  void dispose() {
-    _checkTimer?.cancel();
-    super.dispose();
-  }
+  void dispose() { _t?.cancel(); super.dispose(); }
 
-  void _loadData() async {
-    final prefs = await SharedPreferences.getInstance();
+  void _load() async {
+    final p = await SharedPreferences.getInstance();
     setState(() {
-      _lastCheckIn = prefs.getString('lastCheckIn') ?? "안부를 확인해 주세요";
-      _selectedHour = prefs.getInt('selectedHour') ?? 24;
+      _last = p.getString('last') ?? "안부를 확인해 주세요";
+      _min = p.getInt('min') ?? 1440;
     });
   }
 
-  Future<void> _autoCheck() async {
-    final prefs = await SharedPreferences.getInstance();
-    String? last = prefs.getString('lastCheckIn');
-    String? contacts = prefs.getString('contacts_list');
-
-    if (last != null && contacts != null) {
-      DateTime lastTime = DateFormat('yyyy-MM-dd HH:mm').parse(last);
-      if (DateTime.now().difference(lastTime).inHours >= _selectedHour) {
-        String key = DateFormat('yyyyMMddHHmm').format(DateTime.now());
-        if (_lastSentKey != key) {
-          try {
-            Position pos = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
-            String mapLink = "https://www.google.com/maps?q=${pos.latitude},${pos.longitude}";
-            List list = json.decode(contacts);
-            for (var c in list) {
-              await BackgroundSms.sendMessage(
-                phoneNumber: c['number'],
-                message: "[하루안부] ${_selectedHour}시간 미응답.\n마지막 확인: $last\n위치: $mapLink",
-              );
-            }
-            _lastSentKey = key;
-          } catch (e) {
-            // 위치 실패 시에도 문자 발송 시도
-            List list = json.decode(contacts);
-            for (var c in list) {
-              await BackgroundSms.sendMessage(
-                phoneNumber: c['number'],
-                message: "[하루안부] ${_selectedHour}시간 미응답.\n마지막 확인: $last\n(위치 정보 확인 불가)",
-              );
-            }
-            _lastSentKey = key;
-          }
+  Future<void> _check() async {
+    final p = await SharedPreferences.getInstance();
+    String? l = p.getString('last');
+    String? c = p.getString('con');
+    if (l == null || c == null) return;
+    
+    DateTime lastTime = DateFormat('yyyy-MM-dd HH:mm').parse(l);
+    if (DateTime.now().difference(lastTime).inMinutes >= _min) {
+      try {
+        Position pos = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
+        String link = "https://www.google.com/maps?q=${pos.latitude},${pos.longitude}";
+        List contacts = json.decode(c);
+        for (var item in contacts) {
+          await BackgroundSms.sendMessage(
+            phoneNumber: item['num'], 
+            message: "[하루안부] $_min분 동안 응답이 없습니다.\n마지막 확인: $l\n위치: $link"
+          );
         }
+        _updateSilent();
+      } catch (e) {
+        // 위치 실패 시 문자만 발송
       }
     }
   }
 
-  void _click() async {
-    setState(() => _isPressed = true);
+  void _updateSilent() async {
     String now = DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now());
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('lastCheckIn', now);
-    _lastSentKey = null;
+    final p = await SharedPreferences.getInstance();
+    await p.setString('last', now);
+    if (mounted) setState(() { _last = now; });
+  }
+
+  void _onTap() async {
+    setState(() => _isPressed = true);
+    _updateSilent();
     Future.delayed(const Duration(milliseconds: 500), () {
-      if (mounted) setState(() { _isPressed = false; _lastCheckIn = now; });
+      if (mounted) setState(() { _isPressed = false; });
     });
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("하루 안심 지키미", style: TextStyle(fontWeight: FontWeight.bold)), backgroundColor: const Color(0xFFFFCC80), centerTitle: true),
+      appBar: AppBar(title: const Text("하루 안심 지키미"), backgroundColor: const Color(0xFFFFCC80), centerTitle: true),
       body: Column(
         children: [
           const SizedBox(height: 20),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: _options.map((h) => ChoiceChip(
-              label: Text("${h}시간"),
-              selected: _selectedHour == h,
-              onSelected: (val) async {
-                setState(() => _selectedHour = h);
-                (await SharedPreferences.getInstance()).setInt('selectedHour', h);
+            children: _opts.map((o) => ChoiceChip(
+              label: Text(o['label']),
+              selected: _min == o['v'],
+              onSelected: (s) async {
+                setState(() => _min = o['v']);
+                (await SharedPreferences.getInstance()).setInt('min', o['v']);
               },
             )).toList(),
           ),
           const Spacer(),
-          const Text("마지막 확인 시간", style: TextStyle(color: Colors.grey, fontSize: 12)),
-          Text(_lastCheckIn, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          const Text("마지막 확인", style: TextStyle(color: Colors.grey)),
+          Text(_last, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
           const Spacer(),
           GestureDetector(
-            onTap: _click,
+            onTap: _onTap,
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 150),
-              width: 200, height: 200,
+              width: 220, height: 220,
               decoration: BoxDecoration(
-                shape: BoxShape.circle, color: const Color(0xFFEFF0F3),
-                border: Border.all(color: _isPressed ? const Color(0xFFFFD1DC) : Colors.white, width: 10),
-                boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 10, offset: Offset(5, 5))],
+                shape: BoxShape.circle,
+                color: Colors.white,
+                border: Border.all(color: _isPressed ? Colors.orangeAccent : Colors.white, width: 10),
+                boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 15)],
               ),
-              child: const Icon(Icons.face, size: 100, color: Colors.orangeAccent),
+              // 사용자님의 이미지를 다시 넣었습니다. (경로가 다르면 'assets/images/logo.png' 부분을 수정하세요)
+              child: ClipOval(
+                child: Image.asset(
+                  'assets/images/logo.png', 
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) => const Icon(Icons.face, size: 100, color: Colors.orangeAccent),
+                ),
+              ),
             ),
           ),
           const Spacer(),
-          Text("$_selectedHour시간 동안 확인이 없으면 보호자에게 문자가 발송됩니다", style: TextStyle(color: Colors.grey[500], fontSize: 11)),
+          Text(
+            "${_min >= 60 ? '${_min ~/ 60}시간' : '$_min분'} 동안 확인이 없으면 문자가 발송됩니다.",
+            style: TextStyle(color: Colors.grey[500], fontSize: 12),
+          ),
           const SizedBox(height: 40),
         ],
       ),
@@ -186,23 +192,19 @@ class SettingScreen extends StatefulWidget {
 }
 
 class _SettingScreenState extends State<SettingScreen> {
-  List<Map<String, String>> _contacts = [];
+  List _cons = [];
   @override
-  void initState() { super.initState(); _loadContacts(); }
-  void _loadContacts() async {
-    final prefs = await SharedPreferences.getInstance();
-    String? data = prefs.getString('contacts_list');
-    if (data != null) setState(() => _contacts = List<Map<String, String>>.from(json.decode(data).map((i) => Map<String, String>.from(i))));
+  void initState() { super.initState(); _load(); }
+  void _load() async {
+    final p = await SharedPreferences.getInstance();
+    setState(() => _cons = json.decode(p.getString('con') ?? "[]"));
   }
-  void _addContact() async {
-    if (_contacts.length >= 5) return;
+  void _add() async {
     if (await Permission.contacts.request().isGranted) {
-      final Contact? contact = await ContactsService.openDeviceContactPicker();
-      if (contact != null) {
-        String name = contact.displayName ?? "보호자";
-        String number = contact.phones?.isNotEmpty == true ? contact.phones!.first.value ?? "" : "";
-        setState(() => _contacts.add({'name': name, 'number': number}));
-        (await SharedPreferences.getInstance()).setString('contacts_list', json.encode(_contacts));
+      final c = await ContactsService.openDeviceContactPicker();
+      if (c != null) {
+        setState(() => _cons.add({'name': c.displayName, 'num': c.phones?.first.value}));
+        (await SharedPreferences.getInstance()).setString('con', json.encode(_cons));
       }
     }
   }
@@ -210,19 +212,30 @@ class _SettingScreenState extends State<SettingScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text("보호자 설정"), backgroundColor: const Color(0xFFFFCC80)),
-      body: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          children: [
-            Expanded(child: ListView.builder(itemCount: _contacts.length, itemBuilder: (context, i) => Card(child: ListTile(title: Text(_contacts[i]['name']!), subtitle: Text(_contacts[i]['number']!), trailing: IconButton(icon: const Icon(Icons.remove_circle, color: Colors.redAccent), onPressed: () async {
-              setState(() => _contacts.removeAt(i));
-              (await SharedPreferences.getInstance()).setString('contacts_list', json.encode(_contacts));
-            }))))),
-            ElevatedButton(onPressed: _addContact, child: const Text("보호자 추가")),
-            const SizedBox(height: 20),
-            SizedBox(width: double.infinity, child: OutlinedButton(onPressed: () async => await [Permission.sms, Permission.location].request(), child: const Text("권한 허용 확인"))),
-          ],
-        ),
+      body: Column(
+        children: [
+          Expanded(child: ListView.builder(itemCount: _cons.length, itemBuilder: (c, i) => ListTile(
+            title: Text(_cons[i]['name'] ?? ""),
+            subtitle: Text(_cons[i]['num'] ?? ""),
+            trailing: IconButton(icon: const Icon(Icons.delete, color: Colors.redAccent), onPressed: () async {
+              setState(() => _cons.removeAt(i));
+              (await SharedPreferences.getInstance()).setString('con', json.encode(_cons));
+            }),
+          ))),
+          Padding(
+            padding: const EdgeInsets.all(20.0),
+            child: Column(
+              children: [
+                ElevatedButton(onPressed: _add, child: const Text("보호자 추가")),
+                const SizedBox(height: 10),
+                TextButton(
+                  onPressed: () async => await [Permission.sms, Permission.location, Permission.locationAlways].request(), 
+                  child: const Text("모든 권한 다시 허용하기")
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
