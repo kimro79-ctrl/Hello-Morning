@@ -14,15 +14,10 @@ dependencies:
   intl: ^0.19.0
   permission_handler: ^11.3.0
   url_launcher: ^6.2.5
-  geolocator: ^11.0.0      # 위치 정보 패키지
-  background_sms: ^0.0.1   # 문자 발송 패키지
-
-dev_dependencies:
-  flutter_test:
-    sdk: flutter
-  flutter_lints: ^3.0.0
+  geolocator: ^11.0.0
+  background_sms: ^0.0.1
 
 flutter:
   uses-material-design: true
   assets:
-    - assets/smile.png     # 사용자님이 등록하신 이미지 경로 유지
+    - assets/smile.png
