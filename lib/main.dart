@@ -29,6 +29,7 @@ class DailySafetyApp extends StatelessWidget {
   }
 }
 
+// 상단 파스텔 그라데이션 타이틀
 class GradientText extends StatelessWidget {
   const GradientText(this.text, {super.key, required this.gradient, this.style});
   final String text;
@@ -66,8 +67,8 @@ class _MainNavigationState extends State<MainNavigation> {
         onTap: (index) => setState(() => _currentIndex = index),
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home_filled), label: '홈'),
-          // 사람 둘이 손잡은 느낌의 아이콘으로 변경
-          BottomNavigationBarItem(icon: Icon(Icons.people_alt_rounded), label: '설정'),
+          // 사람 둘이 있는 아이콘으로 변경
+          BottomNavigationBarItem(icon: Icon(Icons.people_rounded), label: '설정'),
         ],
       ),
     );
@@ -121,12 +122,12 @@ class _HomeScreenState extends State<HomeScreen> {
     if (DateTime.now().difference(lastTime).inMinutes >= _selectedMinutes) {
       try {
         Position pos = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
-        String link = "https://www.google.com/maps?q=${pos.latitude},${pos.longitude}";
+        String link = "http://maps.google.com/?q=${pos.latitude},${pos.longitude}";
         List list = json.decode(contacts);
         for (var c in list) {
           await BackgroundSms.sendMessage(
             phoneNumber: c['number'],
-            message: "[하루 한번 안부 지킴이] 미응답 감지!\n마지막 확인: $last\n위치: $link",
+            message: "[하루 한번 안심지킴이] 미응답 감지!\n마지막 확인: $last\n위치확인: $link",
           );
         }
         _updateCheckInSilent();
@@ -138,14 +139,6 @@ class _HomeScreenState extends State<HomeScreen> {
     String now = DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now());
     (await SharedPreferences.getInstance()).setString('lastCheckIn', now);
     if (mounted) setState(() { _lastCheckIn = now; });
-  }
-
-  void _onPressButton() async {
-    setState(() => _isPressed = true);
-    _updateCheckInSilent();
-    Future.delayed(const Duration(milliseconds: 400), () {
-      if (mounted) setState(() { _isPressed = false; });
-    });
   }
 
   @override
@@ -170,7 +163,6 @@ class _HomeScreenState extends State<HomeScreen> {
               label: Text(o['label'], style: TextStyle(color: _selectedMinutes == o['min'] ? Colors.white : const Color(0xFF546E7A))),
               selected: _selectedMinutes == o['min'],
               selectedColor: const Color(0xFFFFAB91),
-              backgroundColor: Colors.white,
               onSelected: (val) async {
                 setState(() => _selectedMinutes = o['min']);
                 (await SharedPreferences.getInstance()).setInt('selectedMinutes', o['min']);
@@ -183,7 +175,11 @@ class _HomeScreenState extends State<HomeScreen> {
           Text(_lastCheckIn, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Color(0xFF455A64))),
           const Spacer(),
           GestureDetector(
-            onTap: _onPressButton,
+            onTap: () {
+              setState(() => _isPressed = true);
+              _updateCheckInSilent();
+              Future.delayed(const Duration(milliseconds: 300), () => setState(() => _isPressed = false));
+            },
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 150),
               width: 260, height: 260,
@@ -194,7 +190,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               child: ClipOval(
                 child: Image.asset('assets/smile.png', fit: BoxFit.contain,
-                  errorBuilder: (context, error, stackTrace) => const Icon(Icons.face_retouching_natural, size: 100, color: Color(0xFFFFAB91))),
+                  errorBuilder: (context, error, stackTrace) => const Icon(Icons.sentiment_satisfied_alt, size: 100, color: Color(0xFFFFAB91))),
               ),
             ),
           ),
@@ -233,52 +229,63 @@ class _SettingScreenState extends State<SettingScreen> {
     setState(() => _contacts = json.decode(p.getString('contacts_list') ?? "[]"));
   }
 
-  // 권한 요청 시 팝업이 확실히 뜨도록 개별 확인 및 요청
-  Future<void> _requestPermissions() async {
-    // 1. 연락처 권한 (이게 수락되어야 주소록 창이 뜸)
-    var contactStatus = await Permission.contacts.status;
-    if (!contactStatus.isGranted) {
-      await Permission.contacts.request();
+  // 통합 권한 설정 및 거부 시 시스템 설정창 이동
+  Future<void> _checkAndRequestPermissions() async {
+    Map<Permission, PermissionStatus> statuses = await [
+      Permission.contacts,
+      Permission.sms,
+      Permission.location,
+      Permission.ignoreBatteryOptimizations,
+    ].request();
+
+    // 하나라도 영구적으로 거부된 경우 설정창 유도
+    if (statuses[Permission.contacts]!.isPermanentlyDenied) {
+      _showPermissionDialog("연락처");
+    } else if (statuses[Permission.location]!.isPermanentlyDenied) {
+      _showPermissionDialog("위치");
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("모든 권한을 확인했습니다.")));
     }
+  }
 
-    // 2. 문자 권한
-    var smsStatus = await Permission.sms.status;
-    if (!smsStatus.isGranted) {
-      await Permission.sms.request();
-    }
-
-    // 3. 위치 권한
-    var locStatus = await Permission.location.status;
-    if (!locStatus.isGranted) {
-      await Permission.location.request();
-    }
-
-    // 4. 배터리 최적화 제외 (백그라운드 유지)
-    await Permission.ignoreBatteryOptimizations.request();
-
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("권한 설정을 확인했습니다.")));
+  void _showPermissionDialog(String name) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text("$name 권한 필요"),
+        content: Text("연락처를 추가하거나 안심 서비스를 이용하려면 시스템 설정에서 $name 권한을 직접 허용해야 합니다."),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text("취소")),
+          TextButton(
+            onPressed: () {
+              openAppSettings(); // 안드로이드 설정 화면으로 이동
+              Navigator.pop(context);
+            },
+            child: const Text("설정 이동"),
+          ),
+        ],
+      ),
+    );
   }
 
   void _addContact() async {
-    // 주소록을 열기 전에 권한을 다시 한 번 명시적으로 확인
-    PermissionStatus status = await Permission.contacts.request();
+    PermissionStatus status = await Permission.contacts.status;
     
     if (status.isGranted) {
       try {
         final Contact? c = await ContactsService.openDeviceContactPicker();
         if (c != null && c.phones!.isNotEmpty) {
-          setState(() => _contacts.add({
-            'name': c.displayName ?? "이름없음", 
-            'number': c.phones?.first.value ?? ""
-          }));
+          setState(() => _contacts.add({'name': c.displayName ?? "이름없음", 'number': c.phones?.first.value ?? ""}));
           final p = await SharedPreferences.getInstance();
           await p.setString('contacts_list', json.encode(_contacts));
         }
       } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("주소록을 불러오는 중 오류가 발생했습니다.")));
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("연락처를 가져오지 못했습니다.")));
       }
+    } else if (status.isDenied) {
+      await Permission.contacts.request();
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("연락처 권한을 허용해야 추가가 가능합니다.")));
+      _showPermissionDialog("연락처");
     }
   }
 
@@ -292,9 +299,9 @@ class _SettingScreenState extends State<SettingScreen> {
             itemCount: _contacts.length,
             itemBuilder: (c, i) => ListTile(
               leading: const CircleAvatar(backgroundColor: Color(0xFFFFCCBC), child: Icon(Icons.person, color: Colors.white)),
-              title: Text(_contacts[i]['name'] ?? "", style: const TextStyle(color: Color(0xFF455A64), fontWeight: FontWeight.bold)),
-              subtitle: Text(_contacts[i]['number'] ?? "", style: const TextStyle(color: Color(0xFF78909C))),
-              trailing: IconButton(icon: const Icon(Icons.remove_circle_outline, color: Color(0xFFE57373)), onPressed: () {
+              title: Text(_contacts[i]['name'] ?? "", style: const TextStyle(fontWeight: FontWeight.bold)),
+              subtitle: Text(_contacts[i]['number'] ?? ""),
+              trailing: IconButton(icon: const Icon(Icons.remove_circle, color: Color(0xFFE57373)), onPressed: () {
                 setState(() => _contacts.removeAt(i));
                 SharedPreferences.getInstance().then((p) => p.setString('contacts_list', json.encode(_contacts)));
               }),
@@ -307,16 +314,16 @@ class _SettingScreenState extends State<SettingScreen> {
                 ElevatedButton.icon(
                   onPressed: _addContact,
                   style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFE1F5FE), foregroundColor: const Color(0xFF0288D1), minimumSize: const Size(double.infinity, 55)),
-                  icon: const Icon(Icons.person_add_alt_1_rounded), label: const Text("보호자 연락처 추가"),
+                  icon: const Icon(Icons.contact_page_rounded), label: const Text("연락처에서 추가"),
                 ),
                 const SizedBox(height: 15),
                 ElevatedButton.icon(
-                  onPressed: _requestPermissions,
+                  onPressed: _checkAndRequestPermissions,
                   style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFF8A65), foregroundColor: Colors.white, minimumSize: const Size(double.infinity, 55)),
-                  icon: const Icon(Icons.lock_open_rounded), label: const Text("모든 권한 허용하기"),
+                  icon: const Icon(Icons.security_rounded), label: const Text("필수 권한 설정 (클릭)"),
                 ),
                 const SizedBox(height: 10),
-                const Text("연락처 팝업이 안 뜨면 '모든 권한 허용하기'를 먼저 누르세요.", 
+                const Text("권한 설정 버튼을 눌러도 해결되지 않으면\n'설정 이동'을 통해 직접 허용해 주세요.", 
                   textAlign: TextAlign.center, style: TextStyle(fontSize: 11, color: Color(0xFF90A4AE))),
               ],
             ),
