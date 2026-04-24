@@ -19,16 +19,12 @@ class DailySafetyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        scaffoldBackgroundColor: const Color(0xFFEFF0F3),
-        useMaterial3: true,
-      ),
+      theme: ThemeData(scaffoldBackgroundColor: const Color(0xFFEFF0F3), useMaterial3: true),
       home: const MainNavigation(),
     );
   }
 }
 
-// 탭 네비게이션 추가
 class MainNavigation extends StatefulWidget {
   const MainNavigation({super.key});
   @override
@@ -67,52 +63,62 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _isPressed = false;
   int _selectedHour = 24;
   final List<int> _options = [1, 12, 24, 36];
-  Timer? _timer;
+  Timer? _checkTimer;
   String? _lastSentKey;
 
   @override
   void initState() {
     super.initState();
     _loadData();
-    _timer = Timer.periodic(const Duration(minutes: 1), (_) => _checkAndSend());
+    _checkTimer = Timer.periodic(const Duration(minutes: 1), (_) => _autoCheck());
   }
 
   @override
   void dispose() {
-    _timer?.cancel();
+    _checkTimer?.cancel();
     super.dispose();
   }
 
   void _loadData() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
-      _lastCheckIn = prefs.getString('lastCheckIn') ?? "확인을 시작하세요";
+      _lastCheckIn = prefs.getString('lastCheckIn') ?? "안부를 확인해 주세요";
       _selectedHour = prefs.getInt('selectedHour') ?? 24;
     });
   }
 
-  Future<void> _checkAndSend() async {
+  Future<void> _autoCheck() async {
     final prefs = await SharedPreferences.getInstance();
     String? last = prefs.getString('lastCheckIn');
     String? contacts = prefs.getString('contacts_list');
-    
+
     if (last != null && contacts != null) {
-      DateTime lastDate = DateFormat('yyyy-MM-dd HH:mm').parse(last);
-      if (DateTime.now().difference(lastDate).inHours >= _selectedHour) {
-        String currentKey = DateFormat('yyyyMMddHHmm').format(DateTime.now());
-        if (_lastSentKey != currentKey) {
-          // 위치 정보 획득
-          Position pos = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
-          String map = "https://www.google.com/maps?q=${pos.latitude},${pos.longitude}";
-          
-          List list = json.decode(contacts);
-          for (var c in list) {
-            await BackgroundSms.sendMessage(
-              phoneNumber: c['number'], 
-              message: "[하루안부] ${_selectedHour}시간 미응답.\n마지막 확인: $last\n위치: $map"
-            );
+      DateTime lastTime = DateFormat('yyyy-MM-dd HH:mm').parse(last);
+      if (DateTime.now().difference(lastTime).inHours >= _selectedHour) {
+        String key = DateFormat('yyyyMMddHHmm').format(DateTime.now());
+        if (_lastSentKey != key) {
+          try {
+            Position pos = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
+            String mapLink = "https://www.google.com/maps?q=${pos.latitude},${pos.longitude}";
+            List list = json.decode(contacts);
+            for (var c in list) {
+              await BackgroundSms.sendMessage(
+                phoneNumber: c['number'],
+                message: "[하루안부] ${_selectedHour}시간 미응답.\n마지막 확인: $last\n위치: $mapLink",
+              );
+            }
+            _lastSentKey = key;
+          } catch (e) {
+            // 위치 실패 시에도 문자 발송 시도
+            List list = json.decode(contacts);
+            for (var c in list) {
+              await BackgroundSms.sendMessage(
+                phoneNumber: c['number'],
+                message: "[하루안부] ${_selectedHour}시간 미응답.\n마지막 확인: $last\n(위치 정보 확인 불가)",
+              );
+            }
+            _lastSentKey = key;
           }
-          _lastSentKey = currentKey;
         }
       }
     }
@@ -123,7 +129,7 @@ class _HomeScreenState extends State<HomeScreen> {
     String now = DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now());
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('lastCheckIn', now);
-    _lastSentKey = null; // 체크인 시 발송 기록 초기화
+    _lastSentKey = null;
     Future.delayed(const Duration(milliseconds: 500), () {
       if (mounted) setState(() { _isPressed = false; _lastCheckIn = now; });
     });
@@ -143,8 +149,7 @@ class _HomeScreenState extends State<HomeScreen> {
               selected: _selectedHour == h,
               onSelected: (val) async {
                 setState(() => _selectedHour = h);
-                final prefs = await SharedPreferences.getInstance();
-                await prefs.setInt('selectedHour', h);
+                (await SharedPreferences.getInstance()).setInt('selectedHour', h);
               },
             )).toList(),
           ),
@@ -174,7 +179,6 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-// 연락처 설정 화면 추가
 class SettingScreen extends StatefulWidget {
   const SettingScreen({super.key});
   @override
@@ -185,13 +189,11 @@ class _SettingScreenState extends State<SettingScreen> {
   List<Map<String, String>> _contacts = [];
   @override
   void initState() { super.initState(); _loadContacts(); }
-  
   void _loadContacts() async {
     final prefs = await SharedPreferences.getInstance();
     String? data = prefs.getString('contacts_list');
     if (data != null) setState(() => _contacts = List<Map<String, String>>.from(json.decode(data).map((i) => Map<String, String>.from(i))));
   }
-
   void _addContact() async {
     if (_contacts.length >= 5) return;
     if (await Permission.contacts.request().isGranted) {
@@ -200,12 +202,10 @@ class _SettingScreenState extends State<SettingScreen> {
         String name = contact.displayName ?? "보호자";
         String number = contact.phones?.isNotEmpty == true ? contact.phones!.first.value ?? "" : "";
         setState(() => _contacts.add({'name': name, 'number': number}));
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setString('contacts_list', json.encode(_contacts));
+        (await SharedPreferences.getInstance()).setString('contacts_list', json.encode(_contacts));
       }
     }
   }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -214,25 +214,10 @@ class _SettingScreenState extends State<SettingScreen> {
         padding: const EdgeInsets.all(20),
         child: Column(
           children: [
-            Expanded(
-              child: ListView.builder(
-                itemCount: _contacts.length,
-                itemBuilder: (context, i) => Card(
-                  child: ListTile(
-                    title: Text(_contacts[i]['name']!),
-                    subtitle: Text(_contacts[i]['number']!),
-                    trailing: IconButton(
-                      icon: const Icon(Icons.remove_circle, color: Colors.redAccent),
-                      onPressed: () async {
-                        setState(() => _contacts.removeAt(i));
-                        final prefs = await SharedPreferences.getInstance();
-                        await prefs.setString('contacts_list', json.encode(_contacts));
-                      },
-                    ),
-                  ),
-                ),
-              ),
-            ),
+            Expanded(child: ListView.builder(itemCount: _contacts.length, itemBuilder: (context, i) => Card(child: ListTile(title: Text(_contacts[i]['name']!), subtitle: Text(_contacts[i]['number']!), trailing: IconButton(icon: const Icon(Icons.remove_circle, color: Colors.redAccent), onPressed: () async {
+              setState(() => _contacts.removeAt(i));
+              (await SharedPreferences.getInstance()).setString('contacts_list', json.encode(_contacts));
+            }))))),
             ElevatedButton(onPressed: _addContact, child: const Text("보호자 추가")),
             const SizedBox(height: 20),
             SizedBox(width: double.infinity, child: OutlinedButton(onPressed: () async => await [Permission.sms, Permission.location].request(), child: const Text("권한 허용 확인"))),
