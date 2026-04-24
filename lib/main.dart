@@ -84,7 +84,7 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FD),
       appBar: AppBar(
-        title: const Text("하루 안부", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+        title: const Text("하루 안부 지키미", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
         backgroundColor: const Color(0xFFFFD180), // 파스텔 오렌지
         centerTitle: true, elevation: 0,
       ),
