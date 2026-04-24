@@ -27,6 +27,23 @@ class DailySafetyApp extends StatelessWidget {
   }
 }
 
+// 그라데이션 텍스트 위젯 (타이틀용)
+class GradientText extends StatelessWidget {
+  const GradientText(this.text, {super.key, required this.gradient, this.style});
+  final String text;
+  final Gradient gradient;
+  final TextStyle? style;
+
+  @override
+  Widget build(BuildContext context) {
+    return ShaderMask(
+      blendMode: BlendMode.srcIn,
+      shaderCallback: (bounds) => gradient.createShader(Rect.fromLTWH(0, 0, bounds.width, bounds.height)),
+      child: Text(text, style: style),
+    );
+  }
+}
+
 class MainNavigation extends StatefulWidget {
   const MainNavigation({super.key});
   @override
@@ -54,23 +71,6 @@ class _MainNavigationState extends State<MainNavigation> {
   }
 }
 
-// 그라데이션 텍스트 위젯 (공용)
-class GradientText extends StatelessWidget {
-  const GradientText(this.text, {super.key, required this.gradient, this.style});
-  final String text;
-  final Gradient gradient;
-  final TextStyle? style;
-
-  @override
-  Widget build(BuildContext context) {
-    return ShaderMask(
-      blendMode: BlendMode.srcIn,
-      shaderCallback: (bounds) => gradient.createShader(Rect.fromLTWH(0, 0, bounds.width, bounds.height)),
-      child: Text(text, style: style),
-    );
-  }
-}
-
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
   @override
@@ -80,13 +80,20 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   String _lastCheckIn = "기록 없음";
   bool _isPressed = false;
+  Timer? _autoCheckTimer;
 
   @override
   void initState() {
     super.initState();
     _loadData();
-    // 5분마다 안부 체크하는 타이머 시작
-    Timer.periodic(const Duration(minutes: 5), (timer) => _checkAutoSms());
+    // 어제 성공했던 5분 자동 체크 타이머 재가동
+    _autoCheckTimer = Timer.periodic(const Duration(minutes: 1), (timer) => _checkAutoSms());
+  }
+
+  @override
+  void dispose() {
+    _autoCheckTimer?.cancel();
+    super.dispose();
   }
 
   void _loadData() async {
@@ -94,8 +101,8 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() => _lastCheckIn = prefs.getString('lastCheckIn') ?? "안부를 확인해 주세요");
   }
 
-  // [핵심] 자동 문자 발송 로직
-  void _checkAutoSms() async {
+  // 어제 성공했던 문자 발송 로직
+  Future<void> _checkAutoSms() async {
     final prefs = await SharedPreferences.getInstance();
     String? lastTimeStr = prefs.getString('lastCheckIn');
     String? contactsJson = prefs.getString('contacts_list');
@@ -105,11 +112,14 @@ class _HomeScreenState extends State<HomeScreen> {
       if (DateTime.now().difference(lastTime).inMinutes >= 5) {
         List<dynamic> contacts = json.decode(contactsJson);
         for (var c in contacts) {
-          // background_sms를 이용한 직접 발송
-          await BackgroundSms.sendMessage(
-            phoneNumber: c['number'],
-            message: "[하루 안부 지키미] 사용자의 안부가 5분간 확인되지 않았습니다. 확인 부탁드립니다.",
-          );
+          try {
+            await BackgroundSms.sendMessage(
+              phoneNumber: c['number'],
+              message: "[하루 안심 지키미] 사용자의 안부가 5분간 확인되지 않았습니다.",
+            );
+          } catch (e) {
+            debugPrint("문자 발송 실패: $e");
+          }
         }
       }
     }
@@ -132,8 +142,8 @@ class _HomeScreenState extends State<HomeScreen> {
       appBar: AppBar(
         title: const GradientText(
           "하루 안심 지키미",
-          gradient: LinearGradient(colors: [Colors.orange, Colors.redAccent]),
-          style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, shadows: [Shadow(color: Colors.black26, offset: Offset(1, 2), blurRadius: 4)]),
+          gradient: LinearGradient(colors: [Color(0xFFFF8C00), Color(0xFFFF4500)]),
+          style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, shadows: [Shadow(color: Colors.black12, offset: Offset(2, 2), blurRadius: 4)]),
         ),
         backgroundColor: const Color(0xFFFFCC80), centerTitle: true, elevation: 0,
       ),
@@ -149,23 +159,17 @@ class _HomeScreenState extends State<HomeScreen> {
               children: [
                 const Text("4월", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
                 const SizedBox(height: 15),
-                Row(mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: List.generate(7, (i) => Text(["월","화","수","목","금","토","일"][i], style: const TextStyle(fontSize: 12, color: Colors.grey)))),
+                Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: List.generate(7, (i) => Text(["월","화","수","목","금","토","일"][i], style: const TextStyle(fontSize: 12, color: Colors.grey)))),
                 const SizedBox(height: 10),
-                Row(mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: List.generate(7, (i) => CircleAvatar(
-                    radius: 15,
-                    backgroundColor: (i == 4) ? Colors.orangeAccent : Colors.transparent,
-                    child: Text("${20 + i}", style: TextStyle(color: (i == 4) ? Colors.white : Colors.black, fontSize: 13)),
-                  ))),
+                Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: List.generate(7, (i) => CircleAvatar(radius: 15, backgroundColor: (i == 4) ? Colors.orangeAccent : Colors.transparent, child: Text("${20+i}", style: TextStyle(color: (i==4)?Colors.white:Colors.black, fontSize: 13))))),
               ],
             ),
           ),
           const Spacer(),
-          const Text("마지막 확인 시간", style: TextStyle(color: Colors.grey, fontSize: 13)),
+          const Text("마지막 확인 시간", style: TextStyle(color: Colors.grey)),
           Text(_lastCheckIn, style: const TextStyle(fontSize: 19, fontWeight: FontWeight.bold)),
           const Spacer(),
-          // 입체 원형 스위치 (사각형 절대 없음)
+          // --- 사각형 박스 완전 제거! 순수 입체 원형 버튼 ---
           Center(
             child: GestureDetector(
               onTap: _onCheckIn,
@@ -175,7 +179,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   color: const Color(0xFFEFF0F3),
-                  border: Border.all(color: _isPressed ? Colors.red : Colors.white, width: 8),
+                  // 클릭 시 레드 테두리
+                  border: Border.all(color: _isPressed ? Colors.redAccent : Colors.white, width: 8),
                   boxShadow: _isPressed ? [] : [
                     BoxShadow(color: Colors.black.withOpacity(0.12), offset: const Offset(10, 10), blurRadius: 20),
                     const BoxShadow(color: Colors.white, offset: Offset(-10, -10), blurRadius: 20),
@@ -192,7 +197,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
           const Spacer(),
-          const Text("5분 미확인 시 자동 문자 발송 작동 중", style: TextStyle(color: Colors.redAccent, fontSize: 12, fontWeight: FontWeight.bold)),
+          const Text("자동 문자 발송 작동 중", style: TextStyle(color: Colors.redAccent, fontSize: 12, fontWeight: FontWeight.bold)),
           const SizedBox(height: 40),
         ],
       ),
@@ -234,29 +239,24 @@ class _SettingScreenState extends State<SettingScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const GradientText(
-          "보호자 및 권한 설정",
-          gradient: LinearGradient(colors: [Colors.blueGrey, Colors.black87]),
-          style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-        ),
+        title: const GradientText("보호자 및 권한 설정", gradient: LinearGradient(colors: [Colors.blueGrey, Colors.black87]), style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
         backgroundColor: const Color(0xFFFFCC80),
       ),
       body: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
           children: [
-            const Text("보호자 목록 (최대 5명)", style: TextStyle(fontWeight: FontWeight.bold)),
             Expanded(child: ListView.builder(itemCount: _contacts.length, itemBuilder: (context, i) => Card(child: ListTile(title: Text(_contacts[i]['name']!), subtitle: Text(_contacts[i]['number']!), trailing: IconButton(icon: const Icon(Icons.remove_circle, color: Colors.redAccent), onPressed: () {
               setState(() => _contacts.removeAt(i));
               SharedPreferences.getInstance().then((p) => p.setString('contacts_list', json.encode(_contacts)));
             }))))),
             ElevatedButton(onPressed: _addContact, child: const Text("보호자 추가")),
             const Divider(height: 40),
-            const Text("자동 발송 실패 시 아래 버튼을 순서대로 눌러주세요", style: TextStyle(fontSize: 12, color: Colors.red)),
+            const Text("문자 자동 발송을 위한 필수 설정", style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.red)),
             const SizedBox(height: 10),
-            SizedBox(width: double.infinity, child: OutlinedButton(onPressed: () async => await [Permission.contacts, Permission.sms].request(), child: const Text("1. 연락처/문자 권한 다시 요청"))),
+            SizedBox(width: double.infinity, child: OutlinedButton(onPressed: () async => await [Permission.contacts, Permission.sms].request(), child: const Text("1. 연락처 및 문자 권한 승인"))),
             const SizedBox(height: 10),
-            SizedBox(width: double.infinity, child: OutlinedButton(onPressed: () => openAppSettings(), child: const Text("2. 시스템 설정에서 배터리 제한 해제"))),
+            SizedBox(width: double.infinity, child: OutlinedButton(onPressed: () => openAppSettings(), child: const Text("2. 배터리 제한 없음 설정 (필수)"))),
           ],
         ),
       ),
