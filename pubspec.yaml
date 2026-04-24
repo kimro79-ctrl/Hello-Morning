@@ -1,7 +1,6 @@
 name: daily_safety_guardian
 description: "A new Flutter project for daily safety check-in."
 publish_to: 'none'
-
 version: 1.0.0+1
 
 environment:
@@ -10,20 +9,11 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-
-  # 데이터 저장용
   shared_preferences: ^2.2.2
-  
-  # 연락처 불러오기용
   contacts_service: ^0.6.3
-  
-  # 권한 요청용
   permission_handler: ^11.3.0
-  
-  # 시간 포맷용
   intl: ^0.19.0
-  
-  # 문자 발송 및 설정창 이동용 (telephony 대신 사용)
+  direct_sms: ^1.0.1
   url_launcher: ^6.2.5
 
 dev_dependencies:
@@ -33,9 +23,5 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
-
-  # 이미지 자산 등록 (반드시 smile.png가 assets 폴더에 있어야 합니다)
   assets:
     - assets/smile.png
-
-# 폰트나 다른 설정이 필요하면 이 아래에 추가하세요.
