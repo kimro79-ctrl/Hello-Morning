@@ -8,7 +8,7 @@
     <application
         android:label="하루 한번 안심지킴이"
         android:name="${applicationName}"
-        android:icon="@android:drawable/ic_menu_save" 
+        android:icon="@android:drawable/ic_menu_save"
         android:usesCleartextTraffic="true">
         <activity
             android:name=".MainActivity"
