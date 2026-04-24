@@ -1,5 +1,5 @@
 name: daily_safety_app
-description: "A new Flutter project."
+description: "A new Flutter project for Daily Safety Check."
 publish_to: 'none'
 
 version: 1.0.0+1
@@ -11,17 +11,23 @@ dependencies:
   flutter:
     sdk: flutter
 
-  # 데이터 저장 및 시간 포맷
+  # 데이터 저장 (마지막 확인 시간, 연락처 리스트 저장용)
   shared_preferences: ^2.2.2
+  
+  # 시간 포맷팅
   intl: ^0.19.0
 
-  # 연락처 선택 및 권한 관리
+  # 연락처 선택 기능
   contacts_service: ^0.6.3
+  
+  # 권한 관리 (연락처, 문자, 배터리 최적화 제외 권한)
   permission_handler: ^11.3.1
 
-  # 배경 작업 및 직접 문자 발송
-  direct_sms: ^0.0.1
+  # 배경 작업 (앱이 꺼져 있어도 자동 발송을 체크하기 위함)
   workmanager: ^0.5.2
+
+  # 문자 직접 발송 (사용자 개입 없이 자동 발송용)
+  direct_sms: ^0.0.1
 
 dev_dependencies:
   flutter_test:
@@ -32,5 +38,6 @@ flutter:
   uses-material-design: true
 
   # 스마일 이미지를 사용하기 위한 에셋 설정
+  # 프로젝트 폴더에 assets 폴더를 만들고 smile.png를 넣어야 합니다.
   assets:
     - assets/smile.png
