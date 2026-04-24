@@ -24,7 +24,7 @@ void callbackDispatcher() {
         for (var item in decoded) {
           try {
             await directSms.sendSms(
-              message: "[하루 안부 지킴이] 설정하신 시간 동안 안부 확인이 없어 자동 발송된 문자입니다.",
+              message: "[하루 안부 지킴이] 설정하신 시간 동안 안부 확인이 없어 발송된 메시지입니다.",
               phone: item['number'].toString(),
             );
           } catch (e) {
@@ -41,12 +41,15 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Workmanager().initialize(callbackDispatcher);
   await Workmanager().registerPeriodicTask(
-    "1", 
-    "safety_check", 
+    "1",
+    "safety_check",
     frequency: const Duration(minutes: 15),
     existingWorkPolicy: ExistingWorkPolicy.replace,
   );
-  runApp(const MaterialApp(home: MainScreen(), debugShowCheckedModeBanner: false));
+  runApp(const MaterialApp(
+    home: MainScreen(),
+    debugShowCheckedModeBanner: false,
+  ));
 }
 
 class MainScreen extends StatefulWidget {
@@ -55,22 +58,29 @@ class MainScreen extends StatefulWidget {
   State<MainScreen> createState() => _MainScreenState();
 }
 
-class _MainScreenState extends State<MainScreen> {
+class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateMixin {
   String _lastCheckIn = "기록 없음";
-  List<Map<String, String>> _contacts = [];
+  List<Map<String, String>> _contacts = []; // 최대 5개 연락처 저장
   int _waitTime = 1440;
   bool _isPressed = false;
+
+  late AnimationController _controller;
+  late Animation<double> _scaleAnimation;
 
   @override
   void initState() {
     super.initState();
     _loadData();
-    // 권한 요청: 앱 실행 1초 후 팝업 호출
+    _controller = AnimationController(vsync: this, duration: const Duration(milliseconds: 100));
+    _scaleAnimation = Tween<double>(begin: 1.0, end: 0.95).animate(_controller);
+    
+    // 배터리 및 백그라운드 권한 요청 (1초 후 실행하여 팝업 누락 방지)
     Timer(const Duration(seconds: 1), () => _requestPermissions());
   }
 
+  // 핵심: 배터리 최적화 제외 권한 요청 로직
   Future<void> _requestPermissions() async {
-    // 1. 배터리 최적화 제외 권한 (백그라운드 유지 필수)
+    // 1. 배터리 최적화 제외 요청 (팝업이 뜨는 핵심 부분)
     if (await Permission.ignoreBatteryOptimizations.isDenied) {
       await Permission.ignoreBatteryOptimizations.request();
     }
@@ -81,7 +91,7 @@ class _MainScreenState extends State<MainScreen> {
   Future<void> _loadData() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
-      _lastCheckIn = prefs.getString('lastCheckIn') ?? "안부를 확인해주세요";
+      _lastCheckIn = prefs.getString('lastCheckIn') ?? "오늘의 안부를 확인해주세요!";
       _waitTime = prefs.getInt('waitTime') ?? 1440;
       String? contactJson = prefs.getString('contacts');
       if (contactJson != null) {
@@ -91,13 +101,16 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   Future<void> _saveCheckIn() async {
+    _controller.forward().then((_) => _controller.reverse());
     setState(() => _isPressed = true);
+    
     final prefs = await SharedPreferences.getInstance();
     String now = DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now());
     await prefs.setString('lastCheckIn', now);
+    
     setState(() {
       _lastCheckIn = now;
-      Timer(const Duration(milliseconds: 400), () => setState(() => _isPressed = false));
+      Timer(const Duration(milliseconds: 1000), () => setState(() => _isPressed = false));
     });
   }
 
@@ -117,80 +130,49 @@ class _MainScreenState extends State<MainScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFFF8F0),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: const Color(0xFFFFCCBC), width: 1.5),
-                  ),
-                  child: Column(
-                    children: [
-                      const Text("안부 확인 대기 시간", style: TextStyle(color: Color(0xFF3E2723), fontWeight: FontWeight.w900, fontSize: 17)),
-                      const SizedBox(height: 15),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          _timeChip(60, "1시간", setModalState),
-                          _timeChip(720, "12시간", setModalState),
-                          _timeChip(1440, "24시간", setModalState),
-                        ],
-                      ),
-                    ],
-                  ),
+                // 시간 설정 섹션
+                _buildSectionTitle("안부 확인 대기 시간", const Color(0xFF3E2723)),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    _timeChip(60, "1시간", setModalState),
+                    _timeChip(720, "12시간", setModalState),
+                    _timeChip(1440, "24시간", setModalState),
+                  ],
                 ),
-                const SizedBox(height: 15),
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF1F8FE),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: const Color(0xFFBBDEFB), width: 1.5),
+                const SizedBox(height: 25),
+                // 보호자 연락처 섹션 (최대 5개)
+                _buildSectionTitle("수신 보호자 (${_contacts.length}/5)", const Color(0xFF0D47A1)),
+                ..._contacts.map((c) => ListTile(
+                  dense: true,
+                  title: Text(c['name']!, style: const TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF263238))),
+                  subtitle: Text(c['number']!, style: const TextStyle(color: Color(0xFF546E7A), fontWeight: FontWeight.bold)),
+                  trailing: IconButton(
+                    icon: const Icon(Icons.remove_circle, color: Color(0xFFD32F2F)),
+                    onPressed: () async {
+                      _contacts.remove(c);
+                      await _saveContacts();
+                      setModalState(() {}); setState(() {});
+                    },
                   ),
-                  child: Column(
-                    children: [
-                      const Text("보호자 연락처", style: TextStyle(color: Color(0xFF0D47A1), fontWeight: FontWeight.w900, fontSize: 17)),
-                      const SizedBox(height: 10),
-                      ..._contacts.map((c) => Container(
-                        margin: const EdgeInsets.only(bottom: 8),
-                        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: const Color(0xFFE1F5FE))),
-                        child: ListTile(
-                          dense: true,
-                          title: Text(c['name']!, style: const TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF263238), fontSize: 16)),
-                          subtitle: Text(c['number']!, style: const TextStyle(color: Color(0xFF455A64), fontWeight: FontWeight.bold)),
-                          trailing: IconButton(
-                            icon: const Icon(Icons.remove_circle, color: Color(0xFFD32F2F), size: 28),
-                            onPressed: () async {
-                              _contacts.remove(c);
-                              final prefs = await SharedPreferences.getInstance();
-                              await prefs.setString('contacts', json.encode(_contacts));
-                              setModalState(() {}); setState(() {});
-                            },
-                          ),
-                        ),
-                      )),
-                      TextButton.icon(
-                        onPressed: () async {
-                          Contact? contact = await ContactsService.openDeviceContactPicker();
-                          if (contact != null && contact.phones!.isNotEmpty) {
-                            _contacts.add({'name': contact.displayName ?? "무명", 'number': contact.phones!.first.value!});
-                            final prefs = await SharedPreferences.getInstance();
-                            await prefs.setString('contacts', json.encode(_contacts));
-                            setModalState(() {}); setState(() {});
-                          }
-                        },
-                        icon: const Icon(Icons.add_circle, size: 26, color: Color(0xFF1976D2)),
-                        label: const Text("연락처 추가", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: Color(0xFF1976D2))),
-                      ),
-                    ],
+                )),
+                if (_contacts.length < 5)
+                  TextButton.icon(
+                    onPressed: () async {
+                      Contact? contact = await ContactsService.openDeviceContactPicker();
+                      if (contact != null && contact.phones!.isNotEmpty) {
+                        _contacts.add({'name': contact.displayName ?? "보호자", 'number': contact.phones!.first.value!});
+                        await _saveContacts();
+                        setModalState(() {}); setState(() {});
+                      }
+                    },
+                    icon: const Icon(Icons.add_circle, color: Color(0xFF1976D2)),
+                    label: const Text("보호자 추가 (최대 5명)", style: TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF1976D2))),
                   ),
-                ),
                 const SizedBox(height: 20),
                 TextButton(
                   onPressed: () => openAppSettings(),
-                  child: const Text("문자가 안오나요? (권한/배터리 수동설정)", style: TextStyle(color: Color(0xFF546E7A), fontSize: 14, fontWeight: FontWeight.w900, decoration: TextDecoration.underline)),
+                  child: const Text("배터리/백그라운드 수동 설정", style: TextStyle(color: Colors.grey, decoration: TextDecoration.underline, fontWeight: FontWeight.bold)),
                 ),
                 const SizedBox(height: 20),
               ],
@@ -198,6 +180,18 @@ class _MainScreenState extends State<MainScreen> {
           );
         });
       },
+    );
+  }
+
+  Future<void> _saveContacts() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('contacts', json.encode(_contacts));
+  }
+
+  Widget _buildSectionTitle(String title, Color color) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Text(title, style: TextStyle(color: color, fontWeight: FontWeight.w900, fontSize: 17)),
     );
   }
 
@@ -216,7 +210,7 @@ class _MainScreenState extends State<MainScreen> {
         decoration: BoxDecoration(
           color: isSel ? const Color(0xFF4E342E) : Colors.white,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: const Color(0xFF4E342E), width: 2.5),
+          border: Border.all(color: const Color(0xFF4E342E), width: 2),
         ),
         child: Text(label, style: TextStyle(color: isSel ? Colors.white : const Color(0xFF4E342E), fontWeight: FontWeight.w900)),
       ),
@@ -226,9 +220,9 @@ class _MainScreenState extends State<MainScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FB),
+      backgroundColor: const Color(0xFFEFF0F3), // 배경색 복구
       appBar: AppBar(
-        title: const Text("하루 안부 지킴이", style: TextStyle(color: Color(0xFF37474F), fontWeight: FontWeight.w900, fontSize: 20)),
+        title: const Text("하루 안부 지킴이", style: TextStyle(color: Color(0xFF263238), fontWeight: FontWeight.w900)),
         backgroundColor: Colors.transparent, elevation: 0, centerTitle: true,
       ),
       body: Column(
@@ -236,37 +230,47 @@ class _MainScreenState extends State<MainScreen> {
           const Spacer(),
           const Text("마지막 확인 시간", style: TextStyle(color: Color(0xFF607D8B), fontSize: 16, fontWeight: FontWeight.w900)),
           const SizedBox(height: 8),
-          Text(_lastCheckIn, style: const TextStyle(fontSize: 34, fontWeight: FontWeight.w900, color: Color(0xFF263238), letterSpacing: -0.5)),
+          Text(_lastCheckIn, style: const TextStyle(fontSize: 32, fontWeight: FontWeight.w900, color: Color(0xFF263238))),
           const Spacer(),
+          // 뉴모피즘 입체 버튼 디자인 적용
           GestureDetector(
             onTap: _saveCheckIn,
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 150),
-              width: 250, height: 250,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: const Color(0xFFF8F9FB),
-                border: Border.all(
-                  color: _isPressed ? Colors.orange : const Color(0xFFCFD8DC),
-                  width: 8, 
+            child: ScaleTransition(
+              scale: _scaleAnimation,
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                width: 240, height: 240,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: const Color(0xFFEFF0F3),
+                  boxShadow: _isPressed
+                      ? [
+                          BoxShadow(color: Colors.black.withOpacity(0.05), offset: const Offset(4, 4), blurRadius: 4),
+                          const BoxShadow(color: Colors.white, offset: Offset(-4, -4), blurRadius: 4),
+                        ]
+                      : [
+                          BoxShadow(color: Colors.black.withOpacity(0.15), offset: const Offset(10, 10), blurRadius: 20),
+                          const BoxShadow(color: Colors.white, offset: Offset(-10, -10), blurRadius: 20),
+                        ],
                 ),
-                boxShadow: _isPressed ? [
-                  BoxShadow(color: Colors.orange.withOpacity(0.3), blurRadius: 20, spreadRadius: 4)
-                ] : [
-                  const BoxShadow(color: Colors.white, offset: Offset(-10, -10), blurRadius: 20),
-                  BoxShadow(color: Colors.black.withOpacity(0.1), offset: const Offset(10, 10), blurRadius: 20),
-                ],
-              ),
-              child: Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
+                child: Stack(
+                  alignment: Alignment.center,
                   children: [
-                    Icon(Icons.face_retouching_natural, size: 120, color: _isPressed ? Colors.orange : const Color(0xFFB0BEC5)),
-                    const SizedBox(height: 10),
-                    Text("안전 확인", style: TextStyle(
-                      fontSize: 22, fontWeight: FontWeight.w900,
-                      color: _isPressed ? Colors.orange : const Color(0xFF78909C)
-                    )),
+                    ClipOval(
+                      child: Image.asset(
+                        'assets/smile.png',
+                        width: 180, height: 180,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) => const Icon(Icons.face, size: 120, color: Colors.grey),
+                      ),
+                    ),
+                    Positioned(
+                      bottom: 30,
+                      child: Text("CLICK", style: TextStyle(
+                        fontSize: 12, fontWeight: FontWeight.w900, letterSpacing: 2,
+                        color: _isPressed ? Colors.orange : Colors.grey[400]
+                      )),
+                    ),
                   ],
                 ),
               ),
@@ -280,18 +284,18 @@ class _MainScreenState extends State<MainScreen> {
             child: OutlinedButton(
               onPressed: _showSettings,
               style: OutlinedButton.styleFrom(
-                side: const BorderSide(color: Color(0xFFB0BEC5), width: 2.5),
+                side: const BorderSide(color: Color(0xFF263238), width: 2.5),
                 backgroundColor: Colors.white,
-                foregroundColor: const Color(0xFF546E7A),
-                padding: const EdgeInsets.symmetric(vertical: 18),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+                foregroundColor: const Color(0xFF263238),
+                padding: const EdgeInsets.symmetric(vertical: 20),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
               ),
               child: const Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.tune, size: 24),
+                  Icon(Icons.tune, size: 26),
                   SizedBox(width: 12),
-                  Text("시스템 설정", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18)),
+                  Text("시스템 설정", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 19)),
                 ],
               ),
             ),
