@@ -18,3 +18,6 @@ dependencies:
 
 flutter:
   uses-material-design: true
+  # 사용자님의 Asset 경로를 다시 등록했습니다.
+  assets:
+    - assets/images/
