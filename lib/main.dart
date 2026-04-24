@@ -18,18 +18,17 @@ void callbackDispatcher() {
 
     if (lastTimeStr != null && contactJson != null) {
       DateTime lastTime = DateFormat('yyyy-MM-dd HH:mm').parse(lastTimeStr);
-      // 현재 시간과 마지막 체크인 시간의 차이 계산
       if (DateTime.now().difference(lastTime).inMinutes >= waitMinutes) {
         List<dynamic> decoded = json.decode(contactJson);
         final DirectSms directSms = DirectSms();
         for (var item in decoded) {
           try {
             await directSms.sendSms(
-              message: "[하루 안부 지킴이] 설정하신 시간 동안 안부 확인이 없어 자동 발송되었습니다.",
+              message: "[하루 안부 지킴이] 설정하신 시간 동안 안부 확인이 없어 자동 발송된 문자입니다.",
               phone: item['number'].toString(),
             );
           } catch (e) {
-            debugPrint("백그라운드 SMS 발송 실패: $e");
+            debugPrint("SMS 발송 에러: $e");
           }
         }
       }
@@ -40,19 +39,13 @@ void callbackDispatcher() {
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Workmanager().initialize(callbackDispatcher, isInDebugMode: false);
-  
-  // 백그라운드 작업 등록 (15분마다 실행)
+  await Workmanager().initialize(callbackDispatcher);
   await Workmanager().registerPeriodicTask(
     "1", 
     "safety_check", 
     frequency: const Duration(minutes: 15),
     existingWorkPolicy: ExistingWorkPolicy.replace,
-    constraints: Constraints(
-      networkType: NetworkType.not_required, // 네트워크 상관없이 실행
-    ),
   );
-  
   runApp(const MaterialApp(home: MainScreen(), debugShowCheckedModeBanner: false));
 }
 
@@ -72,16 +65,19 @@ class _MainScreenState extends State<MainScreen> {
   void initState() {
     super.initState();
     _loadData();
-    _requestPermissions();
+    _requestPermissions(); // 앱 실행 시 권한 요청
   }
 
-  // 백그라운드 발송을 위한 핵심 권한 요청
+  // 배터리 최적화 제외 및 필수 권한 요청 로직 강화
   Future<void> _requestPermissions() async {
-    await [
-      Permission.sms,
-      Permission.contacts,
-      Permission.ignoreBatteryOptimizations, // 핵심: 배터리 최적화 제외
-    ].request();
+    // 1. SMS 및 연락처 권한
+    await [Permission.sms, Permission.contacts].request();
+
+    // 2. 배터리 최적화 제외 요청 (이 부분이 뜨지 않으면 시스템 설정으로 유도)
+    var status = await Permission.ignoreBatteryOptimizations.status;
+    if (!status.isGranted) {
+      await Permission.ignoreBatteryOptimizations.request();
+    }
   }
 
   Future<void> _loadData() async {
@@ -123,7 +119,6 @@ class _MainScreenState extends State<MainScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // 1. 시간 설정 (배경 대비 강화)
                 Container(
                   width: double.infinity,
                   padding: const EdgeInsets.all(20),
@@ -148,7 +143,6 @@ class _MainScreenState extends State<MainScreen> {
                   ),
                 ),
                 const SizedBox(height: 15),
-                // 2. 보호자 설정 (선명도 강화)
                 Container(
                   width: double.infinity,
                   padding: const EdgeInsets.all(20),
@@ -198,7 +192,7 @@ class _MainScreenState extends State<MainScreen> {
                 const SizedBox(height: 20),
                 TextButton(
                   onPressed: () => openAppSettings(),
-                  child: const Text("문자가 안오나요? (권한/배터리 설정)", style: TextStyle(color: Colors.black, fontSize: 14, fontWeight: FontWeight.w900, decoration: TextDecoration.underline)),
+                  child: const Text("백그라운드 문자가 안오나요? (권한 설정)", style: TextStyle(color: Colors.black, fontSize: 14, fontWeight: FontWeight.w900, decoration: TextDecoration.underline)),
                 ),
                 const SizedBox(height: 20),
               ],
@@ -256,7 +250,7 @@ class _MainScreenState extends State<MainScreen> {
                 color: Colors.white,
                 border: Border.all(
                   color: _isPressed ? Colors.deepOrange : Colors.black,
-                  width: 10, // 가독성을 위해 테두리 더 두껍게
+                  width: 10, 
                 ),
                 boxShadow: [
                   BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 25, offset: const Offset(5, 10)),
