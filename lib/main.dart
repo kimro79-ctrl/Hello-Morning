@@ -4,7 +4,7 @@ import 'package:contacts_service/contacts_service.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:intl/intl.dart';
 import 'package:background_sms/background_sms.dart';
-import 'package:geolocator/geolocator.dart';
+import 'package:geolocator/geolocator.dart'; // 위치 패키지 추가
 import 'dart:async';
 import 'dart:convert';
 
@@ -20,10 +20,27 @@ class DailySafetyApp extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        scaffoldBackgroundColor: const Color(0xFFF8F9FA),
+        scaffoldBackgroundColor: const Color(0xFFEFF0F3),
         useMaterial3: true,
       ),
       home: const MainNavigation(),
+    );
+  }
+}
+
+// 그라데이션 텍스트 위젯 (타이틀용)
+class GradientText extends StatelessWidget {
+  const GradientText(this.text, {super.key, required this.gradient, this.style});
+  final String text;
+  final Gradient gradient;
+  final TextStyle? style;
+
+  @override
+  Widget build(BuildContext context) {
+    return ShaderMask(
+      blendMode: BlendMode.srcIn,
+      shaderCallback: (bounds) => gradient.createShader(Rect.fromLTWH(0, 0, bounds.width, bounds.height)),
+      child: Text(text, style: style),
     );
   }
 }
@@ -35,19 +52,20 @@ class MainNavigation extends StatefulWidget {
 }
 
 class _MainNavigationState extends State<MainNavigation> {
-  int _idx = 0;
+  int _currentIndex = 0;
   final List<Widget> _screens = [const HomeScreen(), const SettingScreen()];
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: IndexedStack(index: _idx, children: _screens),
+      body: IndexedStack(index: _currentIndex, children: _screens),
       bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _idx,
+        currentIndex: _currentIndex,
         selectedItemColor: Colors.orangeAccent,
-        onTap: (i) => setState(() => _idx = i),
+        onTap: (index) => setState(() => _currentIndex = index),
         items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: '홈'),
-          BottomNavigationBarItem(icon: Icon(Icons.settings), label: '설정'),
+          BottomNavigationBarItem(icon: Icon(Icons.home_filled), label: '홈'),
+          BottomNavigationBarItem(icon: Icon(Icons.settings_rounded), label: '설정'),
         ],
       ),
     );
@@ -61,130 +79,162 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  String _last = "기록 없음";
+  String _lastCheckIn = "기록 없음";
   bool _isPressed = false;
-  int _min = 1440; 
-  final List<Map<String, dynamic>> _opts = [
-    {'label': '5분', 'v': 5},
-    {'label': '1시간', 'v': 60},
-    {'label': '12시간', 'v': 720},
-    {'label': '24시간', 'v': 1440},
+  int _selectedMinutes = 1440; // 기본 24시간
+  Timer? _autoCheckTimer;
+
+  final List<Map<String, dynamic>> _options = [
+    {'label': '5분', 'min': 5},
+    {'label': '12시간', 'min': 720},
+    {'label': '24시간', 'min': 1440},
   ];
-  Timer? _t;
 
   @override
   void initState() {
     super.initState();
-    _load();
-    _t = Timer.periodic(const Duration(minutes: 1), (_) => _check());
+    _loadData();
+    _autoCheckTimer = Timer.periodic(const Duration(minutes: 1), (timer) => _checkAutoSms());
   }
 
   @override
-  void dispose() { _t?.cancel(); super.dispose(); }
+  void dispose() {
+    _autoCheckTimer?.cancel();
+    super.dispose();
+  }
 
-  void _load() async {
-    final p = await SharedPreferences.getInstance();
+  void _loadData() async {
+    final prefs = await SharedPreferences.getInstance();
     setState(() {
-      _last = p.getString('last') ?? "안부를 확인해 주세요";
-      _min = p.getInt('min') ?? 1440;
+      _lastCheckIn = prefs.getString('lastCheckIn') ?? "안부를 확인해 주세요";
+      _selectedMinutes = prefs.getInt('selectedMinutes') ?? 1440;
     });
   }
 
-  Future<void> _check() async {
-    final p = await SharedPreferences.getInstance();
-    String? l = p.getString('last');
-    String? c = p.getString('con');
-    if (l == null || c == null) return;
+  // 위치 정보 가져오기 및 문자 발송 핵심 로직
+  Future<void> _checkAutoSms() async {
+    final prefs = await SharedPreferences.getInstance();
+    String? last = prefs.getString('lastCheckIn');
+    String? contacts = prefs.getString('contacts_list');
     
-    DateTime lastTime = DateFormat('yyyy-MM-dd HH:mm').parse(l);
-    if (DateTime.now().difference(lastTime).inMinutes >= _min) {
+    if (last == null || contacts == null) return;
+
+    DateTime lastTime = DateFormat('yyyy-MM-dd HH:mm').parse(last);
+    int diff = DateTime.now().difference(lastTime).inMinutes;
+
+    if (diff >= _selectedMinutes) {
       try {
-        Position pos = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
-        String link = "https://www.google.com/maps?q=${pos.latitude},${pos.longitude}";
-        List contacts = json.decode(c);
-        for (var item in contacts) {
+        // 1. 위치 권한 확인 및 현재 위치 획득
+        Position pos = await Geolocator.getCurrentPosition(
+          desiredAccuracy: LocationAccuracy.high
+        );
+        String mapLink = "https://www.google.com/maps?q=${pos.latitude},${pos.longitude}";
+        
+        // 2. 보호자 리스트 불러오기
+        List list = json.decode(contacts);
+        for (var c in list) {
+          // 3. 문자 발송
           await BackgroundSms.sendMessage(
-            phoneNumber: item['num'], 
-            message: "[하루안부] $_min분 동안 응답이 없습니다.\n마지막 확인: $l\n위치: $link"
+            phoneNumber: c['number'],
+            message: "[하루안심] ${_selectedMinutes >= 60 ? _selectedMinutes ~/ 60 : _selectedMinutes}${_selectedMinutes >= 60 ? '시간' : '분'} 미응답 발생.\n마지막 확인: $last\n위치: $mapLink",
           );
         }
-        _updateSilent();
+        // 발송 후 자동 갱신 (테스트 중복 방지)
+        _updateCheckIn();
       } catch (e) {
-        // 위치 실패 시 문자만 발송
+        // 위치 획득 실패 시에도 긴급 문자는 발송
+        List list = json.decode(contacts);
+        for (var c in list) {
+          await BackgroundSms.sendMessage(
+            phoneNumber: c['number'],
+            message: "[하루안심] 미응답 발생. 위치 확인 불가.\n마지막 확인: $last",
+          );
+        }
       }
     }
   }
 
-  void _updateSilent() async {
-    String now = DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now());
-    final p = await SharedPreferences.getInstance();
-    await p.setString('last', now);
-    if (mounted) setState(() { _last = now; });
-  }
-
-  void _onTap() async {
+  void _updateCheckIn() async {
     setState(() => _isPressed = true);
-    _updateSilent();
+    String now = DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now());
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('lastCheckIn', now);
+    
     Future.delayed(const Duration(milliseconds: 500), () {
-      if (mounted) setState(() { _isPressed = false; });
+      if (mounted) setState(() { _isPressed = false; _lastCheckIn = now; });
     });
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("하루 안심 지키미"), backgroundColor: const Color(0xFFFFCC80), centerTitle: true),
+      appBar: AppBar(
+        title: const GradientText(
+          "하루 안심 지키미",
+          gradient: LinearGradient(colors: [Colors.orange, Colors.redAccent]),
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        backgroundColor: Colors.white,
+        centerTitle: true,
+        elevation: 0,
+      ),
       body: Column(
         children: [
           const SizedBox(height: 20),
+          // 시간 선택 칩 (5분 테스트 포함)
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: _opts.map((o) => ChoiceChip(
-              label: Text(o['label']),
-              selected: _min == o['v'],
-              onSelected: (s) async {
-                setState(() => _min = o['v']);
-                (await SharedPreferences.getInstance()).setInt('min', o['v']);
+            children: _options.map((opt) => ChoiceChip(
+              label: Text(opt['label']),
+              selected: _selectedMinutes == opt['min'],
+              onSelected: (val) async {
+                setState(() => _selectedMinutes = opt['min']);
+                (await SharedPreferences.getInstance()).setInt('selectedMinutes', opt['min']);
               },
             )).toList(),
           ),
           const Spacer(),
-          const Text("마지막 확인", style: TextStyle(color: Colors.grey)),
-          Text(_last, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+          const Text("마지막 안부 확인", style: TextStyle(color: Colors.grey)),
+          Text(_lastCheckIn, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
           const Spacer(),
+          // 메인 이미지 버튼 (사용자님의 smile.png 사용)
           GestureDetector(
-            onTap: _onTap,
+            onTap: _updateCheckIn,
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 150),
-              width: 220, height: 220,
+              width: 250, height: 250,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: Colors.white,
                 border: Border.all(color: _isPressed ? Colors.orangeAccent : Colors.white, width: 10),
-                boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 15)],
+                boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 20)],
               ),
-              // 사용자님의 이미지를 다시 넣었습니다. (경로가 다르면 'assets/images/logo.png' 부분을 수정하세요)
               child: ClipOval(
                 child: Image.asset(
-                  'assets/images/logo.png', 
-                  fit: BoxFit.cover,
+                  'assets/smile.png', // 등록하신 이미지 경로
+                  fit: BoxFit.contain,
                   errorBuilder: (context, error, stackTrace) => const Icon(Icons.face, size: 100, color: Colors.orangeAccent),
                 ),
               ),
             ),
           ),
           const Spacer(),
-          Text(
-            "${_min >= 60 ? '${_min ~/ 60}시간' : '$_min분'} 동안 확인이 없으면 문자가 발송됩니다.",
-            style: TextStyle(color: Colors.grey[500], fontSize: 12),
+          Padding(
+            padding: const EdgeInsets.all(20.0),
+            child: Text(
+              "${_selectedMinutes >= 60 ? _selectedMinutes ~/ 60 : _selectedMinutes}${_selectedMinutes >= 60 ? '시간' : '분'} 동안 미응답 시 보호자에게 위치가 발송됩니다.",
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.grey, fontSize: 13),
+            ),
           ),
-          const SizedBox(height: 40),
+          const SizedBox(height: 30),
         ],
       ),
     );
   }
 }
 
+// 설정 화면 (보호자 연락처 등록 및 권한 요청)
 class SettingScreen extends StatefulWidget {
   const SettingScreen({super.key});
   @override
@@ -192,49 +242,68 @@ class SettingScreen extends StatefulWidget {
 }
 
 class _SettingScreenState extends State<SettingScreen> {
-  List _cons = [];
+  List<Map<String, String>> _contacts = [];
+
   @override
-  void initState() { super.initState(); _load(); }
-  void _load() async {
-    final p = await SharedPreferences.getInstance();
-    setState(() => _cons = json.decode(p.getString('con') ?? "[]"));
+  void initState() {
+    super.initState();
+    _loadContacts();
   }
-  void _add() async {
+
+  void _loadContacts() async {
+    final prefs = await SharedPreferences.getInstance();
+    String? data = prefs.getString('contacts_list');
+    if (data != null) {
+      setState(() => _contacts = List<Map<String, String>>.from(json.decode(data).map((i) => Map<String, String>.from(i))));
+    }
+  }
+
+  void _addContact() async {
     if (await Permission.contacts.request().isGranted) {
-      final c = await ContactsService.openDeviceContactPicker();
-      if (c != null) {
-        setState(() => _cons.add({'name': c.displayName, 'num': c.phones?.first.value}));
-        (await SharedPreferences.getInstance()).setString('con', json.encode(_cons));
+      final Contact? contact = await ContactsService.openDeviceContactPicker();
+      if (contact != null) {
+        String name = contact.displayName ?? "보호자";
+        String number = contact.phones?.isNotEmpty == true ? contact.phones!.first.value ?? "" : "";
+        setState(() => _contacts.add({'name': name, 'number': number}));
+        (await SharedPreferences.getInstance()).setString('contacts_list', json.encode(_contacts));
       }
     }
   }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("보호자 설정"), backgroundColor: const Color(0xFFFFCC80)),
+      appBar: AppBar(title: const Text("보호자 등록"), centerTitle: true),
       body: Column(
         children: [
-          Expanded(child: ListView.builder(itemCount: _cons.length, itemBuilder: (c, i) => ListTile(
-            title: Text(_cons[i]['name'] ?? ""),
-            subtitle: Text(_cons[i]['num'] ?? ""),
-            trailing: IconButton(icon: const Icon(Icons.delete, color: Colors.redAccent), onPressed: () async {
-              setState(() => _cons.removeAt(i));
-              (await SharedPreferences.getInstance()).setString('con', json.encode(_cons));
-            }),
-          ))),
-          Padding(
-            padding: const EdgeInsets.all(20.0),
-            child: Column(
-              children: [
-                ElevatedButton(onPressed: _add, child: const Text("보호자 추가")),
-                const SizedBox(height: 10),
-                TextButton(
-                  onPressed: () async => await [Permission.sms, Permission.location, Permission.locationAlways].request(), 
-                  child: const Text("모든 권한 다시 허용하기")
+          Expanded(
+            child: ListView.builder(
+              itemCount: _contacts.length,
+              itemBuilder: (context, i) => ListTile(
+                leading: const Icon(Icons.person, color: Colors.orangeAccent),
+                title: Text(_contacts[i]['name']!),
+                subtitle: Text(_contacts[i]['number']!),
+                trailing: IconButton(
+                  icon: const Icon(Icons.delete, color: Colors.redAccent),
+                  onPressed: () async {
+                    setState(() => _contacts.removeAt(i));
+                    (await SharedPreferences.getInstance()).setString('contacts_list', json.encode(_contacts));
+                  },
                 ),
-              ],
+              ),
             ),
           ),
+          ElevatedButton.icon(
+            onPressed: _addContact,
+            icon: const Icon(Icons.add),
+            label: const Text("연락처 추가"),
+          ),
+          const SizedBox(height: 10),
+          TextButton(
+            onPressed: () async => await [Permission.sms, Permission.location, Permission.locationAlways].request(),
+            child: const Text("모든 권한 허용하기"),
+          ),
+          const SizedBox(height: 30),
         ],
       ),
     );
