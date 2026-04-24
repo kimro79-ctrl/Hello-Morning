@@ -65,19 +65,17 @@ class _MainScreenState extends State<MainScreen> {
   void initState() {
     super.initState();
     _loadData();
-    _requestPermissions(); // 앱 실행 시 권한 요청
+    // 권한 요청: 앱 실행 1초 후 팝업 호출
+    Timer(const Duration(seconds: 1), () => _requestPermissions());
   }
 
-  // 배터리 최적화 제외 및 필수 권한 요청 로직 강화
   Future<void> _requestPermissions() async {
-    // 1. SMS 및 연락처 권한
-    await [Permission.sms, Permission.contacts].request();
-
-    // 2. 배터리 최적화 제외 요청 (이 부분이 뜨지 않으면 시스템 설정으로 유도)
-    var status = await Permission.ignoreBatteryOptimizations.status;
-    if (!status.isGranted) {
+    // 1. 배터리 최적화 제외 권한 (백그라운드 유지 필수)
+    if (await Permission.ignoreBatteryOptimizations.isDenied) {
       await Permission.ignoreBatteryOptimizations.request();
     }
+    // 2. SMS 및 연락처 권한
+    await [Permission.sms, Permission.contacts].request();
   }
 
   Future<void> _loadData() async {
@@ -123,13 +121,13 @@ class _MainScreenState extends State<MainScreen> {
                   width: double.infinity,
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFFFF3E0),
+                    color: const Color(0xFFFFF8F0),
                     borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: Colors.orange.shade700, width: 2),
+                    border: Border.all(color: const Color(0xFFFFCCBC), width: 1.5),
                   ),
                   child: Column(
                     children: [
-                      const Text("안부 확인 대기 시간", style: TextStyle(color: Color(0xFF4E342E), fontWeight: FontWeight.w900, fontSize: 17)),
+                      const Text("안부 확인 대기 시간", style: TextStyle(color: Color(0xFF3E2723), fontWeight: FontWeight.w900, fontSize: 17)),
                       const SizedBox(height: 15),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
@@ -147,9 +145,9 @@ class _MainScreenState extends State<MainScreen> {
                   width: double.infinity,
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFE3F2FD),
+                    color: const Color(0xFFF1F8FE),
                     borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: Colors.blue.shade700, width: 2),
+                    border: Border.all(color: const Color(0xFFBBDEFB), width: 1.5),
                   ),
                   child: Column(
                     children: [
@@ -157,11 +155,11 @@ class _MainScreenState extends State<MainScreen> {
                       const SizedBox(height: 10),
                       ..._contacts.map((c) => Container(
                         margin: const EdgeInsets.only(bottom: 8),
-                        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.blue.shade200)),
+                        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: const Color(0xFFE1F5FE))),
                         child: ListTile(
                           dense: true,
-                          title: Text(c['name']!, style: const TextStyle(fontWeight: FontWeight.w900, color: Colors.black, fontSize: 16)),
-                          subtitle: Text(c['number']!, style: const TextStyle(color: Color(0xFF424242), fontWeight: FontWeight.bold)),
+                          title: Text(c['name']!, style: const TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF263238), fontSize: 16)),
+                          subtitle: Text(c['number']!, style: const TextStyle(color: Color(0xFF455A64), fontWeight: FontWeight.bold)),
                           trailing: IconButton(
                             icon: const Icon(Icons.remove_circle, color: Color(0xFFD32F2F), size: 28),
                             onPressed: () async {
@@ -183,8 +181,8 @@ class _MainScreenState extends State<MainScreen> {
                             setModalState(() {}); setState(() {});
                           }
                         },
-                        icon: const Icon(Icons.add_circle, size: 26, color: Color(0xFF0D47A1)),
-                        label: const Text("연락처 추가", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: Color(0xFF0D47A1))),
+                        icon: const Icon(Icons.add_circle, size: 26, color: Color(0xFF1976D2)),
+                        label: const Text("연락처 추가", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: Color(0xFF1976D2))),
                       ),
                     ],
                   ),
@@ -192,7 +190,7 @@ class _MainScreenState extends State<MainScreen> {
                 const SizedBox(height: 20),
                 TextButton(
                   onPressed: () => openAppSettings(),
-                  child: const Text("백그라운드 문자가 안오나요? (권한 설정)", style: TextStyle(color: Colors.black, fontSize: 14, fontWeight: FontWeight.w900, decoration: TextDecoration.underline)),
+                  child: const Text("문자가 안오나요? (권한/배터리 수동설정)", style: TextStyle(color: Color(0xFF546E7A), fontSize: 14, fontWeight: FontWeight.w900, decoration: TextDecoration.underline)),
                 ),
                 const SizedBox(height: 20),
               ],
@@ -228,43 +226,46 @@ class _MainScreenState extends State<MainScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F5F5),
+      backgroundColor: const Color(0xFFF8F9FB),
       appBar: AppBar(
-        title: const Text("하루 안부 지킴이", style: TextStyle(color: Colors.black, fontWeight: FontWeight.w900, fontSize: 22)),
+        title: const Text("하루 안부 지킴이", style: TextStyle(color: Color(0xFF37474F), fontWeight: FontWeight.w900, fontSize: 20)),
         backgroundColor: Colors.transparent, elevation: 0, centerTitle: true,
       ),
       body: Column(
         children: [
           const Spacer(),
-          const Text("마지막 확인 시간", style: TextStyle(color: Color(0xFF424242), fontSize: 16, fontWeight: FontWeight.w900)),
+          const Text("마지막 확인 시간", style: TextStyle(color: Color(0xFF607D8B), fontSize: 16, fontWeight: FontWeight.w900)),
           const SizedBox(height: 8),
-          Text(_lastCheckIn, style: const TextStyle(fontSize: 34, fontWeight: FontWeight.w900, color: Colors.black, letterSpacing: -1)),
+          Text(_lastCheckIn, style: const TextStyle(fontSize: 34, fontWeight: FontWeight.w900, color: Color(0xFF263238), letterSpacing: -0.5)),
           const Spacer(),
           GestureDetector(
             onTap: _saveCheckIn,
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 150),
-              width: 240, height: 240,
+              width: 250, height: 250,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: Colors.white,
+                color: const Color(0xFFF8F9FB),
                 border: Border.all(
-                  color: _isPressed ? Colors.deepOrange : Colors.black,
-                  width: 10, 
+                  color: _isPressed ? Colors.orange : const Color(0xFFCFD8DC),
+                  width: 8, 
                 ),
-                boxShadow: [
-                  BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 25, offset: const Offset(5, 10)),
+                boxShadow: _isPressed ? [
+                  BoxShadow(color: Colors.orange.withOpacity(0.3), blurRadius: 20, spreadRadius: 4)
+                ] : [
+                  const BoxShadow(color: Colors.white, offset: Offset(-10, -10), blurRadius: 20),
+                  BoxShadow(color: Colors.black.withOpacity(0.1), offset: const Offset(10, 10), blurRadius: 20),
                 ],
               ),
               child: Center(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.face_retouching_natural, size: 110, color: Colors.black),
+                    Icon(Icons.face_retouching_natural, size: 120, color: _isPressed ? Colors.orange : const Color(0xFFB0BEC5)),
                     const SizedBox(height: 10),
                     Text("안전 확인", style: TextStyle(
-                      fontSize: 20, fontWeight: FontWeight.w900, letterSpacing: 2,
-                      color: _isPressed ? Colors.deepOrange : Colors.black
+                      fontSize: 22, fontWeight: FontWeight.w900,
+                      color: _isPressed ? Colors.orange : const Color(0xFF78909C)
                     )),
                   ],
                 ),
@@ -279,18 +280,18 @@ class _MainScreenState extends State<MainScreen> {
             child: OutlinedButton(
               onPressed: _showSettings,
               style: OutlinedButton.styleFrom(
-                side: const BorderSide(color: Colors.black, width: 3),
+                side: const BorderSide(color: Color(0xFFB0BEC5), width: 2.5),
                 backgroundColor: Colors.white,
-                foregroundColor: Colors.black,
-                padding: const EdgeInsets.symmetric(vertical: 20),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25)),
+                foregroundColor: const Color(0xFF546E7A),
+                padding: const EdgeInsets.symmetric(vertical: 18),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
               ),
               child: const Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.tune, size: 26, color: Colors.black),
+                  Icon(Icons.tune, size: 24),
                   SizedBox(width: 12),
-                  Text("시스템 설정", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 19)),
+                  Text("시스템 설정", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18)),
                 ],
               ),
             ),
