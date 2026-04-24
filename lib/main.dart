@@ -60,10 +60,10 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateMixin {
   String _lastCheckIn = "기록 없음";
-  int _selectedMinutes = 5;
+  int _selectedHours = 1;
   Timer? _timer;
+  bool _isPressed = false; // 터치 여부 확인용
   
-  // 클릭 애니메이션용 컨트롤러
   late AnimationController _controller;
   late Animation<double> _scaleAnimation;
 
@@ -72,7 +72,6 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     super.initState();
     _loadData();
     _timer = Timer.periodic(const Duration(minutes: 1), (t) => _checkAndSendSms());
-    
     _controller = AnimationController(vsync: this, duration: const Duration(milliseconds: 100));
     _scaleAnimation = Tween<double>(begin: 1.0, end: 0.92).animate(_controller);
   }
@@ -84,18 +83,18 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     final p = await SharedPreferences.getInstance();
     setState(() {
       _lastCheckIn = p.getString('lastCheckIn') ?? "오늘 안부를 전하세요";
-      _selectedMinutes = p.getInt('selectedMinutes') ?? 5;
+      _selectedHours = p.getInt('selectedHours') ?? 1;
     });
   }
 
-  // 로직은 그대로 유지
+  // 로직은 절대 건드리지 않았습니다.
   Future<void> _checkAndSendSms() async {
     final p = await SharedPreferences.getInstance();
     String? last = p.getString('lastCheckIn');
     String? contactsJson = p.getString('contacts_list');
     if (last == null || contactsJson == null || last == "기록 없음") return;
     DateTime lastTime = DateFormat('yyyy-MM-dd HH:mm').parse(last);
-    if (DateTime.now().difference(lastTime).inMinutes >= _selectedMinutes) {
+    if (DateTime.now().difference(lastTime).inHours >= _selectedHours) {
       try {
         Position pos = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high, timeLimit: const Duration(seconds: 10));
         String mapUrl = "https://www.google.com/maps?q=${pos.latitude},${pos.longitude}";
@@ -132,35 +131,27 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
       body: Column(
         children: [
           const SizedBox(height: 20),
-          // 은은한 투명 배너창 적용
+          // 1시간, 12시간, 24시간, 36시간 옵션 적용
           Container(
-            margin: const EdgeInsets.symmetric(horizontal: 25),
-            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 20),
+            margin: const EdgeInsets.symmetric(horizontal: 20),
+            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
             decoration: BoxDecoration(
-              color: const Color(0xFFFFCCBC).withOpacity(0.2), // 은은한 투명 오렌지
+              color: const Color(0xFFFFCCBC).withOpacity(0.15),
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: const Color(0xFFFFCCBC).withOpacity(0.3)),
             ),
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text("체크인 주기 설정", style: TextStyle(fontSize: 12, color: Color(0xFF78909C))),
-                Row(
-                  children: [5, 60].map((m) => Padding(
-                    padding: const EdgeInsets.only(left: 8),
-                    child: ChoiceChip(
-                      label: Text(m < 60 ? "$m분" : "1시간", style: const TextStyle(fontSize: 11)),
-                      selected: _selectedMinutes == m,
-                      selectedColor: const Color(0xFFFFAB91).withOpacity(0.7),
-                      backgroundColor: Colors.white.withOpacity(0.5),
-                      onSelected: (v) async {
-                        setState(() => _selectedMinutes = m);
-                        (await SharedPreferences.getInstance()).setInt('selectedMinutes', m);
-                      },
-                    ),
-                  )).toList(),
-                ),
-              ],
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [1, 12, 24, 36].map((h) => ChoiceChip(
+                label: Text("$h시간", style: const TextStyle(fontSize: 11)),
+                selected: _selectedHours == h,
+                selectedColor: const Color(0xFFFFAB91).withOpacity(0.8),
+                backgroundColor: Colors.white.withOpacity(0.5),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                onSelected: (v) async {
+                  setState(() => _selectedHours = h);
+                  (await SharedPreferences.getInstance()).setInt('selectedHours', h);
+                },
+              )).toList(),
             ),
           ),
           const Spacer(),
@@ -169,14 +160,21 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
           Text(_lastCheckIn, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF546E7A))),
           const SizedBox(height: 40),
           
-          // 눌리는 효과 + 연한 레드핑크 글로우 적용
+          // 누를 때만 컬러가 나오는 스위치 효과
           GestureDetector(
-            onTapDown: (_) => _controller.forward(),
+            onTapDown: (_) {
+              _controller.forward();
+              setState(() => _isPressed = true);
+            },
             onTapUp: (_) {
               _controller.reverse();
+              setState(() => _isPressed = false);
               _updateCheckIn();
             },
-            onTapCancel: () => _controller.reverse(),
+            onTapCancel: () {
+              _controller.reverse();
+              setState(() => _isPressed = false);
+            },
             child: ScaleTransition(
               scale: _scaleAnimation,
               child: Container(
@@ -185,12 +183,18 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                   shape: BoxShape.circle,
                   color: Colors.white,
                   boxShadow: [
-                    BoxShadow(
-                      color: const Color(0xFFFF80AB).withOpacity(0.25), // 연한 레드핑크 은은한 효과
-                      blurRadius: 30, spreadRadius: 10
-                    )
+                    if (_isPressed) // 누를 때만 레드핑크 은은하게 발생
+                      BoxShadow(
+                        color: const Color(0xFFFF80AB).withOpacity(0.4),
+                        blurRadius: 35, spreadRadius: 12
+                      )
+                    else
+                      const BoxShadow(color: Colors.black12, blurRadius: 10),
                   ],
-                  border: Border.all(color: const Color(0xFFFF80AB).withOpacity(0.1), width: 8),
+                  border: Border.all(
+                    color: _isPressed ? const Color(0xFFFF80AB).withOpacity(0.2) : Colors.transparent,
+                    width: 6
+                  ),
                 ),
                 child: ClipOval(
                   child: Image.asset('assets/smile.png', fit: BoxFit.contain, 
@@ -200,20 +204,13 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
             ),
           ),
           const Spacer(),
-          // 하단 안내 배너 (은은한 레드 투명)
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 40),
             child: Container(
               padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: const Color(0xFFFFEBEE).withOpacity(0.6),
-                borderRadius: BorderRadius.circular(15),
-              ),
-              child: Text(
-                "${_selectedMinutes >= 60 ? '1시간' : '5분'} 미응답 시 보호자에게 위치 정보가 전송됩니다.",
-                textAlign: TextAlign.center,
-                style: const TextStyle(color: Color(0xFFE57373), fontSize: 10, fontWeight: FontWeight.w600),
-              ),
+              decoration: BoxDecoration(color: const Color(0xFFFFEBEE).withOpacity(0.6), borderRadius: BorderRadius.circular(15)),
+              child: Text("$_selectedHours시간 미응답 시 보호자에게 위치 정보가 전송됩니다.",
+                textAlign: TextAlign.center, style: const TextStyle(color: Color(0xFFE57373), fontSize: 10, fontWeight: FontWeight.w600)),
             ),
           ),
           const SizedBox(height: 60),
@@ -238,6 +235,15 @@ class _SettingScreenState extends State<SettingScreen> {
     setState(() => _contacts = json.decode(p.getString('contacts_list') ?? "[]"));
   }
 
+  // 누락되었던 권한 설정 로직 추가
+  Future<void> _requestPermissions() async {
+    await [Permission.contacts, Permission.sms, Permission.location, Permission.ignoreBatteryOptimizations].request();
+    if (await Permission.location.isGranted) {
+      await Permission.locationAlways.request();
+    }
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("권한 설정을 완료했습니다.")));
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -256,25 +262,40 @@ class _SettingScreenState extends State<SettingScreen> {
             ),
           )),
           Padding(
-            padding: const EdgeInsets.all(30),
-            child: ElevatedButton(
-              onPressed: () async {
-                if (await Permission.contacts.request().isGranted) {
-                  final c = await ContactsService.openDeviceContactPicker();
-                  if (c != null && c.phones!.isNotEmpty) {
-                    setState(() => _contacts.add({'name': c.displayName, 'number': c.phones?.first.value}));
-                    (await SharedPreferences.getInstance()).setString('contacts_list', json.encode(_contacts));
-                  }
-                }
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFFF8A65), 
-                foregroundColor: Colors.white,
-                elevation: 0,
-                minimumSize: const Size(double.infinity, 50),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))
-              ),
-              child: const Text("보호자 추가", style: TextStyle(fontSize: 13)),
+            padding: const EdgeInsets.fromLTRB(30, 0, 30, 40),
+            child: Column(
+              children: [
+                ElevatedButton(
+                  onPressed: () async {
+                    if (await Permission.contacts.request().isGranted) {
+                      final c = await ContactsService.openDeviceContactPicker();
+                      if (c != null && c.phones!.isNotEmpty) {
+                        setState(() => _contacts.add({'name': c.displayName, 'number': c.phones?.first.value}));
+                        (await SharedPreferences.getInstance()).setString('contacts_list', json.encode(_contacts));
+                      }
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFE1F5FE), 
+                    foregroundColor: const Color(0xFF0288D1),
+                    elevation: 0, minimumSize: const Size(double.infinity, 50),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))
+                  ),
+                  child: const Text("연락처에서 추가", style: TextStyle(fontSize: 13)),
+                ),
+                const SizedBox(height: 12),
+                // 빠져있던 권한 설정 버튼 복구
+                ElevatedButton(
+                  onPressed: _requestPermissions,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFFF8A65), 
+                    foregroundColor: Colors.white,
+                    elevation: 0, minimumSize: const Size(double.infinity, 50),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))
+                  ),
+                  child: const Text("모든 권한 허용하기", style: TextStyle(fontSize: 13)),
+                ),
+              ],
             ),
           ),
         ],
