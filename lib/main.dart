@@ -3,11 +3,14 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:contacts_service/contacts_service.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:intl/intl.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'package:direct_sms/direct_sms.dart';
 import 'dart:async';
-import 'dart:convert'; // 연락처 저장을 위한 json 디코더
+import 'dart:convert';
 
-void main() => runApp(const DailySafetyApp());
+void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+  runApp(const DailySafetyApp());
+}
 
 class DailySafetyApp extends StatelessWidget {
   const DailySafetyApp({super.key});
@@ -35,8 +38,8 @@ class MainScreen extends StatefulWidget {
 }
 
 class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateMixin {
-  String _lastCheckIn = "기록 없음";
-  List<Map<String, String>> _contacts = []; // 연락처 5개를 위한 리스트
+  String _lastCheckIn = "오늘의 안부를 확인해주세요";
+  List<Map<String, String>> _contacts = [];
   bool _isPressed = false;
 
   late AnimationController _controller;
@@ -62,7 +65,7 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
   Future<void> _loadData() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
-      _lastCheckIn = prefs.getString('lastCheckIn') ?? "오늘의 안부를 확인해주세요!";
+      _lastCheckIn = prefs.getString('lastCheckIn') ?? "오늘의 안부를 확인해주세요";
       String? contactJson = prefs.getString('contacts_list');
       if (contactJson != null) {
         _contacts = List<Map<String, String>>.from(
@@ -76,15 +79,39 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
     await prefs.setString('contacts_list', json.encode(_contacts));
   }
 
-  Future<void> _sendEmergencySMS() async {
-    if (_contacts.isEmpty) return;
-    // 첫 번째 보호자에게 테스트 문자 발송
-    final String number = _contacts.first['number']!;
-    final String message = "[하루 안부 지킴이] 사용자의 안부 확인이 지연되었습니다.";
-    final Uri smsUri = Uri.parse('sms:$number?body=${Uri.encodeComponent(message)}');
-    if (await canLaunchUrl(smsUri)) {
-      await launchUrl(smsUri);
+  // 직접 문자 발송 권한 및 기능
+  Future<void> _sendTestSMS() async {
+    if (_contacts.isEmpty) {
+      _showSnackBar("등록된 보호자가 없습니다.");
+      return;
     }
+
+    // 문자 및 전화 권한 확인
+    Map<Permission, PermissionStatus> statuses = await [
+      Permission.sms,
+      Permission.contacts,
+    ].request();
+
+    if (statuses[Permission.sms]!.isGranted) {
+      final DirectSms directSms = DirectSms();
+      final String number = _contacts.first['number']!;
+      
+      try {
+        await directSms.sendSms(
+          message: "[하루 안부 지킴이] 테스트 메시지입니다. 사용자의 안부가 확인되었습니다.",
+          phone: number,
+        );
+        _showSnackBar("첫 번째 보호자에게 테스트 문자를 보냈습니다.");
+      } catch (e) {
+        _showSnackBar("발송 실패: $e");
+      }
+    } else {
+      _showSnackBar("문자 발송 권한이 거부되었습니다.");
+    }
+  }
+
+  void _showSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
 
   Future<void> _checkIn() async {
@@ -95,26 +122,16 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
     String now = DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now());
     await prefs.setString('lastCheckIn', now);
     
-    Timer(const Duration(milliseconds: 1500), () {
+    Timer(const Duration(milliseconds: 1000), () {
       if (mounted) setState(() => _isPressed = false);
     });
 
     setState(() => _lastCheckIn = now);
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text("안부가 확인되었습니다!", style: TextStyle(color: Colors.white)),
-        backgroundColor: Colors.orangeAccent,
-        duration: Duration(seconds: 1),
-      ),
-    );
   }
 
   Future<void> _pickContact() async {
     if (_contacts.length >= 5) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("연락처는 최대 5개까지 등록 가능합니다."))
-      );
+      _showSnackBar("보호자는 최대 5명까지 등록 가능합니다.");
       return;
     }
 
@@ -139,34 +156,21 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: PreferredSize(
-        preferredSize: const Size.fromHeight(kToolbarHeight),
-        child: Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.centerLeft,
-              end: Alignment.centerRight,
-              colors: [Color(0xFFFFA726), Color(0xFFFFB74D)],
-            ),
-            boxShadow: [BoxShadow(color: Colors.black12, offset: Offset(0, 3), blurRadius: 5)],
-          ),
-          child: AppBar(
-            title: const Text("하루 안부 지킴이", style: TextStyle(fontWeight: FontWeight.bold)),
-            backgroundColor: Colors.transparent,
-            elevation: 0,
-            centerTitle: true,
-          ),
-        ),
+      appBar: AppBar(
+        title: const Text("하루 안부 지킴이", style: TextStyle(fontWeight: FontWeight.normal, fontSize: 17, color: Colors.black87)),
+        backgroundColor: const Color(0xFFF7B13E),
+        elevation: 0,
+        centerTitle: true,
       ),
-      body: SingleChildScrollView( // 연락처가 많아질 경우 대비
+      body: SingleChildScrollView(
         child: Container(
           width: double.infinity,
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 40),
           child: Column(
             children: [
-              const Text("마지막 확인 시간", style: TextStyle(fontSize: 14, color: Colors.grey)),
-              const SizedBox(height: 8),
-              Text(_lastCheckIn, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+              const Text("마지막 확인 시간", style: TextStyle(fontSize: 13, color: Colors.grey)),
+              const SizedBox(height: 6),
+              Text(_lastCheckIn, style: const TextStyle(fontSize: 16, color: Colors.black54)),
               const SizedBox(height: 60),
               
               GestureDetector(
@@ -175,117 +179,103 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
                   scale: _scaleAnimation,
                   child: AnimatedContainer(
                     duration: const Duration(milliseconds: 200),
-                    width: 220,
-                    height: 220,
+                    width: 210,
+                    height: 210,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       color: const Color(0xFFEFF0F3),
                       boxShadow: _isPressed
                           ? [
-                              BoxShadow(color: Colors.black.withOpacity(0.05), offset: const Offset(4, 4), blurRadius: 4, spreadRadius: 1),
-                              const BoxShadow(color: Colors.white, offset: Offset(-4, -4), blurRadius: 4, spreadRadius: 1),
+                              BoxShadow(color: Colors.black.withOpacity(0.05), offset: const Offset(4, 4), blurRadius: 4),
+                              const BoxShadow(color: Colors.white, offset: Offset(-4, -4), blurRadius: 4),
                             ]
                           : [
-                              BoxShadow(color: Colors.black.withOpacity(0.15), offset: const Offset(10, 10), blurRadius: 20),
-                              const BoxShadow(color: Colors.white, offset: Offset(-10, -10), blurRadius: 20),
+                              BoxShadow(color: Colors.black.withOpacity(0.12), offset: const Offset(10, 10), blurRadius: 18),
+                              const BoxShadow(color: Colors.white, offset: Offset(-10, -10), blurRadius: 18),
                             ],
                     ),
-                    child: Stack(
-                      alignment: Alignment.center,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(4),
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: _isPressed ? Colors.orangeAccent : Colors.white.withOpacity(0.5),
-                              width: 4,
-                            ),
-                          ),
-                          child: CircleAvatar(
-                            radius: 85,
-                            backgroundColor: Colors.transparent,
-                            child: ClipOval(
-                              child: Image.asset(
-                                'assets/smile.png',
-                                width: 170,
-                                height: 170,
-                                fit: BoxFit.cover,
-                              ),
-                            ),
-                          ),
+                    child: Center(
+                      child: ClipOval(
+                        child: Image.asset(
+                          'assets/smile.png',
+                          width: 150,
+                          height: 150,
+                          fit: BoxFit.cover,
+                          errorBuilder: (c, e, s) => const Icon(Icons.face, size: 90, color: Color(0xFFF7B13E)),
                         ),
-                        Positioned(
-                          bottom: 25,
-                          child: Text(
-                            "CLICK",
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                              color: _isPressed ? Colors.orange : Colors.grey[400],
-                              letterSpacing: 2.0,
-                            ),
-                          ),
-                        ),
-                      ],
+                      ),
                     ),
                   ),
                 ),
               ),
               const SizedBox(height: 60),
               
-              // 보호자 연락처 목록 (최대 5개)
-              if (_contacts.isNotEmpty)
-                Container(
-                  padding: const EdgeInsets.all(15),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.5),
-                    borderRadius: BorderRadius.circular(15),
-                  ),
-                  child: Column(
-                    children: [
-                      ..._contacts.map((contact) => ListTile(
-                        dense: true,
-                        title: Text(contact['name']!, style: const TextStyle(fontWeight: FontWeight.bold)),
-                        subtitle: Text(contact['number']!),
-                        trailing: IconButton(
-                          icon: const Icon(Icons.remove_circle_outline, color: Colors.grey),
-                          onPressed: () async {
-                            setState(() => _contacts.remove(contact));
-                            await _saveContacts();
-                          },
-                        ),
-                      )),
-                      const Divider(),
-                      ElevatedButton.icon(
-                        onPressed: _sendEmergencySMS,
-                        icon: const Icon(Icons.mail_outline),
-                        label: const Text("수동 문자 발송 테스트"),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.white,
-                          foregroundColor: Colors.redAccent,
-                          elevation: 0,
-                          side: const BorderSide(color: Colors.redAccent),
-                        ),
-                      ),
-                    ],
-                  ),
+              // 보호자 리스트 (최대 5개)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(15),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.5),
+                  borderRadius: BorderRadius.circular(15),
                 ),
-              
-              const SizedBox(height: 10),
-              TextButton.icon(
-                onPressed: _pickContact,
-                icon: const Icon(Icons.person_add_alt),
-                label: Text("보호자 연락처 추가 (${_contacts.length}/5)"),
+                child: Column(
+                  children: [
+                    const Text("등록된 보호자", style: TextStyle(fontSize: 14, color: Colors.black87, fontWeight: FontWeight.w500)),
+                    const SizedBox(height: 10),
+                    ..._contacts.map((contact) => ListTile(
+                      dense: true,
+                      title: Text(contact['name']!, style: const TextStyle(fontSize: 14, color: Colors.black54)),
+                      subtitle: Text(contact['number']!, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                      trailing: IconButton(
+                        icon: const Icon(Icons.remove_circle_outline, color: Colors.black26, size: 20),
+                        onPressed: () async {
+                          setState(() => _contacts.remove(contact));
+                          await _saveContacts();
+                        },
+                      ),
+                    )),
+                    if (_contacts.length < 5)
+                      TextButton.icon(
+                        onPressed: _pickContact,
+                        icon: const Icon(Icons.person_add_alt, size: 18),
+                        label: Text("보호자 추가 (${_contacts.length}/5)", style: const TextStyle(fontSize: 14)),
+                      ),
+                  ],
+                ),
               ),
               
-              // 배터리 최적화 제외 수동 권한 버튼
-              TextButton.icon(
-                onPressed: () => openAppSettings(),
-                icon: const Icon(Icons.battery_alert, size: 16),
-                label: const Text("문자가 안 오나요? (배터리 제한 해제)", 
-                  style: TextStyle(fontSize: 12, color: Colors.grey, decoration: TextDecoration.underline)),
+              const SizedBox(height: 20),
+              
+              // 기능 버튼들
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  ElevatedButton(
+                    onPressed: _sendTestSMS,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      foregroundColor: Colors.redAccent,
+                      elevation: 1,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                    child: const Text("문자 테스트", style: TextStyle(fontSize: 13)),
+                  ),
+                  ElevatedButton(
+                    onPressed: () => openAppSettings(),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      foregroundColor: Colors.blueAccent,
+                      elevation: 1,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                    child: const Text("권한 수동설정", style: TextStyle(fontSize: 13)),
+                  ),
+                ],
               ),
+              
+              const SizedBox(height: 30),
+              const Text("5분 미확인 시 자동으로 문자가 발송됩니다.", 
+                style: TextStyle(color: Colors.redAccent, fontSize: 12, fontWeight: FontWeight.normal)),
             ],
           ),
         ),
