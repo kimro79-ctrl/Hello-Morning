@@ -20,10 +20,7 @@ class DailySafetyApp extends StatelessWidget {
     return MaterialApp(
       title: '하루 한번 안심지킴이',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        scaffoldBackgroundColor: const Color(0xFFFDFCFB),
-        useMaterial3: true,
-      ),
+      theme: ThemeData(scaffoldBackgroundColor: const Color(0xFFFDFCFB), useMaterial3: true),
       home: const MainNavigation(),
     );
   }
@@ -38,7 +35,6 @@ class MainNavigation extends StatefulWidget {
 class _MainNavigationState extends State<MainNavigation> {
   int _currentIndex = 0;
   final List<Widget> _screens = [const HomeScreen(), const SettingScreen()];
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -46,11 +42,10 @@ class _MainNavigationState extends State<MainNavigation> {
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
         selectedItemColor: const Color(0xFFFF8A65),
-        unselectedItemColor: const Color(0xFF90A4AE),
         onTap: (index) => setState(() => _currentIndex = index),
         items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home_filled), label: '홈'),
-          BottomNavigationBarItem(icon: Icon(Icons.people_rounded), label: '설정'),
+          BottomNavigationBarItem(icon: Icon(Icons.home), label: '홈'),
+          BottomNavigationBarItem(icon: Icon(Icons.people), label: '설정'),
         ],
       ),
     );
@@ -65,99 +60,56 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   String _lastCheckIn = "기록 없음";
-  bool _isPressed = false;
-  int _selectedMinutes = 5; 
-  Timer? _timer;
+  int _selectedMinutes = 5;
 
   @override
   void initState() {
     super.initState();
     _loadData();
-    _timer = Timer.periodic(const Duration(minutes: 1), (t) => _checkSafety());
   }
-
-  @override
-  void dispose() { _timer?.cancel(); super.dispose(); }
 
   void _loadData() async {
     final p = await SharedPreferences.getInstance();
     setState(() {
-      _lastCheckIn = p.getString('lastCheckIn') ?? "오늘 안부를 전하세요";
+      _lastCheckIn = p.getString('lastCheckIn') ?? "오늘 안부를 확인하세요";
       _selectedMinutes = p.getInt('selectedMinutes') ?? 5;
     });
   }
 
-  Future<void> _checkSafety() async {
-    final p = await SharedPreferences.getInstance();
-    String? last = p.getString('lastCheckIn');
-    String? contacts = p.getString('contacts_list');
-    if (last == null || contacts == null) return;
-
-    DateTime lastTime = DateFormat('yyyy-MM-dd HH:mm').parse(last);
-    if (DateTime.now().difference(lastTime).inMinutes >= _selectedMinutes) {
-      try {
-        Position pos = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
-        String link = "https://www.google.com/maps?q=${pos.latitude},${pos.longitude}";
-        List list = json.decode(contacts);
-        for (var c in list) {
-          await BackgroundSms.sendMessage(
-            phoneNumber: c['number'],
-            message: "[하루 한번 안심지킴이] 미응답 감지!\n마지막 확인: $last\n위치: $link",
-          );
-        }
-        _updateCheckInSilent();
-      } catch (e) { }
-    }
-  }
-
-  void _updateCheckInSilent() async {
+  void _updateCheckIn() async {
     String now = DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now());
-    (await SharedPreferences.getInstance()).setString('lastCheckIn', now);
-    if (mounted) setState(() { _lastCheckIn = now; });
+    final p = await SharedPreferences.getInstance();
+    await p.setString('lastCheckIn', now);
+    setState(() => _lastCheckIn = now);
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("하루 한번 안심지킴이", style: TextStyle(color: Color(0xFFFF8A65), fontWeight: FontWeight.bold, fontSize: 18)),
-        backgroundColor: const Color(0xFFFFF3E0),
+        title: const Text("하루 한번 안심지킴이", style: TextStyle(color: Color(0xFFFF8A65), fontWeight: FontWeight.bold)),
         centerTitle: true,
+        backgroundColor: const Color(0xFFFFF3E0),
         elevation: 0,
       ),
       body: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Text("마지막 체크인 시간", style: TextStyle(color: Color(0xFF90A4AE))),
-          Text(_lastCheckIn, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Color(0xFF455A64))),
-          const SizedBox(height: 50),
+          const Text("마지막 체크인 기록", style: TextStyle(color: Colors.grey)),
+          Text(_lastCheckIn, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 40),
           Center(
             child: GestureDetector(
-              onTap: () {
-                setState(() => _isPressed = true);
-                _updateCheckInSilent();
-                Future.delayed(const Duration(milliseconds: 300), () => setState(() => _isPressed = false));
-              },
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 150),
-                width: 220, height: 220,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle, color: Colors.white,
-                  border: Border.all(color: _isPressed ? const Color(0xFFFFCCBC) : Colors.white, width: 10),
-                  boxShadow: const [BoxShadow(color: Color(0x1A000000), blurRadius: 20)],
-                ),
-                child: ClipOval(
-                  child: Image.asset('assets/smile.png', fit: BoxFit.contain,
-                    errorBuilder: (context, error, stackTrace) => const Icon(Icons.sentiment_satisfied_alt, size: 80, color: Color(0xFFFFAB91))),
-                ),
+              onTap: _updateCheckIn,
+              child: Container(
+                width: 200, height: 200,
+                decoration: const BoxDecoration(shape: BoxShape.circle, color: Colors.white, boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 15)]),
+                child: const Icon(Icons.sentiment_very_satisfied, size: 100, color: Color(0xFFFFAB91)),
               ),
             ),
           ),
-          const SizedBox(height: 50),
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 40),
-            child: Text("미응답 시 보호자에게 비상 문자가 전송됩니다.", textAlign: TextAlign.center, style: TextStyle(color: Color(0xFFE57373), fontSize: 12)),
-          ),
+          const SizedBox(height: 40),
+          const Text("미응답 시 보호자에게 비상 문자가 전송됩니다.", style: TextStyle(color: Colors.redAccent, fontSize: 12)),
         ],
       ),
     );
@@ -172,19 +124,25 @@ class SettingScreen extends StatefulWidget {
 
 class _SettingScreenState extends State<SettingScreen> {
   List _contacts = [];
+
   @override
-  void initState() { super.initState(); _load(); }
-  void _load() async {
+  void initState() {
+    super.initState();
+    _loadContacts();
+  }
+
+  void _loadContacts() async {
     final p = await SharedPreferences.getInstance();
     setState(() => _contacts = json.decode(p.getString('contacts_list') ?? "[]"));
   }
 
-  void _showPermissionDialog() {
+  // 연락처 권한 수동 설정 창
+  void _openPermissionSettings() {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text("권한 설정 필요"),
-        content: const Text("연락처를 불러오려면 시스템 설정에서 권한을 허용해 주세요."),
+        title: const Text("연락처 권한 필요"),
+        content: const Text("연락처를 추가하려면 [설정 이동]을 눌러 '연락처' 권한을 허용해 주세요."),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context), child: const Text("취소")),
           TextButton(onPressed: () { openAppSettings(); Navigator.pop(context); }, child: const Text("설정 이동")),
@@ -195,6 +153,7 @@ class _SettingScreenState extends State<SettingScreen> {
 
   Future<void> _addContact() async {
     var status = await Permission.contacts.status;
+    
     if (status.isGranted) {
       try {
         final Contact? c = await ContactsService.openDeviceContactPicker();
@@ -204,13 +163,14 @@ class _SettingScreenState extends State<SettingScreen> {
           await p.setString('contacts_list', json.encode(_contacts));
         }
       } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("연락처를 가져오지 못했습니다.")));
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("연락처를 불러오지 못했습니다.")));
       }
     } else {
+      // 권한 요청 후 거절되면 설정창 다이얼로그 띄움
       if (await Permission.contacts.request().isGranted) {
         _addContact();
       } else {
-        _showPermissionDialog();
+        _openPermissionSettings();
       }
     }
   }
@@ -218,27 +178,26 @@ class _SettingScreenState extends State<SettingScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("보호자 등록", style: TextStyle(color: Color(0xFF455A64))), backgroundColor: const Color(0xFFFFF3E0), centerTitle: true),
+      appBar: AppBar(title: const Text("보호자 등록"), backgroundColor: const Color(0xFFFFF3E0)),
       body: Column(
         children: [
           Expanded(child: ListView.builder(
             itemCount: _contacts.length,
             itemBuilder: (c, i) => ListTile(
-              leading: const CircleAvatar(backgroundColor: Color(0xFFFFCCBC), child: Icon(Icons.person, color: Colors.white)),
-              title: Text(_contacts[i]['name'] ?? "", style: const TextStyle(fontWeight: FontWeight.bold)),
-              subtitle: Text(_contacts[i]['number'] ?? ""),
-              trailing: IconButton(icon: const Icon(Icons.remove_circle, color: Color(0xFFE57373)), onPressed: () {
+              title: Text(_contacts[i]['name']),
+              subtitle: Text(_contacts[i]['number']),
+              trailing: IconButton(icon: const Icon(Icons.delete), onPressed: () {
                 setState(() => _contacts.removeAt(i));
                 SharedPreferences.getInstance().then((p) => p.setString('contacts_list', json.encode(_contacts)));
               }),
             ),
           )),
           Padding(
-            padding: const EdgeInsets.all(25.0),
-            child: ElevatedButton.icon(
+            padding: const EdgeInsets.all(20),
+            child: ElevatedButton(
               onPressed: _addContact,
-              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFF8A65), foregroundColor: Colors.white, minimumSize: const Size(double.infinity, 55)),
-              icon: const Icon(Icons.contact_phone), label: const Text("연락처에서 추가"),
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFF8A65), foregroundColor: Colors.white, minimumSize: const Size(double.infinity, 50)),
+              child: const Text("연락처에서 추가"),
             ),
           ),
         ],
