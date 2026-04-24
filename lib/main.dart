@@ -8,44 +8,32 @@ import 'package:workmanager/workmanager.dart';
 import 'dart:async';
 import 'dart:convert';
 
-// 배경 작업 (5분 체크)
 @pragma('vm:entry-point')
 void callbackDispatcher() {
   Workmanager().executeTask((task, inputData) async {
-    await checkAndSendSms();
-    return Future.value(true);
-  });
-}
-
-Future<void> checkAndSendSms() async {
-  final prefs = await SharedPreferences.getInstance();
-  final lastCheckInStr = prefs.getString('lastCheckIn');
-  final contactJson = prefs.getString('contacts_list');
-  const int timeoutLimit = 5; // 테스트용 5분
-
-  if (lastCheckInStr != null && contactJson != null) {
-    DateTime lastCheck = DateFormat('yyyy-MM-dd HH:mm').parse(lastCheckInStr);
-    int diff = DateTime.now().difference(lastCheck).inMinutes;
-    if (diff >= timeoutLimit) {
-      List<dynamic> contacts = json.decode(contactJson);
-      final DirectSms directSms = DirectSms();
-      for (var c in contacts) {
-        try {
-          await directSms.sendSms(message: "[하루 안부 테스트] 5분간 미확인되었습니다.", phone: c['number']);
-        } catch (e) { debugPrint(e.toString()); }
+    final prefs = await SharedPreferences.getInstance();
+    final lastCheckInStr = prefs.getString('lastCheckIn');
+    final contactJson = prefs.getString('contacts_list');
+    if (lastCheckInStr != null && contactJson != null) {
+      DateTime lastCheck = DateFormat('yyyy-MM-dd HH:mm').parse(lastCheckInStr);
+      if (DateTime.now().difference(lastCheck).inMinutes >= 5) { // 테스트 5분
+        List<dynamic> contacts = json.decode(contactJson);
+        final DirectSms directSms = DirectSms();
+        for (var c in contacts) {
+          try { await directSms.sendSms(message: "[안부 지킴이] 5분간 응답이 없어 발송되었습니다.", phone: c['number']); } catch (e) {}
+        }
       }
     }
-  }
+    return Future.value(true);
+  });
 }
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Workmanager().initialize(callbackDispatcher);
-  await Workmanager().registerPeriodicTask("1", "periodicSafetyCheck", frequency: const Duration(minutes: 15));
   runApp(const MaterialApp(debugShowCheckedModeBanner: false, home: MainNavigation()));
 }
 
-// [네비게이션 제어] - 페이지 분리 핵심
 class MainNavigation extends StatefulWidget {
   const MainNavigation({super.key});
   @override
@@ -54,27 +42,29 @@ class MainNavigation extends StatefulWidget {
 
 class _MainNavigationState extends State<MainNavigation> {
   int _currentIndex = 0;
-  final List<Widget> _screens = [const HomeScreen(), const ContactScreen(), const LogScreen()];
+  final List<Widget> _screens = [const HomeScreen(), const ContactScreen(), const SettingScreen()];
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: _screens[_currentIndex], // 선택된 인덱스에 따라 페이지 전환
+      body: IndexedStack(index: _currentIndex, children: _screens),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
         selectedItemColor: Colors.orangeAccent,
         onTap: (index) => setState(() => _currentIndex = index),
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home_rounded), label: '홈'),
-          BottomNavigationBarItem(icon: Icon(Icons.people_alt_rounded), label: '보호자'),
-          BottomNavigationBarItem(icon: Icon(Icons.list_alt_rounded), label: '기록'),
+          BottomNavigationBarItem(icon: Icon(Icons.people_rounded), label: '보호자'),
+          BottomNavigationBarItem(icon: Icon(Icons.settings_rounded), label: '설정'),
         ],
       ),
     );
   }
 }
 
-// [페이지 1] 홈 화면
+// ---------------------------------------------------------
+// [1] 홈 화면: 주간 달력 + 메인 버튼 (레드 테두리 효과)
+// ---------------------------------------------------------
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
   @override
@@ -82,60 +72,89 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  String _lastCheckIn = "안부를 확인해주세요";
+  String _lastCheckIn = "기록 없음";
   bool _isPressed = false;
 
   @override
-  void initState() {
-    super.initState();
-    _load();
-    Timer.periodic(const Duration(seconds: 30), (t) { checkAndSendSms(); _load(); });
+  void initState() { super.initState(); _loadData(); }
+
+  void _loadData() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() => _lastCheckIn = prefs.getString('lastCheckIn') ?? "오늘의 안부를 확인해주세요");
   }
 
-  void _load() async {
+  void _onPressButton() async {
+    setState(() => _isPressed = true);
     final prefs = await SharedPreferences.getInstance();
-    setState(() => _lastCheckIn = prefs.getString('lastCheckIn') ?? "확인 버튼을 눌러주세요");
+    String now = DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now());
+    await prefs.setString('lastCheckIn', now);
+    
+    // 0.5초 후 레드 테두리 해제
+    Timer(const Duration(milliseconds: 500), () {
+      if (mounted) setState(() { _isPressed = false; _lastCheckIn = now; });
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FA),
-      appBar: AppBar(title: const Text("하루 안부 지킴이", style: TextStyle(fontWeight: FontWeight.bold)), backgroundColor: const Color(0xFFFFCC80), centerTitle: true, elevation: 0),
+      backgroundColor: const Color(0xFFF9F9F9),
+      appBar: AppBar(title: const Text("하루 안부", style: TextStyle(color: Colors.black87, fontWeight: FontWeight.bold)), 
+      backgroundColor: const Color(0xFFFFE0B2), centerTitle: true, elevation: 0),
       body: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Text("마지막 확인", style: TextStyle(color: Colors.grey)),
-          Text(_lastCheckIn, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.orange)),
-          const SizedBox(height: 50),
-          Center(
-            child: GestureDetector(
-              onTap: () async {
-                setState(() => _isPressed = true);
-                final prefs = await SharedPreferences.getInstance();
-                String now = DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now());
-                await prefs.setString('lastCheckIn', now);
-                List<String> logs = prefs.getStringList('safety_logs') ?? [];
-                logs.insert(0, now);
-                await prefs.setStringList('safety_logs', logs);
-                Timer(const Duration(milliseconds: 600), () => setState(() { _isPressed = false; _lastCheckIn = now; }));
-              },
-              child: Container(
-                width: 220, height: 220,
-                decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.white, border: Border.all(color: _isPressed ? Colors.redAccent : Colors.white, width: 8), boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 20)]),
-                child: Center(child: Image.asset('assets/smile.png', width: 150)),
+          const SizedBox(height: 20),
+          _buildWeeklyCalendar(), // 컨셉 이미지 기반 달력
+          const Spacer(),
+          GestureDetector(
+            onTap: _onPressButton,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              width: 240, height: 240,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle, color: Colors.white,
+                border: Border.all(color: _isPressed ? Colors.red : Colors.white, width: 10),
+                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 30, offset: const Offset(0, 10))],
               ),
+              child: Center(child: Image.asset('assets/smile.png', width: 160)),
             ),
           ),
-          const SizedBox(height: 50),
-          const Text("5분 미확인 시 자동 발송 (테스트)", style: TextStyle(color: Colors.redAccent, fontSize: 12)),
+          const SizedBox(height: 20),
+          Text("마지막 확인: $_lastCheckIn", style: const TextStyle(color: Colors.grey)),
+          const Spacer(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWeeklyCalendar() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 20),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(25)),
+      child: Column(
+        children: [
+          const Text("1월", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+          const SizedBox(height: 15),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: ["금", "토", "일", "월", "화", "수", "목"].map((day) => Column(
+              children: [
+                Text(day, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                const SizedBox(height: 8),
+                const Icon(Icons.check_circle, color: Colors.orangeAccent, size: 28),
+              ],
+            )).toList(),
+          ),
         ],
       ),
     );
   }
 }
 
-// [페이지 2] 보호자 화면 (Card UI)
+// ---------------------------------------------------------
+// [2] 보호자 화면: 5개 등록 제한 + 카드 UI
+// ---------------------------------------------------------
 class ContactScreen extends StatefulWidget {
   const ContactScreen({super.key});
   @override
@@ -144,6 +163,7 @@ class ContactScreen extends StatefulWidget {
 
 class _ContactScreenState extends State<ContactScreen> {
   List<Map<String, String>> _contacts = [];
+
   @override
   void initState() { super.initState(); _load(); }
   void _load() async {
@@ -152,61 +172,91 @@ class _ContactScreenState extends State<ContactScreen> {
     if (data != null) setState(() => _contacts = List<Map<String, String>>.from(json.decode(data).map((i) => Map<String, String>.from(i))));
   }
 
+  void _add() async {
+    if (_contacts.length >= 5) return;
+    if (await Permission.contacts.request().isGranted) {
+      final c = await ContactsService.openDeviceContactPicker();
+      if (c != null) {
+        setState(() => _contacts.add({'name': c.displayName!, 'number': c.phones!.first.value!}));
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('contacts_list', json.encode(_contacts));
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("비상 연락망"), backgroundColor: const Color(0xFFFFCC80)),
+      appBar: AppBar(title: const Text("비상 연락망"), backgroundColor: const Color(0xFFFFE0B2)),
       body: ListView.builder(
         padding: const EdgeInsets.all(20),
         itemCount: _contacts.length,
         itemBuilder: (context, i) => Card(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-          child: ListTile(title: Text(_contacts[i]['name']!), subtitle: Text(_contacts[i]['number']!), trailing: IconButton(icon: const Icon(Icons.delete_outline), onPressed: () async {
-            setState(() => _contacts.removeAt(i));
-            final prefs = await SharedPreferences.getInstance();
-            await prefs.setString('contacts_list', json.encode(_contacts));
-          })),
+          child: ListTile(
+            title: Text(_contacts[i]['name']!, style: const TextStyle(fontWeight: FontWeight.bold)),
+            subtitle: Text(_contacts[i]['number']!),
+            trailing: IconButton(icon: const Icon(Icons.delete_outline), onPressed: () {
+              setState(() => _contacts.removeAt(i));
+              SharedPreferences.getInstance().then((p) => p.setString('contacts_list', json.encode(_contacts)));
+            }),
+          ),
         ),
       ),
-      floatingActionButton: FloatingActionButton(backgroundColor: Colors.orangeAccent, onPressed: () async {
-        if (await Permission.contacts.request().isGranted) {
-          final c = await ContactsService.openDeviceContactPicker();
-          if (c != null) {
-            setState(() => _contacts.add({'name': c.displayName!, 'number': c.phones!.first.value!}));
-            final prefs = await SharedPreferences.getInstance();
-            await prefs.setString('contacts_list', json.encode(_contacts));
-          }
-        }
-      }, child: const Icon(Icons.person_add)),
+      floatingActionButton: FloatingActionButton(onPressed: _add, backgroundColor: Colors.orangeAccent, child: const Icon(Icons.person_add)),
     );
   }
 }
 
-// [페이지 3] 기록 화면 (로그 리스트)
-class LogScreen extends StatefulWidget {
-  const LogScreen({super.key});
+// ---------------------------------------------------------
+// [3] 설정 화면: 연락처 & 문자 권한 수동 설정
+// ---------------------------------------------------------
+class SettingScreen extends StatefulWidget {
+  const SettingScreen({super.key});
   @override
-  State<LogScreen> createState() => _LogScreenState();
+  State<SettingScreen> createState() => _SettingScreenState();
 }
 
-class _LogScreenState extends State<LogScreen> {
-  List<String> _logs = [];
+class _SettingScreenState extends State<SettingScreen> {
+  bool _smsOk = false;
+  bool _contactOk = false;
+
   @override
-  void initState() { super.initState(); _load(); }
-  void _load() async {
-    final prefs = await SharedPreferences.getInstance();
-    setState(() => _logs = prefs.getStringList('safety_logs') ?? []);
+  void initState() { super.initState(); _check(); }
+
+  void _check() async {
+    _smsOk = await Permission.sms.isGranted;
+    _contactOk = await Permission.contacts.isGranted;
+    setState(() {});
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("안부 기록"), backgroundColor: const Color(0xFFFFCC80)),
-      body: ListView.builder(
-        padding: const EdgeInsets.all(20),
-        itemCount: _logs.length,
-        itemBuilder: (context, i) => ListTile(leading: const Icon(Icons.check_circle, color: Colors.green), title: Text(_logs[i])),
+      appBar: AppBar(title: const Text("설정 및 권한"), backgroundColor: const Color(0xFFFFE0B2)),
+      body: Padding(
+        padding: const EdgeInsets.all(25),
+        child: Column(
+          children: [
+            _buildAuthTile("연락처 권한", _contactOk, Permission.contacts),
+            _buildAuthTile("문자 발송 권한", _smsOk, Permission.sms),
+            const Divider(height: 40),
+            ElevatedButton(
+              onPressed: () => openAppSettings(),
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.blueGrey, minimumSize: const Size(double.infinity, 50)),
+              child: const Text("시스템 설정 열기 (배터리 최적화 해제 등)", style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        ),
       ),
+    );
+  }
+
+  Widget _buildAuthTile(String title, bool isOk, Permission p) {
+    return ListTile(
+      title: Text(title),
+      trailing: isOk ? const Icon(Icons.check_circle, color: Colors.green) : const Text("허용 필요", style: TextStyle(color: Colors.red)),
+      onTap: () async { await p.request(); _check(); },
     );
   }
 }
