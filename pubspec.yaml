@@ -1,5 +1,5 @@
-name: daily_safety_app
-description: "A new Flutter project."
+name: hello_morning
+description: 하루 안부 지킴이
 publish_to: 'none'
 version: 1.0.0+1
 
@@ -11,13 +11,18 @@ dependencies:
     sdk: flutter
   shared_preferences: ^2.2.2
   contacts_service: ^0.6.3
-  permission_handler: ^11.3.0
   intl: ^0.19.0
-  background_sms: ^0.0.1
-  geolocator: ^11.0.0
+  permission_handler: ^11.3.0
+  url_launcher: ^6.2.5
+  geolocator: ^11.0.0      # 위치 정보 패키지
+  background_sms: ^0.0.1   # 문자 발송 패키지
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
 
 flutter:
   uses-material-design: true
-  # 사용자님의 Asset 경로를 다시 등록했습니다.
   assets:
-    - assets/images/
+    - assets/smile.png     # 사용자님이 등록하신 이미지 경로 유지
