@@ -1,20 +1,21 @@
-name: daily_safety_guardian
-description: "A new Flutter project for daily safety check-in."
+name: daily_safety_app
+description: "A new Flutter project."
 publish_to: 'none'
 version: 1.0.0+1
 
 environment:
-  sdk: '>=3.2.0 <4.0.0'
+  sdk: '>=3.0.0 <4.0.0'
 
 dependencies:
   flutter:
     sdk: flutter
+  cupertino_icons: ^1.0.6
   shared_preferences: ^2.2.2
   contacts_service: ^0.6.3
   permission_handler: ^11.3.0
   intl: ^0.19.0
   background_sms: ^0.0.1
-  url_launcher: ^6.2.5
+  geolocator: ^11.0.0 # 위치 정보 획득을 위해 추가
 
 dev_dependencies:
   flutter_test:
@@ -23,5 +24,6 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
-  assets:
-    - assets/smile.png
+  # 만약 스마일 이미지를 사용하신다면 아래 주석을 풀고 경로를 맞춰주세요
+  # assets:
+  #   - assets/smile.png
