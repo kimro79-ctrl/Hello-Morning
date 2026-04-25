@@ -89,6 +89,18 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     });
   }
 
+  // 🔴 권한 해결 코드 추가
+  Future<bool> _handleLocationPermission() async {
+    LocationPermission permission;
+    permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) return false;
+    }
+    if (permission == LocationPermission.deniedForever) return false;
+    return true;
+  }
+
   Future<void> _updateW3WDisplay() async {
     if (!mounted) return;
     setState(() { _isLocating = true; _currentW3W = "위치 수신 중"; });
@@ -96,30 +108,28 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     if (mounted) setState(() { _isLocating = false; _currentW3W = words; });
   }
 
-  // [수정된 위치 수신 로직]
+  // 🔴 안정화된 위치 획득 로직
   Future<String> _getW3WAddress() async {
     try {
+      if (!await _handleLocationPermission()) return "위치 권한 없음";
       if (!await Geolocator.isLocationServiceEnabled()) return "GPS 꺼짐";
 
-      // 1. 우선 기기에 저장된 마지막 위치가 있는지 확인 (매우 빠름)
-      Position? pos = await Geolocator.getLastKnownPosition();
+      // 정확도를 medium으로 올려 실내 수신력 확보
+      Position position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.medium,
+        timeLimit: const Duration(seconds: 15),
+      );
 
-      // 2. 만약 저장된 위치가 없다면, 아주 낮은 정확도로 '강제' 수신 시도
-      // 정확도를 low로 하면 GPS 위성 없이 와이파이/LTE 기지국 신호만으로 좌표를 바로 찍어줍니다.
-      pos ??= await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.low, 
-        timeLimit: const Duration(seconds: 10),
-      ).catchError((e) => throw Exception("위치 수신 타임아웃"));
-
-      // 3. 좌표를 얻었다면 API 호출
-      final url = "https://api.what3words.com/v3/convert-to-3wa?coordinates=${pos.latitude},${pos.longitude}&key=$w3wApiKey&language=ko";
+      final url = "https://api.what3words.com/v3/convert-to-3wa?coordinates=${position.latitude},${position.longitude}&key=$w3wApiKey&language=ko";
       final response = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 5));
       
+      print("API 응답: ${response.body}"); // 로그 확인용
+
       if (response.statusCode == 200) {
         return "///${json.decode(response.body)['words']}";
       }
     } catch (e) {
-      debugPrint("에러 발생: $e");
+      print("에러 발생: $e");
     }
     return "위치 확인 불가";
   }
