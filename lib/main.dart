@@ -75,47 +75,59 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   void dispose() { _timer?.cancel(); _controller.dispose(); super.dispose(); }
 
   void _loadData() async {
-    final p = await SharedPreferences.getInstance();
-    setState(() {
-      _lastCheckIn = p.getString('lastCheckIn') ?? "오늘 안부를 전하세요";
-      _selectedHours = p.getInt('selectedHours') ?? 1;
-    });
+    try {
+      final p = await SharedPreferences.getInstance();
+      setState(() {
+        _lastCheckIn = p.getString('lastCheckIn') ?? "오늘 안부를 전하세요";
+        _selectedHours = p.getInt('selectedHours') ?? 1;
+      });
+    } catch (e) {
+      debugPrint("Data load error: $e");
+    }
   }
 
   Future<void> _checkAndSendSms() async {
     final p = await SharedPreferences.getInstance();
     String? last = p.getString('lastCheckIn');
     String? contactsJson = p.getString('contacts_list');
+    
     if (last == null || contactsJson == null || last == "기록 없음") return;
 
-    DateTime lastTime = DateFormat('yyyy-MM-dd HH:mm').parse(last);
-    int diffInMin = DateTime.now().difference(lastTime).inMinutes;
-    int targetMin = _selectedHours == 0 ? 5 : _selectedHours * 60;
+    try {
+      DateTime lastTime = DateFormat('yyyy-MM-dd HH:mm').parse(last);
+      int diffInMin = DateTime.now().difference(lastTime).inMinutes;
+      int targetMin = _selectedHours == 0 ? 5 : _selectedHours * 60;
 
-    if (diffInMin >= targetMin) {
-      List contacts = json.decode(contactsJson);
-      String mapUrl = "";
-      try {
-        Position pos = await Geolocator.getCurrentPosition(
-          desiredAccuracy: LocationAccuracy.medium,
-          timeLimit: const Duration(seconds: 10),
-        );
-        mapUrl = "\n위치: https://www.google.com/maps/search/?api=1&query=${pos.latitude},${pos.longitude}";
-      } catch (e) { mapUrl = "\n(위치 확인 실패)"; }
+      if (diffInMin >= targetMin) {
+        List contacts = json.decode(contactsJson);
+        String mapUrl = "";
+        
+        // 위치 정보 획득 시도 (실패해도 문자 발송은 되도록 처리)
+        try {
+          Position pos = await Geolocator.getCurrentPosition(
+            desiredAccuracy: LocationAccuracy.low,
+            timeLimit: const Duration(seconds: 5),
+          );
+          mapUrl = "\n위치: https://www.google.com/maps?q=${pos.latitude},${pos.longitude}";
+        } catch (e) { mapUrl = "\n(위치 확인 실패)"; }
 
-      for (var c in contacts) {
-        await BackgroundSms.sendMessage(
-          phoneNumber: c['number'],
-          message: "[안심지키미] 응답 없음!\n마지막 확인: $last$mapUrl",
-        );
+        for (var c in contacts) {
+          if (c['number'] != null) {
+            await BackgroundSms.sendMessage(
+              phoneNumber: c['number'],
+              message: "[안심지키미] 응답 없음!\n마지막 확인: $last$mapUrl",
+            );
+          }
+        }
+        _updateCheckIn();
       }
-      _updateCheckIn();
-    }
+    } catch (e) { debugPrint("SMS check error: $e"); }
   }
 
   void _updateCheckIn() async {
     String now = DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now());
-    (await SharedPreferences.getInstance()).setString('lastCheckIn', now);
+    final p = await SharedPreferences.getInstance();
+    await p.setString('lastCheckIn', now);
     setState(() => _lastCheckIn = now);
   }
 
@@ -144,7 +156,8 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                 backgroundColor: Colors.white.withOpacity(0.5),
                 onSelected: (v) async {
                   setState(() => _selectedHours = h);
-                  (await SharedPreferences.getInstance()).setInt('selectedHours', h);
+                  final p = await SharedPreferences.getInstance();
+                  await p.setInt('selectedHours', h);
                 },
               )).toList(),
             ),
@@ -172,7 +185,6 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                   child: Image.asset(
                     'assets/smile.png',
                     fit: BoxFit.contain,
-                    // 이미지가 없거나 로딩 실패 시 튕기지 않게 아이콘으로 대체
                     errorBuilder: (context, error, stackTrace) => const Icon(Icons.favorite, size: 80, color: Color(0xFFFF80AB)),
                   ),
                 ),
@@ -218,7 +230,9 @@ class _SettingScreenState extends State<SettingScreen> {
       await Permission.locationAlways.request(); 
     }
     await Permission.ignoreBatteryOptimizations.request();
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("권한 설정을 완료했습니다.")));
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("권한 설정을 완료했습니다.")));
+    }
   }
 
   @override
@@ -248,7 +262,8 @@ class _SettingScreenState extends State<SettingScreen> {
                       final c = await ContactsService.openDeviceContactPicker();
                       if (c != null && c.phones!.isNotEmpty) {
                         setState(() => _contacts.add({'name': c.displayName, 'number': c.phones?.first.value}));
-                        (await SharedPreferences.getInstance()).setString('contacts_list', json.encode(_contacts));
+                        final p = await SharedPreferences.getInstance();
+                        await p.setString('contacts_list', json.encode(_contacts));
                       }
                     }
                   },
