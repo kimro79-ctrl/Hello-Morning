@@ -7,7 +7,6 @@ import 'package:background_sms/background_sms.dart';
 import 'package:geolocator/geolocator.dart';
 import 'dart:async';
 import 'dart:convert';
-import 'package:http/http.dart' as http;
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -60,7 +59,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   String _lastCheckIn = "기록 없음";
-  String _currentW3W = "위치 수신 대기 중"; // 화면 표시용 텍스트
+  String _currentLocationText = "위치 확인 중"; 
   int _selectedHours = 1; 
   Timer? _timer;
   Timer? _dotTimer;
@@ -77,9 +76,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     _controller = AnimationController(vsync: this, duration: const Duration(milliseconds: 100));
     _scaleAnimation = Tween<double>(begin: 1.0, end: 0.92).animate(_controller);
     _loadData();
-    _updateW3WDisplay();
+    _updateLocationDisplay();
     
-    // 5분마다 상태 체크 (배터리와 효율성 고려)
+    // 5분마다 안부 응답 여부 체크
     _timer = Timer.periodic(const Duration(minutes: 5), (t) => _checkAndSendSms());
     
     _dotTimer = Timer.periodic(const Duration(milliseconds: 500), (t) {
@@ -98,10 +97,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     return permission != LocationPermission.deniedForever;
   }
 
-  // UI상의 위치 텍스트 업데이트 (좌표로 표시)
-  Future<void> _updateW3WDisplay() async {
+  Future<void> _updateLocationDisplay() async {
     if (!mounted) return;
-    setState(() { _isLocating = true; _currentW3W = "위치 수신 중"; });
+    setState(() { _isLocating = true; _currentLocationText = "위치 수신 중"; });
     
     try {
       Position position = await Geolocator.getCurrentPosition(
@@ -111,37 +109,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       if (mounted) {
         setState(() {
           _isLocating = false;
-          _currentW3W = "좌표: ${position.latitude.toStringAsFixed(4)}, ${position.longitude.toStringAsFixed(4)}";
+          _currentLocationText = "좌표: ${position.latitude.toStringAsFixed(4)}, ${position.longitude.toStringAsFixed(4)}";
         });
       }
     } catch (e) {
-      if (mounted) setState(() { _isLocating = false; _currentW3W = "위치 확인 불가"; });
+      if (mounted) setState(() { _isLocating = false; _currentLocationText = "위치 확인 불가"; });
     }
-  }
-
-  // 보호자에게 보낼 데이터 생성 (구글 지도 링크)
-  Future<String> _getGoogleMapsLink() async {
-    try {
-      if (!await _handleLocationPermission()) return "";
-      Position position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.medium,
-        timeLimit: const Duration(seconds: 10),
-      );
-      return "https://www.google.com/maps?q=${position.latitude},${position.longitude}";
-    } catch (e) {
-      return "";
-    }
-  }
-
-  @override
-  void dispose() { _timer?.cancel(); _dotTimer?.cancel(); _controller.dispose(); super.dispose(); }
-
-  void _loadData() async {
-    final p = await SharedPreferences.getInstance();
-    setState(() {
-      _lastCheckIn = p.getString('lastCheckIn') ?? "오늘 안부를 전하세요";
-      _selectedHours = p.getInt('selectedHours') ?? 1;
-    });
   }
 
   Future<void> _checkAndSendSms() async {
@@ -155,17 +128,47 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     
     if (DateTime.now().difference(lastTime).inMinutes >= targetMin) {
       List contacts = json.decode(contactsJson);
-      String mapLink = await _getGoogleMapsLink();
       
-      String messageBody = "[안심지키미] 안부 응답 없음!\n마지막 확인: $last\n위치 확인: $mapLink";
+      // 최신 위치 좌표 획득
+      Position pos = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.medium);
+      String mapLink = "https://www.google.com/maps?q=${pos.latitude},${pos.longitude}";
+      
+      String messageBody = "[안심지키미] 응답 없음!\n마지막 확인: $last\n위치 확인: $mapLink";
       
       for (var c in contacts) {
         if (c['number'] != null) {
-          await BackgroundSms.sendMessage(phoneNumber: c['number'], message: messageBody);
+          // 번호에서 하이픈 등 특수문자 제거 (발송 성공률 향상)
+          String cleanNumber = c['number'].replaceAll(RegExp(r'[^0-9]'), '');
+          
+          try {
+            await BackgroundSms.sendMessage(
+              phoneNumber: cleanNumber, 
+              message: messageBody,
+              simSlot: 1
+            );
+          } catch (e) {
+            debugPrint("SMS 발송 실패: $e");
+          }
         }
       }
       _updateCheckIn();
     }
+  }
+
+  @override
+  void dispose() { 
+    _timer?.cancel(); 
+    _dotTimer?.cancel(); 
+    _controller.dispose(); 
+    super.dispose(); 
+  }
+
+  void _loadData() async {
+    final p = await SharedPreferences.getInstance();
+    setState(() {
+      _lastCheckIn = p.getString('lastCheckIn') ?? "오늘 안부를 전하세요";
+      _selectedHours = p.getInt('selectedHours') ?? 1;
+    });
   }
 
   void _updateCheckIn() async {
@@ -173,12 +176,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     final p = await SharedPreferences.getInstance();
     await p.setString('lastCheckIn', now);
     setState(() => _lastCheckIn = now);
-    _updateW3WDisplay();
+    _updateLocationDisplay();
   }
 
   @override
   Widget build(BuildContext context) {
-    String displayW3W = _isLocating ? "$_currentW3W${'.' * _dotCount}" : _currentW3W;
+    String displayText = _isLocating ? "$_currentLocationText${'.' * _dotCount}" : _currentLocationText;
     return Scaffold(
       appBar: AppBar(
         title: const Text("안심 지키미", style: TextStyle(color: Color(0xFFFF8A65), fontWeight: FontWeight.bold, fontSize: 18)),
@@ -197,7 +200,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               children: [
                 const Icon(Icons.location_on, color: Colors.redAccent, size: 14),
                 const SizedBox(width: 5),
-                Flexible(child: Text(displayW3W, style: const TextStyle(color: Colors.black87, fontWeight: FontWeight.w600, fontSize: 13), overflow: TextOverflow.ellipsis)),
+                Flexible(child: Text(displayText, style: const TextStyle(color: Colors.black87, fontWeight: FontWeight.w600, fontSize: 13), overflow: TextOverflow.ellipsis)),
               ],
             ),
           ),
