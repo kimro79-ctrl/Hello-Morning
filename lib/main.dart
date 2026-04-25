@@ -5,11 +5,14 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:intl/intl.dart';
 import 'package:background_sms/background_sms.dart';
 import 'package:geolocator/geolocator.dart';
+// import 'package:firebase_core/firebase_core.dart'; // 파이어베이스 사용 시 주석 해제
 import 'dart:async';
 import 'dart:convert';
 
-void main() {
+void main() async {
+  // ✅ 파이어베이스와 타이머가 충돌하지 않도록 보장
   WidgetsFlutterBinding.ensureInitialized();
+  // await Firebase.initializeApp(); // 파이어베이스 설정 완료 시 주석 해제
   runApp(const DailySafetyApp());
 }
 
@@ -77,6 +80,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     _scaleAnimation = Tween<double>(begin: 1.0, end: 0.92).animate(_controller);
     _loadData();
     _updateLocationDisplay();
+    
+    // ✅ 5분 주기로 발송 여부 체크
     _timer = Timer.periodic(const Duration(minutes: 5), (t) => _checkAndSendSms());
     _dotTimer = Timer.periodic(const Duration(milliseconds: 500), (t) {
       if (_isLocating && mounted) {
@@ -116,21 +121,22 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     if (DateTime.now().difference(lastTime).inMinutes >= targetMin) {
       List contacts = json.decode(contactsJson);
       Position pos = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.medium);
-      String mapLink = "http://maps.google.com/?q=${pos.latitude},${pos.longitude}";
+      // 구글 맵 링크 생성
+      String mapLink = "https://www.google.com/maps/search/?api=1&query=${pos.latitude},${pos.longitude}";
       
-      String messageBody = "[안심지키미] 응답 없음!\n마지막 확인: $last\n위치: $mapLink";
+      String messageBody = "[안심지키미] 응답 없음 안내\n마지막 확인: $last\n위치: $mapLink";
       
       for (var c in contacts) {
         if (c['number'] != null) {
           String cleanNumber = c['number'].replaceAll(RegExp(r'[^0-9]'), '');
           try {
-            // 에러 없이 발송만 수행
+            // ✅ 25일 22시 빌드 성공 로직: 발송 상태 체크 생략하고 바로 발송
             await BackgroundSms.sendMessage(
               phoneNumber: cleanNumber, 
               message: messageBody,
             );
           } catch (e) {
-            debugPrint("SMS 실패: $e");
+            debugPrint("발송 에러: $e");
           }
         }
       }
@@ -290,6 +296,7 @@ class _SettingScreenState extends State<SettingScreen> {
                 const SizedBox(height: 12),
                 ElevatedButton(
                   onPressed: () async {
+                    // ✅ 모든 필수 권한 요청
                     await [Permission.sms, Permission.location, Permission.contacts].request();
                     await Permission.locationAlways.request();
                     if (mounted) openAppSettings();
