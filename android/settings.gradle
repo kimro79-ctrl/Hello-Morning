@@ -16,8 +16,11 @@ pluginManagement {
     }
 }
 
+plugins {
+    id "dev.flutter.flutter-gradle-plugin" version "1.0.0" apply false
+}
+
 dependencyResolutionManagement {
-    // FAIL_ON_PROJECT_REPOS 대신 PREFER_SETTINGS로 변경하여 충돌을 막습니다.
     repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS)
     repositories {
         google()
@@ -27,3 +30,16 @@ dependencyResolutionManagement {
 
 rootProject.name = "android"
 include ":app"
+
+// [중요] 플러그인들을 빌드에 자동으로 포함시키는 핵심 코드
+def plugins = new Properties()
+def pluginsFile = new File(settingsDir.parentFile, '.flutter-plugins')
+if (pluginsFile.exists()) {
+    pluginsFile.withReader('UTF-8') { reader -> plugins.load(reader) }
+}
+
+plugins.each { name, path ->
+    def pluginDirectory = file(path).absoluteFile
+    include ":$name"
+    project(":$name").projectDir = file("$pluginDirectory/android")
+}
