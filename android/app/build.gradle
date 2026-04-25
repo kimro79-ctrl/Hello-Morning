@@ -1,4 +1,4 @@
-// [앱 수준] 상단 plugins 블록은 반드시 이 형태여야 합니다.
+// [최종] 선언적 플러그인 블록을 사용하여 flutterRoot 경로 에러를 해결합니다.
 plugins {
     id "com.android.application"
     id "kotlin-android"
@@ -18,7 +18,7 @@ def flutterVersionCode = localProperties.getProperty('flutter.versionCode') ?: '
 def flutterVersionName = localProperties.getProperty('flutter.versionName') ?: '1.0'
 
 android {
-    // Firebase 콘솔에 적힌 패키지명과 대소문자까지 똑같이 맞춥니다
+    // Firebase 콘솔 대소문자와 동일하게 설정 (Com.hello_morning)
     namespace "Com.hello_morning" 
     compileSdkVersion 34
 
@@ -31,6 +31,10 @@ android {
         jvmTarget = '1.8'
     }
 
+    sourceSets {
+        main.java.srcDirs += 'src/main/kotlin'
+    }
+
     defaultConfig {
         applicationId "Com.hello_morning"
         minSdkVersion 21
@@ -41,7 +45,7 @@ android {
 
     buildTypes {
         release {
-            // 배포용 키가 없으므로 일단 디버그 서명을 사용하여 APK를 만듭니다.
+            // 현재 키스토어가 없으므로 테스트 빌드를 위해 디버그 서명을 사용합니다.
             signingConfig signingConfigs.debug
             shrinkResources false
             minifyEnabled false
@@ -54,7 +58,7 @@ flutter {
 }
 
 dependencies {
-    // Firebase 필수 라이브러리
+    // Firebase BoM을 사용하여 라이브러리 간 버전 충돌을 방지합니다.
     implementation platform('com.google.firebase:firebase-bom:32.7.2')
     implementation 'com.google.firebase:firebase-analytics'
     implementation 'com.google.firebase:firebase-messaging'
