@@ -77,7 +77,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     _scaleAnimation = Tween<double>(begin: 1.0, end: 0.92).animate(_controller);
     _loadData();
     _updateLocationDisplay();
-    // 5분 주기로 응답 체크
     _timer = Timer.periodic(const Duration(minutes: 5), (t) => _checkAndSendSms());
     _dotTimer = Timer.periodic(const Duration(milliseconds: 500), (t) {
       if (_isLocating && mounted) {
@@ -117,7 +116,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     if (DateTime.now().difference(lastTime).inMinutes >= targetMin) {
       List contacts = json.decode(contactsJson);
       Position pos = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.medium);
-      String mapLink = "https://www.google.com/maps?q=${pos.latitude},${pos.longitude}";
+      String mapLink = "http://maps.google.com/?q=${pos.latitude},${pos.longitude}";
       
       String messageBody = "[안심지키미] 응답 없음!\n마지막 확인: $last\n위치: $mapLink";
       
@@ -125,17 +124,17 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         if (c['number'] != null) {
           String cleanNumber = c['number'].replaceAll(RegExp(r'[^0-9]'), '');
           try {
-            // 💡 136라인 에러 수정: 상태값을 직접 비교하지 않고 발송 시도
+            // 에러 없이 발송만 수행
             await BackgroundSms.sendMessage(
               phoneNumber: cleanNumber, 
               message: messageBody,
             );
           } catch (e) {
-            debugPrint("SMS 발송 실패: $e");
+            debugPrint("SMS 실패: $e");
           }
         }
       }
-      _updateCheckIn(); // 발송 후 체크인 시간 갱신
+      _updateCheckIn();
     }
   }
 
@@ -296,7 +295,7 @@ class _SettingScreenState extends State<SettingScreen> {
                     if (mounted) openAppSettings();
                   },
                   style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 45), backgroundColor: Colors.orangeAccent, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
-                  child: const Text("앱 권한 설정 (위치 항상허용 필수)", style: TextStyle(fontSize: 14)),
+                  child: const Text("앱 권한 설정", style: TextStyle(fontSize: 14)),
                 ),
               ],
             ),
