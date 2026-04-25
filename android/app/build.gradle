@@ -5,7 +5,6 @@ plugins {
     id "com.google.gms.google-services"
 }
 
-// [수정] 버전 정보를 안전하게 가져오는 코드
 def localProperties = new Properties()
 def localPropertiesFile = rootProject.file('local.properties')
 if (localPropertiesFile.exists()) {
@@ -14,7 +13,6 @@ if (localPropertiesFile.exists()) {
     }
 }
 
-// 변수가 없을 경우를 대비해 기본값(1, 1.0.0)을 설정합니다.
 def flutterVersionCode = localProperties.getProperty('flutter.versionCode') ?: '1'
 def flutterVersionName = localProperties.getProperty('flutter.versionName') ?: '1.0.0'
 
@@ -35,13 +33,14 @@ android {
         applicationId "com.hello_morning"
         minSdkVersion 21
         targetSdkVersion 34
-        // 위에서 정의한 변수를 정수로 변환하여 적용합니다.
         versionCode flutterVersionCode.toInteger()
         versionName flutterVersionName
     }
 
+    // [중요] 최신 Gradle에서 충돌을 일으키는 구식 서명 및 경로 설정을 정리합니다.
     buildTypes {
         release {
+            // debug 서명을 그대로 사용하여 릴리즈 빌드 에러를 방지합니다.
             signingConfig signingConfigs.debug
             shrinkResources false
             minifyEnabled false
