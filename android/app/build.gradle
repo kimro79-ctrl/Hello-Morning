@@ -1,8 +1,3 @@
-apply plugin: 'com.android.application'
-apply plugin: 'kotlin-android'
-apply plugin: 'com.google.gms.google-services'
-apply plugin: 'dev.flutter.flutter-gradle-plugin'
-
 def localProperties = new Properties()
 def localPropertiesFile = rootProject.file('local.properties')
 if (localPropertiesFile.exists()) {
@@ -14,8 +9,15 @@ if (localPropertiesFile.exists()) {
 def flutterVersionCode = localProperties.getProperty('flutter.versionCode') ?: '1'
 def flutterVersionName = localProperties.getProperty('flutter.versionName') ?: '1.0.0'
 
+// [수정] 최신 방식보다 호환성이 높은 apply plugin 방식을 사용합니다.
+apply plugin: 'com.android.application'
+apply plugin: 'kotlin-android'
+apply plugin: 'com.google.gms.google-services'
+apply plugin: 'dev.flutter.flutter-gradle-plugin'
+
 android {
-    namespace "com.hello_morning"
+    // 파이어베이스 콘솔과 일치시킨 소문자 이름
+    namespace "com.hello_morning" 
     compileSdkVersion 34
 
     compileOptions {
@@ -37,6 +39,7 @@ android {
 
     buildTypes {
         release {
+            // 별도의 키 설정이 없으므로 디버그 키를 빌려 써서 빌드 중단을 방지합니다.
             signingConfig signingConfigs.debug
             shrinkResources false
             minifyEnabled false
@@ -44,13 +47,12 @@ android {
     }
 }
 
-flutter {
-    source '../..'
-}
-
 dependencies {
+    // Firebase 설정
     implementation platform('com.google.firebase:firebase-bom:32.7.2')
     implementation 'com.google.firebase:firebase-analytics'
     implementation 'com.google.firebase:firebase-messaging'
+    
+    // Kotlin 표준 라이브러리 (위에서 설정한 1.9.10 버전 사용)
     implementation "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
 }
