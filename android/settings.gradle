@@ -17,7 +17,8 @@ pluginManagement {
 }
 
 dependencyResolutionManagement {
-    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    // FAIL_ON_PROJECT_REPOS 대신 PREFER_SETTINGS로 변경하여 충돌을 막습니다.
+    repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS)
     repositories {
         google()
         mavenCentral()
