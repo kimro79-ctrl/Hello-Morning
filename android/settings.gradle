@@ -17,12 +17,13 @@ pluginManagement {
 }
 
 plugins {
+    // 여기서 1.9.10으로 못을 박아버리면 하위 설정들이 이 버전을 따르게 됩니다.
     id "dev.flutter.flutter-gradle-plugin" version "1.0.0" apply false
+    id "com.android.application" version "7.3.0" apply false
+    id "org.jetbrains.kotlin.android" version "1.9.10" apply false
 }
 
 dependencyResolutionManagement {
-    // [수정] 모드를 완전히 끄거나 더 유연한 모드로 변경합니다.
-    // 프로젝트 수준의 repositories 설정을 허용하여 라이브러리 충돌을 해결합니다.
     repositoriesMode.set(RepositoriesMode.PREFER_PROJECT)
     repositories {
         google()
@@ -33,7 +34,7 @@ dependencyResolutionManagement {
 rootProject.name = "android"
 include ":app"
 
-// 플러그인 자동 연결 코드
+// 플러그인 자동 연결 로직
 def plugins = new Properties()
 def pluginsFile = new File(settingsDir.parentFile, '.flutter-plugins')
 if (pluginsFile.exists()) {
