@@ -116,7 +116,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     if (DateTime.now().difference(lastTime).inMinutes >= targetMin) {
       List contacts = json.decode(contactsJson);
       Position pos = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.medium);
-      String mapLink = "https://www.google.com/maps?q=${pos.latitude},${pos.longitude}";
+      String mapLink = "https://www.google.com/maps/search/?api=1&query=${pos.latitude},${pos.longitude}";
       
       String messageBody = "[안심지키미] 응답 없음!\n마지막 확인: $last\n현위치: $mapLink";
       
@@ -204,7 +204,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               scale: _scaleAnimation,
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 100),
-                width: 200, height: 200, // <--- 디자인 유지
+                width: 200, height: 200,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle, 
                   color: Colors.white, 
@@ -287,12 +287,14 @@ class _SettingScreenState extends State<SettingScreen> {
                 const SizedBox(height: 12),
                 ElevatedButton(
                   onPressed: () async {
-                    // 제거된 권한은 요청하지 않음
-                    await [Permission.contacts, Permission.sms, Permission.location].request();
+                    // 순서대로 권한 요청
+                    await Permission.location.request();
+                    await Permission.locationAlways.request(); // 이게 핵심입니다!
+                    await Permission.sms.request();
                     if (mounted) openAppSettings();
                   },
                   style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 45), backgroundColor: Colors.orangeAccent, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
-                  child: const Text("앱 권한 설정", style: TextStyle(fontSize: 14)),
+                  child: const Text("앱 권한 설정 (항상 허용 선택)", style: TextStyle(fontSize: 14)),
                 ),
               ],
             ),
