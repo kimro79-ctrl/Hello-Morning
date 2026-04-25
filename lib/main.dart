@@ -43,10 +43,12 @@ class _MainNavigationState extends State<MainNavigation> {
     bottomNavigationBar: BottomNavigationBar(
       currentIndex: _currentIndex,
       selectedItemColor: const Color(0xFFFF8A65),
+      selectedFontSize: 11,
+      unselectedFontSize: 10,
       onTap: (index) => setState(() => _currentIndex = index),
       items: const [
-        BottomNavigationBarItem(icon: Icon(Icons.home_filled), label: '홈'),
-        BottomNavigationBarItem(icon: Icon(Icons.settings), label: '설정'),
+        BottomNavigationBarItem(icon: Icon(Icons.home_filled, size: 20), label: '홈'),
+        BottomNavigationBarItem(icon: Icon(Icons.settings, size: 20), label: '설정'),
       ],
     ),
   );
@@ -89,16 +91,14 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
         desiredAccuracy: LocationAccuracy.high,
         timeLimit: const Duration(seconds: 5)
       );
-      
       final url = "https://api.what3words.com/v3/convert-to-3wa?coordinates=${pos.latitude},${pos.longitude}&key=$w3wApiKey&language=ko";
       final response = await http.get(Uri.parse(url));
-      
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         return "///${data['words']}";
       }
     } catch (e) {
-      return "위치 권한 '항상 허용' 필요";
+      return "위치 권한 확인 필요";
     }
     return "위치 확인 불가";
   }
@@ -127,11 +127,10 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     if (diffInMin >= targetMin) {
       List contacts = json.decode(contactsJson);
       String w3wAddress = await _getW3WAddress();
-      
       for (var c in contacts) {
         await BackgroundSms.sendMessage(
           phoneNumber: c['number'],
-          message: "[안심지키미] 응답 없음!\n마지막 확인: $last\n현재 위치(W3W): $w3wAddress",
+          message: "[안심지키미] 응답 없음!\n마지막 확인: $last\n위치: $w3wAddress",
         );
       }
       _updateCheckIn();
@@ -150,14 +149,14 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("안심 지키미", style: TextStyle(color: Color(0xFFFF8A65), fontWeight: FontWeight.bold, fontSize: 16)),
+        title: const Text("안심 지키미", style: TextStyle(color: Color(0xFFFF8A65), fontWeight: FontWeight.bold, fontSize: 15)),
         backgroundColor: const Color(0xFFFFF3E0),
         centerTitle: true,
         elevation: 0,
+        toolbarHeight: 45,
       ),
       body: Column(
         children: [
-          // 상단 위치 바 글씨 크기 축소 (fontSize: 10)
           Container(
             padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
             width: double.infinity,
@@ -170,7 +169,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                 Flexible(
                   child: Text(
                     "현재 위치: $_currentW3W", 
-                    style: const TextStyle(fontWeight: FontWeight.w400, fontSize: 10, color: Colors.black87),
+                    style: const TextStyle(fontSize: 10, color: Colors.black87),
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
@@ -181,7 +180,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
           Wrap(
             spacing: 6,
             children: [0, 1, 12, 24].map((h) => ChoiceChip(
-              label: Text(h == 0 ? "5분" : "$h시간", style: const TextStyle(fontSize: 11)),
+              label: Text(h == 0 ? "5분" : "$h시간", style: const TextStyle(fontSize: 10)),
               selected: _selectedHours == h,
               onSelected: (v) async {
                 setState(() => _selectedHours = h);
@@ -190,9 +189,8 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
             )).toList(),
           ),
           const Spacer(),
-          const Text("마지막 확인 시간", style: TextStyle(color: Colors.grey, fontSize: 11)),
-          const SizedBox(height: 4),
-          Text(_lastCheckIn, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          const Text("마지막 확인", style: TextStyle(color: Colors.grey, fontSize: 10)),
+          Text(_lastCheckIn, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
           const SizedBox(height: 30),
           GestureDetector(
             onTapDown: (_) => _controller.forward(),
@@ -200,14 +198,13 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
             child: ScaleTransition(
               scale: _scaleAnimation,
               child: Container(
-                width: 170, height: 170, // 이미지 크기 축소
-                decoration: const BoxDecoration(shape: BoxShape.circle, color: Colors.white, boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10)]),
-                child: ClipOval(child: Image.asset('assets/smile.png', fit: BoxFit.contain, errorBuilder: (c, e, s) => const Icon(Icons.favorite, size: 70, color: Colors.orange))),
+                width: 160, height: 160,
+                decoration: const BoxDecoration(shape: BoxShape.circle, color: Colors.white, boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 8)]),
+                child: ClipOval(child: Image.asset('assets/smile.png', fit: BoxFit.contain, errorBuilder: (c, e, s) => const Icon(Icons.favorite, size: 60, color: Colors.orange))),
               ),
             ),
           ),
           const Spacer(),
-          // 하단 안내 문구 글씨 크기 축소 (fontSize: 9)
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 50, vertical: 20),
             child: Text(
@@ -216,7 +213,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
               style: TextStyle(fontSize: 9, color: Colors.grey.shade400),
             ),
           ),
-          const SizedBox(height: 30),
+          const SizedBox(height: 20),
         ],
       ),
     );
@@ -242,16 +239,15 @@ class _SettingScreenState extends State<SettingScreen> {
     await [Permission.contacts, Permission.sms, Permission.location].request();
     await Permission.locationAlways.request();
     await Permission.ignoreBatteryOptimizations.request();
-
     if (mounted) {
       showDialog(
         context: context,
         builder: (context) => AlertDialog(
-          title: const Text("권한 설정", style: TextStyle(fontSize: 15)),
-          content: const Text("위치를 '항상 허용'으로 설정해야 주소가 정상 전송됩니다.", style: TextStyle(fontSize: 12)),
+          title: const Text("권한 설정", style: TextStyle(fontSize: 14)),
+          content: const Text("위치를 '항상 허용'으로 설정해야 합니다.", style: TextStyle(fontSize: 11)),
           actions: [
-            TextButton(onPressed: () => openAppSettings(), child: const Text("설정 열기", style: TextStyle(fontSize: 13))),
-            TextButton(onPressed: () => Navigator.pop(context), child: const Text("닫기", style: TextStyle(fontSize: 13))),
+            TextButton(onPressed: () => openAppSettings(), child: const Text("설정 열기", style: TextStyle(fontSize: 12))),
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text("닫기", style: TextStyle(fontSize: 12))),
           ],
         ),
       );
@@ -261,22 +257,22 @@ class _SettingScreenState extends State<SettingScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("설정", style: TextStyle(fontSize: 16)), backgroundColor: const Color(0xFFFFF3E0)),
+      appBar: AppBar(title: const Text("설정", style: TextStyle(fontSize: 15)), backgroundColor: const Color(0xFFFFF3E0), toolbarHeight: 45),
       body: Column(
         children: [
           Expanded(child: ListView.builder(
             itemCount: _contacts.length,
             itemBuilder: (c, i) => ListTile(
-              title: Text(_contacts[i]['name'], style: const TextStyle(fontSize: 13)),
-              subtitle: Text(_contacts[i]['number'], style: const TextStyle(fontSize: 11)),
-              trailing: IconButton(icon: const Icon(Icons.delete, color: Colors.red, size: 18), onPressed: () {
+              title: Text(_contacts[i]['name'], style: const TextStyle(fontSize: 12)),
+              subtitle: Text(_contacts[i]['number'], style: const TextStyle(fontSize: 10)),
+              trailing: IconButton(icon: const Icon(Icons.delete, color: Colors.red, size: 16), onPressed: () {
                 setState(() => _contacts.removeAt(i));
                 SharedPreferences.getInstance().then((p) => p.setString('contacts_list', json.encode(_contacts)));
               }),
             ),
           )),
           Padding(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.all(15),
             child: Column(
               children: [
                 ElevatedButton(
@@ -289,14 +285,14 @@ class _SettingScreenState extends State<SettingScreen> {
                       }
                     }
                   },
-                  style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 40)),
-                  child: const Text("연락처 추가", style: TextStyle(fontSize: 13)),
+                  style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 38)),
+                  child: const Text("연락처 추가", style: TextStyle(fontSize: 12)),
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: 8),
                 ElevatedButton(
                   onPressed: _requestPermissions,
-                  style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 40), backgroundColor: Colors.orangeAccent, foregroundColor: Colors.white),
-                  child: const Text("권한 설정 가기", style: TextStyle(fontSize: 13)),
+                  style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 38), backgroundColor: Colors.orangeAccent, foregroundColor: Colors.white),
+                  child: const Text("권한 설정 가기", style: TextStyle(fontSize: 12)),
                 ),
               ],
             ),
