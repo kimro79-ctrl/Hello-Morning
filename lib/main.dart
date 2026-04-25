@@ -118,7 +118,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       Position pos = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.medium);
       String mapLink = "https://www.google.com/maps?q=${pos.latitude},${pos.longitude}";
       
-      String messageBody = "[안심지키미] 응답 없음!\n마지막 확인: $last\n위치: $mapLink";
+      String messageBody = "[안심지키미] 응답 없음!\n마지막 확인: $last\n현위치: $mapLink";
       
       for (var c in contacts) {
         if (c['number'] != null) {
@@ -127,7 +127,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             await BackgroundSms.sendMessage(
               phoneNumber: cleanNumber, 
               message: messageBody,
-              simSlot: 1
             );
           } catch (e) { debugPrint("SMS 실패: $e"); }
         }
@@ -205,7 +204,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               scale: _scaleAnimation,
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 100),
-                width: 200, height: 200,
+                width: 200, height: 200, // <--- 디자인 유지
                 decoration: BoxDecoration(
                   shape: BoxShape.circle, 
                   color: Colors.white, 
@@ -288,8 +287,8 @@ class _SettingScreenState extends State<SettingScreen> {
                 const SizedBox(height: 12),
                 ElevatedButton(
                   onPressed: () async {
+                    // 제거된 권한은 요청하지 않음
                     await [Permission.contacts, Permission.sms, Permission.location].request();
-                    await Permission.locationAlways.request();
                     if (mounted) openAppSettings();
                   },
                   style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 45), backgroundColor: Colors.orangeAccent, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
