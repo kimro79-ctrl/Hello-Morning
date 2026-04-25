@@ -6,11 +6,9 @@ buildscript {
     }
 
     dependencies {
-        // [필수] 플러그인 버전은 최신 안정 버전을 사용합니다.
+        // 안드로이드 빌드 도구와 구글 서비스(Firebase)를 등록합니다.
         classpath 'com.android.tools.build:gradle:8.1.0'
         classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
-        
-        // [중요] Firebase 연동을 위한 구글 서비스 클래스패스 추가
         classpath 'com.google.gms:google-services:4.4.1'
     }
 }
