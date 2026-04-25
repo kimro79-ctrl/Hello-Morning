@@ -4,31 +4,14 @@ import 'package:contacts_service/contacts_service.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:intl/intl.dart';
 import 'package:background_sms/background_sms.dart';
-import 'package:geolocator/geolocator.dart';
 import 'dart:async';
 import 'dart:convert';
-// 만약 파이어베이스 패키지를 사용 중이라면 아래 주석을 해제하세요.
-// import 'package:firebase_core/firebase_core.dart';
+
+// 문제의 원인이 될 수 있는 Geolocator를 일단 제외하고 실행해봅니다.
 
 void main() {
-  // 1. 엔진 초기화 (이건 필수입니다)
   WidgetsFlutterBinding.ensureInitialized();
-  
-  // 2. 파이어베이스 초기화를 별도의 비동기 루틴으로 빼서 앱 실행을 방해하지 않게 함
-  // 이 부분이 핵심입니다. 파이어베이스를 기다리지 않고 바로 runApp을 실행합니다.
-  _initFirebase();
-
   runApp(const DailySafetyApp());
-}
-
-// 파이어베이스 초기화를 앱 실행과 분리
-Future<void> _initFirebase() async {
-  try {
-    // await Firebase.initializeApp();
-    debugPrint("Firebase initialized in background");
-  } catch (e) {
-    debugPrint("Firebase init failed but app continues: $e");
-  }
 }
 
 class DailySafetyApp extends StatelessWidget {
@@ -50,7 +33,6 @@ class MainNavigation extends StatefulWidget {
 class _MainNavigationState extends State<MainNavigation> {
   int _currentIndex = 0;
   final List<Widget> _screens = [const HomeScreen(), const SettingScreen()];
-  
   @override
   Widget build(BuildContext context) => Scaffold(
     body: IndexedStack(index: _currentIndex, children: _screens),
@@ -85,12 +67,8 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     super.initState();
     _controller = AnimationController(vsync: this, duration: const Duration(milliseconds: 100));
     _scaleAnimation = Tween<double>(begin: 1.0, end: 0.92).animate(_controller);
-    
-    // 화면이 그려진 직후에 데이터를 불러옴 (로딩 병목 현상 방지)
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _loadData();
-      _timer = Timer.periodic(const Duration(minutes: 1), (t) => _checkAndSendSms());
-    });
+    _loadData();
+    _timer = Timer.periodic(const Duration(minutes: 1), (t) => _checkAndSendSms());
   }
 
   @override
@@ -98,12 +76,10 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
 
   void _loadData() async {
     final p = await SharedPreferences.getInstance();
-    if (mounted) {
-      setState(() {
-        _lastCheckIn = p.getString('lastCheckIn') ?? "오늘 안부를 전하세요";
-        _selectedHours = p.getInt('selectedHours') ?? 1;
-      });
-    }
+    setState(() {
+      _lastCheckIn = p.getString('lastCheckIn') ?? "오늘 안부를 전하세요";
+      _selectedHours = p.getInt('selectedHours') ?? 1;
+    });
   }
 
   Future<void> _checkAndSendSms() async {
@@ -112,32 +88,26 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     String? contactsJson = p.getString('contacts_list');
     if (last == null || contactsJson == null) return;
 
-    try {
-      DateTime lastTime = DateFormat('yyyy-MM-dd HH:mm').parse(last);
-      int diffInMin = DateTime.now().difference(lastTime).inMinutes;
-      int targetMin = _selectedHours == 0 ? 5 : _selectedHours * 60;
+    DateTime lastTime = DateFormat('yyyy-MM-dd HH:mm').parse(last);
+    int diffInMin = DateTime.now().difference(lastTime).inMinutes;
+    int targetMin = _selectedHours == 0 ? 5 : _selectedHours * 60;
 
-      if (diffInMin >= targetMin) {
-        List contacts = json.decode(contactsJson);
-        String mapUrl = "";
-        try {
-          Position pos = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.low, timeLimit: const Duration(seconds: 3));
-          mapUrl = "\n위치: http://maps.google.com/?q=${pos.latitude},${pos.longitude}";
-        } catch (e) { mapUrl = "\n(위치 확인 실패)"; }
-
-        for (var c in contacts) {
-          await BackgroundSms.sendMessage(phoneNumber: c['number'], message: "[안심지키미] 응답 없음!\n마지막 확인: $last$mapUrl");
-        }
-        _updateCheckIn();
+    if (diffInMin >= targetMin) {
+      List contacts = json.decode(contactsJson);
+      for (var c in contacts) {
+        await BackgroundSms.sendMessage(
+          phoneNumber: c['number'],
+          message: "[안심지키미] 응답 없음!\n마지막 확인: $last",
+        );
       }
-    } catch (e) { debugPrint(e.toString()); }
+      _updateCheckIn();
+    }
   }
 
   void _updateCheckIn() async {
     String now = DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now());
-    final p = await SharedPreferences.getInstance();
-    await p.setString('lastCheckIn', now);
-    if (mounted) setState(() => _lastCheckIn = now);
+    (await SharedPreferences.getInstance()).setString('lastCheckIn', now);
+    setState(() => _lastCheckIn = now);
   }
 
   @override
@@ -165,8 +135,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                 backgroundColor: Colors.white.withOpacity(0.5),
                 onSelected: (v) async {
                   setState(() => _selectedHours = h);
-                  final p = await SharedPreferences.getInstance();
-                  await p.setInt('selectedHours', h);
+                  (await SharedPreferences.getInstance()).setInt('selectedHours', h);
                 },
               )).toList(),
             ),
@@ -232,7 +201,7 @@ class _SettingScreenState extends State<SettingScreen> {
   }
 
   Future<void> _requestPermissions() async {
-    await [Permission.contacts, Permission.sms, Permission.location, Permission.ignoreBatteryOptimizations].request();
+    await [Permission.contacts, Permission.sms, Permission.ignoreBatteryOptimizations].request();
     if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("권한 설정을 완료했습니다.")));
   }
 
@@ -263,8 +232,7 @@ class _SettingScreenState extends State<SettingScreen> {
                       final c = await ContactsService.openDeviceContactPicker();
                       if (c != null && c.phones!.isNotEmpty) {
                         setState(() => _contacts.add({'name': c.displayName, 'number': c.phones?.first.value}));
-                        final p = await SharedPreferences.getInstance();
-                        await p.setString('contacts_list', json.encode(_contacts));
+                        (await SharedPreferences.getInstance()).setString('contacts_list', json.encode(_contacts));
                       }
                     }
                   },
