@@ -43,12 +43,10 @@ class _MainNavigationState extends State<MainNavigation> {
     bottomNavigationBar: BottomNavigationBar(
       currentIndex: _currentIndex,
       selectedItemColor: const Color(0xFFFF8A65),
-      selectedFontSize: 11,
-      unselectedFontSize: 10,
       onTap: (index) => setState(() => _currentIndex = index),
       items: const [
-        BottomNavigationBarItem(icon: Icon(Icons.home_filled, size: 19), label: '홈'),
-        BottomNavigationBarItem(icon: Icon(Icons.settings, size: 19), label: '설정'),
+        BottomNavigationBarItem(icon: Icon(Icons.home_filled), label: '홈'),
+        BottomNavigationBarItem(icon: Icon(Icons.settings), label: '설정'),
       ],
     ),
   );
@@ -73,7 +71,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _scaleAnimation;
   
-  // 사용자님의 실제 API 키
+  // 사용자님의 API 키
   final String w3wApiKey = "WTE21N79"; 
 
   @override
@@ -101,34 +99,28 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   Future<String> _getW3WAddress() async {
     try {
-      // GPS 활성화 체크
-      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-      if (!serviceEnabled) return "GPS 꺼짐";
+      if (!await Geolocator.isLocationServiceEnabled()) return "GPS 꺼짐";
 
-      // 위치 좌표 수신 (전략 수정: 마지막 위치를 먼저 시도 후 현재 위치 요청)
-      Position? pos = await Geolocator.getLastKnownPosition();
-      
-      // 마지막 위치가 없거나 너무 오래됐다면 새로 고침
-      pos ??= await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.medium, // 정확도 조절 (더 빨리 잡히게)
-        timeLimit: const Duration(seconds: 10),
-      );
+      // [핵심 변경] 정확도를 'low'로 설정하여 실내 와이파이/기지국 신호를 우선 사용하게 함
+      Position? pos = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.low, 
+        timeLimit: const Duration(seconds: 5), // 5초 안에 안 잡히면 다음으로
+      ).onError((error, stackTrace) async {
+        // 에러 시 마지막으로 기록된 위치라도 가져옴
+        return await Geolocator.getLastKnownPosition() ?? Position(longitude: 0, latitude: 0, timestamp: DateTime.now(), accuracy: 0, altitude: 0, heading: 0, speed: 0, speedAccuracy: 0, altitudeAccuracy: 0, headingAccuracy: 0);
+      });
 
-      if (pos == null) return "위치 신호 없음";
+      if (pos.latitude == 0) return "위치 확인 불가";
 
-      // what3words API 호출 (이 줄이 실행되어야 요청 카운트가 올라갑니다!)
+      // what3words API 호출
       final url = "https://api.what3words.com/v3/convert-to-3wa?coordinates=${pos.latitude},${pos.longitude}&key=$w3wApiKey&language=ko";
-      final response = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 7));
+      final response = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 5));
       
       if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        return "///${data['words']}";
-      } else {
-        return "API 응답 오류";
+        return "///${json.decode(response.body)['words']}";
       }
-    } catch (e) {
-      return "위치 확인 실패";
-    }
+    } catch (e) {}
+    return "위치 확인 불가";
   }
 
   @override
@@ -179,31 +171,30 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     String displayW3W = _isLocating ? "$_currentW3W${'.' * _dotCount}" : _currentW3W;
     return Scaffold(
       appBar: AppBar(
-        title: const Text("안심 지키미", style: TextStyle(color: Color(0xFFFF8A65), fontWeight: FontWeight.bold, fontSize: 13)),
+        title: const Text("안심 지키미", style: TextStyle(color: Color(0xFFFF8A65), fontWeight: FontWeight.bold)),
         backgroundColor: const Color(0xFFFFF3E0),
         centerTitle: true,
-        toolbarHeight: 42,
       ),
       body: Column(
         children: [
           Container(
-            padding: const EdgeInsets.symmetric(vertical: 7, horizontal: 12),
+            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
             width: double.infinity,
             color: Colors.orange.withOpacity(0.06),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Icon(Icons.location_on, color: Colors.redAccent, size: 13),
+                const Icon(Icons.location_on, color: Colors.redAccent, size: 14),
                 const SizedBox(width: 5),
-                Flexible(child: Text(displayW3W, style: const TextStyle(fontSize: 9.5, color: Colors.black87, fontWeight: FontWeight.w600), overflow: TextOverflow.ellipsis)),
+                Flexible(child: Text(displayW3W, style: const TextStyle(color: Colors.black87, fontWeight: FontWeight.w600), overflow: TextOverflow.ellipsis)),
               ],
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 15),
           Wrap(
-            spacing: 7,
+            spacing: 8,
             children: [0, 1, 12, 24].map((h) => ChoiceChip(
-              label: Text(h == 0 ? "5분" : "$h시간", style: const TextStyle(fontSize: 10)),
+              label: Text(h == 0 ? "5분" : "$h시간"),
               selected: _selectedHours == h,
               onSelected: (v) async {
                 setState(() => _selectedHours = h);
@@ -212,10 +203,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             )).toList(),
           ),
           const Spacer(),
-          const Text("마지막 확인 시각", style: TextStyle(color: Colors.grey, fontSize: 9)),
-          const SizedBox(height: 3),
-          Text(_lastCheckIn, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 25),
+          const Text("마지막 확인 시각", style: TextStyle(color: Colors.grey)),
+          const SizedBox(height: 4),
+          Text(_lastCheckIn, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 30),
           GestureDetector(
             onTapDown: (_) { setState(() => _isPressed = true); _controller.forward(); },
             onTapUp: (_) { setState(() => _isPressed = false); _controller.reverse(); _updateCheckIn(); },
@@ -224,30 +215,30 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               scale: _scaleAnimation,
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 100),
-                width: 145, height: 145,
+                width: 150, height: 150,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle, 
                   color: Colors.white, 
                   boxShadow: [
                     BoxShadow(
                       color: _isPressed ? const Color(0xFFFFC1CC) : Colors.black12, 
-                      blurRadius: _isPressed ? 18 : 6,
-                      spreadRadius: _isPressed ? 6 : 1,
+                      blurRadius: _isPressed ? 20 : 7,
+                      spreadRadius: _isPressed ? 7 : 1,
                     )
                   ],
                   border: Border.all(
                     color: _isPressed ? const Color(0xFFFFC1CC) : Colors.transparent, 
-                    width: 3,
+                    width: 3.5,
                   ),
                 ),
-                child: ClipOval(child: Image.asset('assets/smile.png', fit: BoxFit.contain, errorBuilder: (c, e, s) => const Icon(Icons.favorite, size: 50, color: Colors.orange))),
+                child: ClipOval(child: Image.asset('assets/smile.png', fit: BoxFit.contain, errorBuilder: (c, e, s) => const Icon(Icons.favorite, size: 55, color: Colors.orange))),
               ),
             ),
           ),
           const Spacer(),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
-            child: Text("미응답 시 보호자에게 위치가 전송됩니다.", textAlign: TextAlign.center, style: TextStyle(fontSize: 8.5, color: Colors.grey.shade400)),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 40, vertical: 25),
+            child: Text("미응답 시 보호자에게 위치가 전송됩니다.", textAlign: TextAlign.center, style: TextStyle(color: Colors.grey)),
           ),
           const SizedBox(height: 10),
         ],
@@ -273,22 +264,22 @@ class _SettingScreenState extends State<SettingScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("설정", style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)), backgroundColor: const Color(0xFFFFF3E0), toolbarHeight: 42),
+      appBar: AppBar(title: const Text("설정", style: TextStyle(fontWeight: FontWeight.bold)), backgroundColor: const Color(0xFFFFF3E0)),
       body: Column(
         children: [
           Expanded(child: ListView.builder(
             itemCount: _contacts.length,
             itemBuilder: (c, i) => ListTile(
-              title: Text(_contacts[i]['name'], style: const TextStyle(fontSize: 11)),
-              subtitle: Text(_contacts[i]['number'], style: const TextStyle(fontSize: 9)),
-              trailing: IconButton(icon: const Icon(Icons.delete, color: Colors.redAccent, size: 17), onPressed: () {
+              title: Text(_contacts[i]['name']),
+              subtitle: Text(_contacts[i]['number']),
+              trailing: IconButton(icon: const Icon(Icons.delete, color: Colors.redAccent), onPressed: () {
                 setState(() => _contacts.removeAt(i));
                 SharedPreferences.getInstance().then((p) => p.setString('contacts_list', json.encode(_contacts)));
               }),
             ),
           )),
           Padding(
-            padding: const EdgeInsets.all(15),
+            padding: const EdgeInsets.all(20),
             child: Column(
               children: [
                 ElevatedButton(
@@ -301,18 +292,18 @@ class _SettingScreenState extends State<SettingScreen> {
                       }
                     }
                   },
-                  style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 42), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
-                  child: const Text("보호자 연락처 추가", style: TextStyle(fontSize: 11)),
+                  style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 45), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+                  child: const Text("보호자 추가"),
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: 12),
                 ElevatedButton(
                   onPressed: () async {
                     await [Permission.contacts, Permission.sms, Permission.location].request();
                     await Permission.locationAlways.request();
                     if (mounted) openAppSettings();
                   },
-                  style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 42), backgroundColor: Colors.orangeAccent, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
-                  child: const Text("앱 권한 설정 열기", style: TextStyle(fontSize: 11)),
+                  style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 45), backgroundColor: Colors.orangeAccent, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+                  child: const Text("앱 권한 설정"),
                 ),
               ],
             ),
