@@ -5,14 +5,11 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:intl/intl.dart';
 import 'package:background_sms/background_sms.dart';
 import 'package:geolocator/geolocator.dart';
-// import 'package:firebase_core/firebase_core.dart'; // 파이어베이스 사용 시 주석 해제
 import 'dart:async';
 import 'dart:convert';
 
-void main() async {
-  // ✅ 파이어베이스와 타이머가 충돌하지 않도록 보장
+void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  // await Firebase.initializeApp(); // 파이어베이스 설정 완료 시 주석 해제
   runApp(const DailySafetyApp());
 }
 
@@ -80,14 +77,13 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     _scaleAnimation = Tween<double>(begin: 1.0, end: 0.92).animate(_controller);
     _loadData();
     _updateLocationDisplay();
-    
-    // ✅ 5분 주기로 발송 여부 체크
     _timer = Timer.periodic(const Duration(minutes: 5), (t) => _checkAndSendSms());
     _dotTimer = Timer.periodic(const Duration(milliseconds: 500), (t) {
       if (_isLocating && mounted) {
         setState(() { _dotCount = (_dotCount + 1) % 4; });
       }
     });
+    debugPrint("🚀 앱 시작: 타이머 가동 중 (5분 주기)");
   }
 
   Future<void> _updateLocationDisplay() async {
@@ -103,44 +99,61 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           _isLocating = false;
           _currentLocationText = "좌표: ${position.latitude.toStringAsFixed(4)}, ${position.longitude.toStringAsFixed(4)}";
         });
+        debugPrint("📍 위치 갱신 성공: ${position.latitude}, ${position.longitude}");
       }
     } catch (e) {
       if (mounted) setState(() { _isLocating = false; _currentLocationText = "위치 확인 불가"; });
+      debugPrint("❌ 위치 수신 에러: $e");
     }
   }
 
   Future<void> _checkAndSendSms() async {
+    debugPrint("🔍 [체크] 발송 조건 확인 시작...");
     final p = await SharedPreferences.getInstance();
     String? last = p.getString('lastCheckIn');
     String? contactsJson = p.getString('contacts_list');
-    if (last == null || contactsJson == null) return;
+    
+    if (last == null) {
+      debugPrint("⚠️ 경고: 체크인 기록이 없어 발송을 건너뜁니다.");
+      return;
+    }
+    if (contactsJson == null || contactsJson == "[]") {
+      debugPrint("⚠️ 경고: 등록된 보호자 연락처가 없습니다.");
+      return;
+    }
     
     DateTime lastTime = DateFormat('yyyy-MM-dd HH:mm').parse(last);
     int targetMin = _selectedHours == 0 ? 5 : _selectedHours * 60;
+    int diff = DateTime.now().difference(lastTime).inMinutes;
     
-    if (DateTime.now().difference(lastTime).inMinutes >= targetMin) {
+    debugPrint("⏳ 경과 시간: $diff분 / 설정 시간: $targetMin분");
+
+    if (diff >= targetMin) {
+      debugPrint("🚨 조건 충족! 문자 발송 절차 진입");
       List contacts = json.decode(contactsJson);
       Position pos = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.medium);
-      // 구글 맵 링크 생성
-      String mapLink = "https://www.google.com/maps/search/?api=1&query=${pos.latitude},${pos.longitude}";
+      String mapLink = "https://www.google.com/maps?q=${pos.latitude},${pos.longitude}";
       
-      String messageBody = "[안심지키미] 응답 없음 안내\n마지막 확인: $last\n위치: $mapLink";
+      String messageBody = "[안심지키미] 응답 없음!\n마지막 확인: $last\n위치: $mapLink";
       
       for (var c in contacts) {
         if (c['number'] != null) {
           String cleanNumber = c['number'].replaceAll(RegExp(r'[^0-9]'), '');
+          debugPrint("📩 전송 시도 -> 대상: ${c['name']}($cleanNumber)");
           try {
-            // ✅ 25일 22시 빌드 성공 로직: 발송 상태 체크 생략하고 바로 발송
             await BackgroundSms.sendMessage(
               phoneNumber: cleanNumber, 
               message: messageBody,
             );
+            debugPrint("✅ 전송 명령 완료");
           } catch (e) {
-            debugPrint("발송 에러: $e");
+            debugPrint("❌ 전송 실패 에러: $e");
           }
         }
       }
       _updateCheckIn();
+    } else {
+      debugPrint("😴 아직 시간이 되지 않았습니다.");
     }
   }
 
@@ -161,6 +174,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     await p.setString('lastCheckIn', now);
     setState(() => _lastCheckIn = now);
     _updateLocationDisplay();
+    debugPrint("✅ 체크인 갱신 시각: $now");
   }
 
   @override
@@ -197,6 +211,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               onSelected: (v) async {
                 setState(() => _selectedHours = h);
                 (await SharedPreferences.getInstance()).setInt('selectedHours', h);
+                debugPrint("⚙️ 시간 설정 변경: $h시간");
               },
             )).toList(),
           ),
@@ -207,7 +222,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           const SizedBox(height: 40),
           GestureDetector(
             onTapDown: (_) { setState(() => _isPressed = true); _controller.forward(); },
-            onTapUp: (_) { setState(() => _isPressed = false); _controller.reverse(); _updateCheckIn(); },
+            onTapUp: (_) { 
+              setState(() => _isPressed = false); 
+              _controller.reverse(); 
+              _updateCheckIn(); 
+              debugPrint("👆 사용자가 생존 신고 버튼을 눌렀습니다.");
+            },
             onTapCancel: () => setState(() { _isPressed = false; _controller.reverse(); }),
             child: ScaleTransition(
               scale: _scaleAnimation,
@@ -273,6 +293,7 @@ class _SettingScreenState extends State<SettingScreen> {
               trailing: IconButton(icon: const Icon(Icons.delete, color: Colors.redAccent, size: 20), onPressed: () {
                 setState(() => _contacts.removeAt(i));
                 SharedPreferences.getInstance().then((p) => p.setString('contacts_list', json.encode(_contacts)));
+                debugPrint("🗑 연락처 삭제됨");
               }),
             ),
           )),
@@ -287,6 +308,7 @@ class _SettingScreenState extends State<SettingScreen> {
                       if (c != null && c.phones!.isNotEmpty) {
                         setState(() => _contacts.add({'name': c.displayName, 'number': c.phones?.first.value}));
                         (await SharedPreferences.getInstance()).setString('contacts_list', json.encode(_contacts));
+                        debugPrint("➕ 연락처 추가 성공: ${c.displayName}");
                       }
                     }
                   },
@@ -296,7 +318,7 @@ class _SettingScreenState extends State<SettingScreen> {
                 const SizedBox(height: 12),
                 ElevatedButton(
                   onPressed: () async {
-                    // ✅ 모든 필수 권한 요청
+                    debugPrint("🔐 권한 요청 및 설정창 이동 시도");
                     await [Permission.sms, Permission.location, Permission.contacts].request();
                     await Permission.locationAlways.request();
                     if (mounted) openAppSettings();
