@@ -71,7 +71,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _scaleAnimation;
   
-  // 사용자님의 API 키
   final String w3wApiKey = "WTE21N79"; 
 
   @override
@@ -97,29 +96,31 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     if (mounted) setState(() { _isLocating = false; _currentW3W = words; });
   }
 
+  // [수정된 위치 수신 로직]
   Future<String> _getW3WAddress() async {
     try {
       if (!await Geolocator.isLocationServiceEnabled()) return "GPS 꺼짐";
 
-      // [핵심 변경] 정확도를 'low'로 설정하여 실내 와이파이/기지국 신호를 우선 사용하게 함
-      Position? pos = await Geolocator.getCurrentPosition(
+      // 1. 우선 기기에 저장된 마지막 위치가 있는지 확인 (매우 빠름)
+      Position? pos = await Geolocator.getLastKnownPosition();
+
+      // 2. 만약 저장된 위치가 없다면, 아주 낮은 정확도로 '강제' 수신 시도
+      // 정확도를 low로 하면 GPS 위성 없이 와이파이/LTE 기지국 신호만으로 좌표를 바로 찍어줍니다.
+      pos ??= await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.low, 
-        timeLimit: const Duration(seconds: 5), // 5초 안에 안 잡히면 다음으로
-      ).onError((error, stackTrace) async {
-        // 에러 시 마지막으로 기록된 위치라도 가져옴
-        return await Geolocator.getLastKnownPosition() ?? Position(longitude: 0, latitude: 0, timestamp: DateTime.now(), accuracy: 0, altitude: 0, heading: 0, speed: 0, speedAccuracy: 0, altitudeAccuracy: 0, headingAccuracy: 0);
-      });
+        timeLimit: const Duration(seconds: 10),
+      ).catchError((e) => throw Exception("위치 수신 타임아웃"));
 
-      if (pos.latitude == 0) return "위치 확인 불가";
-
-      // what3words API 호출
+      // 3. 좌표를 얻었다면 API 호출
       final url = "https://api.what3words.com/v3/convert-to-3wa?coordinates=${pos.latitude},${pos.longitude}&key=$w3wApiKey&language=ko";
       final response = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 5));
       
       if (response.statusCode == 200) {
         return "///${json.decode(response.body)['words']}";
       }
-    } catch (e) {}
+    } catch (e) {
+      debugPrint("에러 발생: $e");
+    }
     return "위치 확인 불가";
   }
 
@@ -139,19 +140,14 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     String? last = p.getString('lastCheckIn');
     String? contactsJson = p.getString('contacts_list');
     if (last == null || contactsJson == null) return;
-
     DateTime lastTime = DateFormat('yyyy-MM-dd HH:mm').parse(last);
     int targetMin = _selectedHours == 0 ? 5 : _selectedHours * 60;
-
     if (DateTime.now().difference(lastTime).inMinutes >= targetMin) {
       List contacts = json.decode(contactsJson);
       String w3wAddress = await _getW3WAddress();
       for (var c in contacts) {
         if (c['number'] != null) {
-          await BackgroundSms.sendMessage(
-            phoneNumber: c['number'],
-            message: "[안심지키미] 응답 없음!\n마지막 확인: $last\n위치: $w3wAddress",
-          );
+          await BackgroundSms.sendMessage(phoneNumber: c['number'], message: "[안심지키미] 응답 없음!\n마지막 확인: $last\n위치: $w3wAddress");
         }
       }
       _updateCheckIn();
