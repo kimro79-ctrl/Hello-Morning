@@ -14,5 +14,8 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "android"
-include ":app"
+rootProject.name = "Hello-Morning"
+include(":app")
+
+def flutterSdkPath = System.getenv("FLUTTER_ROOT")
+includeBuild("$flutterSdkPath/packages/flutter_tools/gradle")
