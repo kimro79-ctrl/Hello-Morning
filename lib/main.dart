@@ -77,10 +77,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     _scaleAnimation = Tween<double>(begin: 1.0, end: 0.92).animate(_controller);
     _loadData();
     _updateLocationDisplay();
-    
-    // 5분마다 안부 응답 여부 체크
     _timer = Timer.periodic(const Duration(minutes: 5), (t) => _checkAndSendSms());
-    
     _dotTimer = Timer.periodic(const Duration(milliseconds: 500), (t) {
       if (_isLocating && mounted) {
         setState(() { _dotCount = (_dotCount + 1) % 4; });
@@ -91,7 +88,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   Future<void> _updateLocationDisplay() async {
     if (!mounted) return;
     setState(() { _isLocating = true; _currentLocationText = "위치 수신 중"; });
-    
     try {
       Position position = await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.medium,
@@ -120,9 +116,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     if (DateTime.now().difference(lastTime).inMinutes >= targetMin) {
       List contacts = json.decode(contactsJson);
       Position pos = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.medium);
-      String mapLink = "https://www.google.com/maps/search/?api=1&query=${pos.latitude},${pos.longitude}";
+      String mapLink = "https://www.google.com/maps?q=${pos.latitude},${pos.longitude}";
       
-      String messageBody = "[안심지키미] 응답 없음!\n마지막 확인: $last\n위치 확인: $mapLink";
+      String messageBody = "[안심지키미] 응답 없음!\n마지막 확인: $last\n위치: $mapLink";
       
       for (var c in contacts) {
         if (c['number'] != null) {
@@ -133,9 +129,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               message: messageBody,
               simSlot: 1
             );
-          } catch (e) {
-            debugPrint("SMS 발송 실패: $e");
-          }
+          } catch (e) { debugPrint("SMS 실패: $e"); }
         }
       }
       _updateCheckIn();
@@ -143,12 +137,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   @override
-  void dispose() { 
-    _timer?.cancel(); 
-    _dotTimer?.cancel(); 
-    _controller.dispose(); 
-    super.dispose(); 
-  }
+  void dispose() { _timer?.cancel(); _dotTimer?.cancel(); _controller.dispose(); super.dispose(); }
 
   void _loadData() async {
     final p = await SharedPreferences.getInstance();
