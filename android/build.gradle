@@ -1,16 +1,9 @@
-buildscript {
-    ext.kotlin_version = '1.9.0'
-    repositories {
-        google()
-        mavenCentral()
-    }
-
-    dependencies {
-        // 안드로이드 빌드 도구와 구글 서비스(Firebase)를 등록합니다.
-        classpath 'com.android.tools.build:gradle:8.1.0'
-        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
-        classpath 'com.google.gms:google-services:4.4.1'
-    }
+// [최종] 선언적 플러그인 블록을 사용하여 경로 에러를 원천 차단합니다.
+plugins {
+    id "com.android.application" version "8.1.0" apply false
+    id "org.jetbrains.kotlin.android" version "1.9.0" apply false
+    id "dev.flutter.flutter-gradle-plugin" version "1.0.0" apply false
+    id "com.google.gms.google-services" version "4.4.1" apply false
 }
 
 allprojects {
