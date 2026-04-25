@@ -1,7 +1,37 @@
 plugins {
     id "com.android.application" version "8.1.0" apply false
     id "org.jetbrains.kotlin.android" version "1.8.22" apply false
+    id "dev.flutter.flutter-gradle-plugin" version "1.0.0" apply false
     id "com.google.gms.google-services" version "4.3.15" apply false
+}
+
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+// [핵심] 외부 라이브러리들의 namespace 오류를 강제로 해결하는 코드
+subprojects {
+    afterEvaluate { project ->
+        if (project.hasProperty('android')) {
+            project.android {
+                if (namespace == null) {
+                    // 각 라이브러리의 패키지 이름을 namespace로 자동 지정
+                    namespace project.group
+                }
+            }
+        }
+    }
+}
+
+rootProject.buildDir = '../build'
+subprojects {
+    project.buildDir = "${rootProject.buildDir}/${project.name}"
+}
+subprojects {
+    project.evaluationDependsOn(':app')
 }
 
 tasks.register("clean", Delete) {
