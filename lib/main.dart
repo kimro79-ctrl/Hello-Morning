@@ -81,7 +81,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(title),
+        title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
         content: Text(message),
         actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text("확인"))],
       ),
@@ -99,7 +99,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       if (mounted) {
         setState(() {
           _isLocating = false;
-          _currentLocationText = "좌표: ${position.latitude.toStringAsFixed(4)}, ${position.longitude.toStringAsFixed(4)}";
+          _currentLocationText = "${position.latitude.toStringAsFixed(6)}, ${position.longitude.toStringAsFixed(6)}";
         });
       }
     } catch (e) {
@@ -107,22 +107,28 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     }
   }
 
-  // ✅ 전송 성공률을 높이기 위해 링크를 뺀 텍스트 전용 함수
+  // ✅ 제안하신 문자 문구 적용 (링크 제외)
   Future<void> _testSmsSend() async {
     final p = await SharedPreferences.getInstance();
     String? contactsJson = p.getString('contacts_list');
     
     if (contactsJson == null || contactsJson == "[]") {
-      _showResultDialog("알림", "등록된 보호자 연락처가 없습니다. 설정에서 추가해주세요.");
+      _showResultDialog("알림", "등록된 보호자 연락처가 없습니다.");
       return;
     }
 
     List contacts = json.decode(contactsJson);
-    // ✅ 스팸 차단을 피하기 위해 URL 링크를 제거했습니다.
-    String messageBody = "[안심지키미] 응답이 없어 연락드립니다. 확인 부탁드립니다.";
+    Position pos = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.medium);
+    
+    // 좌표 형식 가공 (예: 37.123456, 127.123456)
+    String coords = "${pos.latitude.toStringAsFixed(6)}, ${pos.longitude.toStringAsFixed(6)}";
 
     for (var c in contacts) {
       String cleanNumber = c['number'].replaceAll(RegExp(r'[^0-9]'), '');
+      
+      // 사용자님이 요청하신 문구 구성
+      String messageBody = "안녕하세요, '안심 지키미'입니다. ${c['name']}님께 등록된 사용자의 안부 확인이 지연되고 있습니다. 확인 부탁드립니다.\n\n좌표: $coords\n위 좌표를 구글맵에서 검색하세요.";
+
       try {
         SmsStatus result = await BackgroundSms.sendMessage(
           phoneNumber: cleanNumber, 
@@ -130,12 +136,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         );
 
         if (result == SmsStatus.success) {
-          _showResultDialog("전송 시도 성공", "${c['name']}님께 명령을 보냈습니다.\n실제 수신 여부를 확인해주세요.");
+          _showResultDialog("전송 성공", "${c['name']}님께 문자를 보냈습니다.");
         } else {
-          _showResultDialog("전송 거부", "시스템 상태: $result\n권한이나 보안 설정을 확인하세요.");
+          _showResultDialog("전송 실패", "상태: $result\n권한 및 보안 설정을 확인하세요.");
         }
       } catch (e) {
-        _showResultDialog("오류", "에러: $e");
+        _showResultDialog("오류", "에러 발생: $e");
       }
     }
   }
@@ -154,7 +160,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     await p.setString('lastCheckIn', now);
     setState(() => _lastCheckIn = now);
     _updateLocationDisplay();
-    _testSmsSend(); // 버튼 누르면 즉시 테스트
+    _testSmsSend();
   }
 
   @override
@@ -168,7 +174,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       body: Column(
         children: [
           const SizedBox(height: 15),
-          const Text("중앙 버튼을 누르면 보호자에게 테스트 문자가 발송됩니다.", style: TextStyle(fontSize: 12, color: Colors.blueGrey)),
+          const Text("중앙 버튼을 누르면 보호자에게 안부 문자가 발송됩니다.", style: TextStyle(fontSize: 12, color: Colors.blueGrey)),
           const Spacer(),
           Text(_lastCheckIn, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
           const SizedBox(height: 40),
@@ -226,7 +232,7 @@ class _SettingScreenState extends State<SettingScreen> {
             onPressed: () async {
               if (await Permission.contacts.request().isGranted) {
                 final c = await ContactsService.openDeviceContactPicker();
-                if (c != null) {
+                if (c != null && c.phones!.isNotEmpty) {
                   setState(() => _contacts.add({'name': c.displayName, 'number': c.phones?.first.value}));
                   (await SharedPreferences.getInstance()).setString('contacts_list', json.encode(_contacts));
                 }
@@ -234,10 +240,7 @@ class _SettingScreenState extends State<SettingScreen> {
             },
             child: const Text("보호자 추가"),
           ),
-          ElevatedButton(
-            onPressed: () => openAppSettings(),
-            child: const Text("권한 설정 이동"),
-          ),
+          ElevatedButton(onPressed: () => openAppSettings(), child: const Text("권한 설정 이동")),
         ],
       ),
     );
