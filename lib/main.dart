@@ -60,7 +60,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   String _lastCheckIn = "기록 없음";
-  String _currentW3W = "위치 확인 중";
+  String _currentW3W = "위치 수신 대기 중"; // 화면 표시용 텍스트
   int _selectedHours = 1; 
   Timer? _timer;
   Timer? _dotTimer;
@@ -70,9 +70,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   late AnimationController _controller;
   late Animation<double> _scaleAnimation;
-  
-  // 새로 발급하신 키 적용
-  final String w3wApiKey = "VDXRDXVC"; 
 
   @override
   void initState() {
@@ -82,7 +79,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     _loadData();
     _updateW3WDisplay();
     
-    // API 소진을 막기 위해 5분마다 체크
+    // 5분마다 상태 체크 (배터리와 효율성 고려)
     _timer = Timer.periodic(const Duration(minutes: 5), (t) => _checkAndSendSms());
     
     _dotTimer = Timer.periodic(const Duration(milliseconds: 500), (t) {
@@ -101,48 +98,39 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     return permission != LocationPermission.deniedForever;
   }
 
+  // UI상의 위치 텍스트 업데이트 (좌표로 표시)
   Future<void> _updateW3WDisplay() async {
     if (!mounted) return;
     setState(() { _isLocating = true; _currentW3W = "위치 수신 중"; });
-    String words = await _getW3WAddress();
-    if (mounted) setState(() { _isLocating = false; _currentW3W = words; });
+    
+    try {
+      Position position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.medium,
+        timeLimit: const Duration(seconds: 8),
+      );
+      if (mounted) {
+        setState(() {
+          _isLocating = false;
+          _currentW3W = "좌표: ${position.latitude.toStringAsFixed(4)}, ${position.longitude.toStringAsFixed(4)}";
+        });
+      }
+    } catch (e) {
+      if (mounted) setState(() { _isLocating = false; _currentW3W = "위치 확인 불가"; });
+    }
   }
 
-  // 데이터 통합 획득 로직
-  Future<Map<String, String>> _getLocationData() async {
+  // 보호자에게 보낼 데이터 생성 (구글 지도 링크)
+  Future<String> _getGoogleMapsLink() async {
     try {
-      if (!await _handleLocationPermission()) return {"w3w": "권한 없음", "link": ""};
-      
+      if (!await _handleLocationPermission()) return "";
       Position position = await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.medium,
         timeLimit: const Duration(seconds: 10),
       );
-
-      // 구글 지도 클릭 가능 링크 생성
-      String googleMapsLink = "https://www.google.com/maps?q=${position.latitude},${position.longitude}";
-
-      final url = "https://api.what3words.com/v3/convert-to-3wa?coordinates=${position.latitude},${position.longitude}&key=$w3wApiKey&language=ko";
-      final response = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 5));
-
-      if (response.statusCode == 200) {
-        return {
-          "w3w": "///${json.decode(response.body)['words']}",
-          "link": googleMapsLink
-        };
-      } else {
-        return {
-          "w3w": "${position.latitude.toStringAsFixed(4)}, ${position.longitude.toStringAsFixed(4)}",
-          "link": googleMapsLink
-        };
-      }
+      return "https://www.google.com/maps?q=${position.latitude},${position.longitude}";
     } catch (e) {
-      return {"w3w": "위치 확인 불가", "link": ""};
+      return "";
     }
-  }
-
-  Future<String> _getW3WAddress() async {
-    var data = await _getLocationData();
-    return data['w3w']!;
   }
 
   @override
@@ -167,10 +155,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     
     if (DateTime.now().difference(lastTime).inMinutes >= targetMin) {
       List contacts = json.decode(contactsJson);
-      var locationData = await _getLocationData();
+      String mapLink = await _getGoogleMapsLink();
       
-      // 문자 메시지 구성: W3W 주소와 구글 지도 링크 포함
-      String messageBody = "[안심지키미] 응답 없음!\n마지막 확인: $last\n위치: ${locationData['w3w']}\n지도: ${locationData['link']}";
+      String messageBody = "[안심지키미] 안부 응답 없음!\n마지막 확인: $last\n위치 확인: $mapLink";
       
       for (var c in contacts) {
         if (c['number'] != null) {
@@ -194,7 +181,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     String displayW3W = _isLocating ? "$_currentW3W${'.' * _dotCount}" : _currentW3W;
     return Scaffold(
       appBar: AppBar(
-        title: const Text("안심 지키미", style: TextStyle(color: Color(0xFFFF8A65), fontWeight: FontWeight.bold, fontSize: 18)), // 텍스트 살짝 줄임
+        title: const Text("안심 지키미", style: TextStyle(color: Color(0xFFFF8A65), fontWeight: FontWeight.bold, fontSize: 18)),
         backgroundColor: const Color(0xFFFFF3E0),
         centerTitle: true,
         elevation: 0,
@@ -210,7 +197,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               children: [
                 const Icon(Icons.location_on, color: Colors.redAccent, size: 14),
                 const SizedBox(width: 5),
-                Flexible(child: Text(displayW3W, style: const TextStyle(color: Colors.black87, fontWeight: FontWeight.w600, fontSize: 13), overflow: TextOverflow.ellipsis)), // 텍스트 줄임
+                Flexible(child: Text(displayW3W, style: const TextStyle(color: Colors.black87, fontWeight: FontWeight.w600, fontSize: 13), overflow: TextOverflow.ellipsis)),
               ],
             ),
           ),
@@ -218,7 +205,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           Wrap(
             spacing: 8,
             children: [0, 1, 12, 24].map((h) => ChoiceChip(
-              label: Text(h == 0 ? "5분" : "$h시간", style: const TextStyle(fontSize: 12)), // 칩 텍스트 줄임
+              label: Text(h == 0 ? "5분" : "$h시간", style: const TextStyle(fontSize: 12)),
               selected: _selectedHours == h,
               onSelected: (v) async {
                 setState(() => _selectedHours = h);
@@ -227,12 +214,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             )).toList(),
           ),
           const Spacer(),
-          const Text("마지막 확인 시각", style: TextStyle(color: Colors.grey, fontSize: 13)), // 텍스트 줄임
+          const Text("마지막 확인 시각", style: TextStyle(color: Colors.grey, fontSize: 13)),
           const SizedBox(height: 4),
-          Text(_lastCheckIn, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)), // 텍스트 줄임
+          Text(_lastCheckIn, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
           const SizedBox(height: 40),
-          
-          // 🔴 이미지 크기 대폭 확대
           GestureDetector(
             onTapDown: (_) { setState(() => _isPressed = true); _controller.forward(); },
             onTapUp: (_) { setState(() => _isPressed = false); _controller.reverse(); _updateCheckIn(); },
@@ -241,7 +226,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               scale: _scaleAnimation,
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 100),
-                width: 200, height: 200, // 크기 150 -> 200으로 확대
+                width: 200, height: 200,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle, 
                   color: Colors.white, 
@@ -264,7 +249,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           const Spacer(),
           const Padding(
             padding: EdgeInsets.symmetric(horizontal: 40, vertical: 25),
-            child: Text("미응답 시 보호자에게 위치가 전송됩니다.", textAlign: TextAlign.center, style: TextStyle(color: Colors.grey, fontSize: 12)), // 텍스트 줄임
+            child: Text("미응답 시 보호자에게 위치가 전송됩니다.", textAlign: TextAlign.center, style: TextStyle(color: Colors.grey, fontSize: 12)),
           ),
           const SizedBox(height: 10),
         ],
