@@ -71,7 +71,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _scaleAnimation;
   
-  final String w3wApiKey = "WTE21N79"; 
+  // 🔴 새로 발급하신 API 키 적용
+  final String w3wApiKey = "VDXRDXVC"; 
 
   @override
   void initState() {
@@ -89,10 +90,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     });
   }
 
-  // 🔴 권한 해결 코드 추가
+  // 사용자님 권한 핸들링 코드
   Future<bool> _handleLocationPermission() async {
-    LocationPermission permission;
-    permission = await Geolocator.checkPermission();
+    LocationPermission permission = await Geolocator.checkPermission();
     if (permission == LocationPermission.denied) {
       permission = await Geolocator.requestPermission();
       if (permission == LocationPermission.denied) return false;
@@ -108,30 +108,32 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     if (mounted) setState(() { _isLocating = false; _currentW3W = words; });
   }
 
-  // 🔴 안정화된 위치 획득 로직
   Future<String> _getW3WAddress() async {
     try {
       if (!await _handleLocationPermission()) return "위치 권한 없음";
       if (!await Geolocator.isLocationServiceEnabled()) return "GPS 꺼짐";
 
-      // 정확도를 medium으로 올려 실내 수신력 확보
+      // 실내에서 빠른 수신을 위해 low 정확도로 시도
       Position position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.medium,
-        timeLimit: const Duration(seconds: 15),
+        desiredAccuracy: LocationAccuracy.low,
+        timeLimit: const Duration(seconds: 10),
       );
 
       final url = "https://api.what3words.com/v3/convert-to-3wa?coordinates=${position.latitude},${position.longitude}&key=$w3wApiKey&language=ko";
       final response = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 5));
       
-      print("API 응답: ${response.body}"); // 로그 확인용
+      print("W3W 응답: ${response.body}");
 
       if (response.statusCode == 200) {
         return "///${json.decode(response.body)['words']}";
+      } else {
+        // 🔴 API 키 문제(한도초과 등) 발생 시 위도/경도라도 표시
+        return "좌표: ${position.latitude.toStringAsFixed(4)}, ${position.longitude.toStringAsFixed(4)}";
       }
     } catch (e) {
-      print("에러 발생: $e");
+      print("에러: $e");
+      return "위치 신호 없음";
     }
-    return "위치 확인 불가";
   }
 
   @override
