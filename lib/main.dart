@@ -78,6 +78,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     _loadData();
     _updateLocationDisplay();
     
+    // 5분마다 안부 응답 여부 체크
     _timer = Timer.periodic(const Duration(minutes: 5), (t) => _checkAndSendSms());
     
     _dotTimer = Timer.periodic(const Duration(milliseconds: 500), (t) {
@@ -119,8 +120,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     if (DateTime.now().difference(lastTime).inMinutes >= targetMin) {
       List contacts = json.decode(contactsJson);
       Position pos = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.medium);
-      
-      // 보호자가 클릭 시 바로 지도를 볼 수 있는 링크
       String mapLink = "https://www.google.com/maps/search/?api=1&query=${pos.latitude},${pos.longitude}";
       
       String messageBody = "[안심지키미] 응답 없음!\n마지막 확인: $last\n위치 확인: $mapLink";
@@ -217,7 +216,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               scale: _scaleAnimation,
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 100),
-                width: 200, height: 200, // <--- 이미지 크기 200 유지됨
+                width: 200, height: 200,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle, 
                   color: Colors.white, 
