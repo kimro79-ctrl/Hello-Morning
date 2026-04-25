@@ -8,8 +8,20 @@ import 'package:geolocator/geolocator.dart';
 import 'dart:async';
 import 'dart:convert';
 
-void main() {
+// 만약 Firebase를 사용 중이라면 아래 주석을 해제하고 사용하세요.
+// import 'package:firebase_core/firebase_core.dart';
+
+void main() async {
+  // 앱 시작 시 엔진 초기화 보장 (빈 화면 방지 핵심)
   WidgetsFlutterBinding.ensureInitialized();
+  
+  // 파이어베이스 초기화 시 에러가 나도 앱은 켜지도록 try-catch 처리
+  try {
+    // await Firebase.initializeApp(); 
+  } catch (e) {
+    debugPrint("Firebase init error: $e");
+  }
+
   runApp(const DailySafetyApp());
 }
 
@@ -18,7 +30,12 @@ class DailySafetyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) => MaterialApp(
     debugShowCheckedModeBanner: false,
-    theme: ThemeData(scaffoldBackgroundColor: const Color(0xFFFDFCFB), useMaterial3: true),
+    theme: ThemeData(
+      scaffoldBackgroundColor: const Color(0xFFFDFCFB), 
+      useMaterial3: true,
+      // 폰트나 테마 로딩 문제로 멈추는 것 방지
+      visualDensity: VisualDensity.adaptivePlatformDensity,
+    ),
     home: const MainNavigation(),
   );
 }
@@ -32,19 +49,23 @@ class MainNavigation extends StatefulWidget {
 class _MainNavigationState extends State<MainNavigation> {
   int _currentIndex = 0;
   final List<Widget> _screens = [const HomeScreen(), const SettingScreen()];
+  
   @override
-  Widget build(BuildContext context) => Scaffold(
-    body: IndexedStack(index: _currentIndex, children: _screens),
-    bottomNavigationBar: BottomNavigationBar(
-      currentIndex: _currentIndex,
-      selectedItemColor: const Color(0xFFFF8A65),
-      onTap: (index) => setState(() => _currentIndex = index),
-      items: const [
-        BottomNavigationBarItem(icon: Icon(Icons.home_filled, size: 20), label: '홈'),
-        BottomNavigationBarItem(icon: Icon(Icons.settings, size: 20), label: '설정'),
-      ],
-    ),
-  );
+  Widget build(BuildContext context) {
+    return Scaffold(
+      // IndexedStack을 사용하여 화면 전환 시 상태 유지 및 렌더링 오류 방지
+      body: IndexedStack(index: _currentIndex, children: _screens),
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: _currentIndex,
+        selectedItemColor: const Color(0xFFFF8A65),
+        onTap: (index) => setState(() => _currentIndex = index),
+        items: const [
+          BottomNavigationBarItem(icon: Icon(Icons.home_filled, size: 20), label: '홈'),
+          BottomNavigationBarItem(icon: Icon(Icons.settings, size: 20), label: '설정'),
+        ],
+      ),
+    );
+  }
 }
 
 class HomeScreen extends StatefulWidget {
@@ -66,23 +87,32 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   void initState() {
     super.initState();
     _loadData();
-    _timer = Timer.periodic(const Duration(minutes: 1), (t) => _checkAndSendSms());
+    // 타이머 시작 시간을 약간 늦춰서 초기 화면 렌더링 방해 안 하게 함
+    Future.delayed(const Duration(seconds: 2), () {
+      _timer = Timer.periodic(const Duration(minutes: 1), (t) => _checkAndSendSms());
+    });
     _controller = AnimationController(vsync: this, duration: const Duration(milliseconds: 100));
     _scaleAnimation = Tween<double>(begin: 1.0, end: 0.92).animate(_controller);
   }
 
   @override
-  void dispose() { _timer?.cancel(); _controller.dispose(); super.dispose(); }
+  void dispose() { 
+    _timer?.cancel(); 
+    _controller.dispose(); 
+    super.dispose(); 
+  }
 
   void _loadData() async {
     try {
       final p = await SharedPreferences.getInstance();
-      setState(() {
-        _lastCheckIn = p.getString('lastCheckIn') ?? "오늘 안부를 전하세요";
-        _selectedHours = p.getInt('selectedHours') ?? 1;
-      });
+      if (mounted) {
+        setState(() {
+          _lastCheckIn = p.getString('lastCheckIn') ?? "오늘 안부를 전하세요";
+          _selectedHours = p.getInt('selectedHours') ?? 1;
+        });
+      }
     } catch (e) {
-      debugPrint("Data load error: $e");
+      debugPrint("SharedPreferences error: $e");
     }
   }
 
@@ -102,7 +132,6 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
         List contacts = json.decode(contactsJson);
         String mapUrl = "";
         
-        // 위치 정보 획득 시도 (실패해도 문자 발송은 되도록 처리)
         try {
           Position pos = await Geolocator.getCurrentPosition(
             desiredAccuracy: LocationAccuracy.low,
@@ -121,14 +150,14 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
         }
         _updateCheckIn();
       }
-    } catch (e) { debugPrint("SMS check error: $e"); }
+    } catch (e) { debugPrint("SMS 로직 에러: $e"); }
   }
 
   void _updateCheckIn() async {
     String now = DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now());
     final p = await SharedPreferences.getInstance();
     await p.setString('lastCheckIn', now);
-    setState(() => _lastCheckIn = now);
+    if (mounted) setState(() => _lastCheckIn = now);
   }
 
   @override
@@ -185,6 +214,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                   child: Image.asset(
                     'assets/smile.png',
                     fit: BoxFit.contain,
+                    // 이미지 로딩 실패 시 튕기지 않게 아이콘으로 대체
                     errorBuilder: (context, error, stackTrace) => const Icon(Icons.favorite, size: 80, color: Color(0xFFFF80AB)),
                   ),
                 ),
