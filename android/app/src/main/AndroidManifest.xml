@@ -10,15 +10,14 @@
 
     <application
         android:label="안심 지키미"
-        android:icon="@mipmap/ic_launcher" 
+        android:icon="@mipmap/ic_launcher"
         android:usesCleartextTraffic="true">
 
         <activity
             android:name=".MainActivity"
             android:exported="true"
             android:launchMode="singleTop"
-            /* @style/LaunchTheme 대신 안드로이드 기본 테마 사용 */
-            android:theme="@android:style/Theme.Black.NoTitleBar" 
+            android:theme="@android:style/Theme.Black.NoTitleBar"
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
             android:hardwareAccelerated="true"
             android:windowSoftInputMode="adjustResize">
