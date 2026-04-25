@@ -77,6 +77,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     _scaleAnimation = Tween<double>(begin: 1.0, end: 0.92).animate(_controller);
     _loadData();
     _updateLocationDisplay();
+    // 5분마다 체크 (테스트 시 h=0 으로 설정하여 5분 뒤 발송 확인 가능)
     _timer = Timer.periodic(const Duration(minutes: 5), (t) => _checkAndSendSms());
     _dotTimer = Timer.periodic(const Duration(milliseconds: 500), (t) {
       if (_isLocating && mounted) {
@@ -108,30 +109,44 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     final p = await SharedPreferences.getInstance();
     String? last = p.getString('lastCheckIn');
     String? contactsJson = p.getString('contacts_list');
+    
     if (last == null || contactsJson == null) return;
     
     DateTime lastTime = DateFormat('yyyy-MM-dd HH:mm').parse(last);
     int targetMin = _selectedHours == 0 ? 5 : _selectedHours * 60;
     
     if (DateTime.now().difference(lastTime).inMinutes >= targetMin) {
-      List contacts = json.decode(contactsJson);
-      Position pos = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.medium);
-      String mapLink = "https://www.google.com/maps/search/?api=1&query=${pos.latitude},${pos.longitude}";
-      
-      String messageBody = "[안심지키미] 응답 없음!\n마지막 확인: $last\n현위치: $mapLink";
-      
-      for (var c in contacts) {
-        if (c['number'] != null) {
-          String cleanNumber = c['number'].replaceAll(RegExp(r'[^0-9]'), '');
-          try {
-            await BackgroundSms.sendMessage(
-              phoneNumber: cleanNumber, 
-              message: messageBody,
-            );
-          } catch (e) { debugPrint("SMS 실패: $e"); }
+      // SMS 권한 재확인
+      if (await Permission.sms.isGranted) {
+        List contacts = json.decode(contactsJson);
+        Position pos = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.medium);
+        String mapLink = "https://www.google.com/maps?q=${pos.latitude},${pos.longitude}";
+        
+        String messageBody = "[안심지키미] 사용자의 응답이 없습니다.\n마지막 확인: $last\n위치: $mapLink";
+        
+        for (var c in contacts) {
+          if (c['number'] != null) {
+            String cleanNumber = c['number'].replaceAll(RegExp(r'[^0-9]'), '');
+            try {
+              // 발송 시도
+              SmsStatus status = await BackgroundSms.sendMessage(
+                phoneNumber: cleanNumber, 
+                message: messageBody,
+              );
+              if (status == SmsStatus.success) {
+                debugPrint("발송 성공: $cleanNumber");
+              } else {
+                debugPrint("발송 실패 상태: $status");
+              }
+            } catch (e) {
+              debugPrint("SMS 예외 발생: $e");
+            }
+          }
         }
+        _updateCheckIn(); // 발송 후 체크인 시간 갱신 (반복 발송 방지)
+      } else {
+        debugPrint("SMS 권한이 없습니다.");
       }
-      _updateCheckIn();
     }
   }
 
@@ -287,14 +302,14 @@ class _SettingScreenState extends State<SettingScreen> {
                 const SizedBox(height: 12),
                 ElevatedButton(
                   onPressed: () async {
-                    // 순서대로 권한 요청
-                    await Permission.location.request();
-                    await Permission.locationAlways.request(); // 이게 핵심입니다!
-                    await Permission.sms.request();
+                    // 중요: SMS와 위치 권한을 명시적으로 요청
+                    await [Permission.sms, Permission.location, Permission.contacts].request();
+                    // 안드로이드 11 이상에서는 항상 허용을 위해 설정 화면으로 이동해야 함
+                    await Permission.locationAlways.request();
                     if (mounted) openAppSettings();
                   },
                   style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 45), backgroundColor: Colors.orangeAccent, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
-                  child: const Text("앱 권한 설정 (항상 허용 선택)", style: TextStyle(fontSize: 14)),
+                  child: const Text("앱 권한 설정 (SMS/위치 승인 필요)", style: TextStyle(fontSize: 14)),
                 ),
               ],
             ),
