@@ -5,21 +5,57 @@ plugins {
     id "com.google.gms.google-services"
 }
 
-// ... 중략 (local.properties 읽는 부분)
+// [수정] 버전 정보를 안전하게 가져오는 코드
+def localProperties = new Properties()
+def localPropertiesFile = rootProject.file('local.properties')
+if (localPropertiesFile.exists()) {
+    localPropertiesFile.withReader('UTF-8') { reader ->
+        localProperties.load(reader)
+    }
+}
+
+// 변수가 없을 경우를 대비해 기본값(1, 1.0.0)을 설정합니다.
+def flutterVersionCode = localProperties.getProperty('flutter.versionCode') ?: '1'
+def flutterVersionName = localProperties.getProperty('flutter.versionName') ?: '1.0.0'
 
 android {
-    // 파이어베이스 콘솔에 새로 등록한 소문자 이름과 일치시켜야 합니다.
-    namespace "com.hello_morning" 
+    namespace "com.hello_morning"
     compileSdkVersion 34
 
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    kotlinOptions {
+        jvmTarget = '17'
+    }
+
     defaultConfig {
-        // 여기가 google-services.json에 적힌 패키지명과 100% 일치해야 함
         applicationId "com.hello_morning"
         minSdkVersion 21
         targetSdkVersion 34
+        // 위에서 정의한 변수를 정수로 변환하여 적용합니다.
         versionCode flutterVersionCode.toInteger()
         versionName flutterVersionName
     }
-    
-    // ... 후략
+
+    buildTypes {
+        release {
+            signingConfig signingConfigs.debug
+            shrinkResources false
+            minifyEnabled false
+        }
+    }
+}
+
+flutter {
+    source '../..'
+}
+
+dependencies {
+    implementation platform('com.google.firebase:firebase-bom:32.7.2')
+    implementation 'com.google.firebase:firebase-analytics'
+    implementation 'com.google.firebase:firebase-messaging'
+    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.8.22"
 }
