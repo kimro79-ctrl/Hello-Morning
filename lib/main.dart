@@ -100,7 +100,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
           desiredAccuracy: LocationAccuracy.medium,
           timeLimit: const Duration(seconds: 10),
         );
-        mapUrl = "\n위치: https://googleusercontent.com/maps.google.com/?q=${pos.latitude},${pos.longitude}";
+        mapUrl = "\n위치: https://www.google.com/maps/search/?api=1&query=${pos.latitude},${pos.longitude}";
       } catch (e) { mapUrl = "\n(위치 확인 실패)"; }
 
       for (var c in contacts) {
@@ -172,11 +172,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                   child: Image.asset(
                     'assets/smile.png',
                     fit: BoxFit.contain,
-                    // [핵심] 이미지를 불러오는 동안 비어있지 않게 처리
-                    frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
-                      return frame == null ? const Icon(Icons.favorite, size: 80, color: Color(0xFFFF80AB)) : child;
-                    },
-                    // [핵심] 에러 발생 시 앱이 꺼지지 않고 아이콘을 보여줌
+                    // 이미지가 없거나 로딩 실패 시 튕기지 않게 아이콘으로 대체
                     errorBuilder: (context, error, stackTrace) => const Icon(Icons.favorite, size: 80, color: Color(0xFFFF80AB)),
                   ),
                 ),
@@ -234,8 +230,8 @@ class _SettingScreenState extends State<SettingScreen> {
           Expanded(child: ListView.builder(
             itemCount: _contacts.length,
             itemBuilder: (c, i) => ListTile(
-              title: Text(_contacts[i]['name'], style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
-              subtitle: Text(_contacts[i]['number'], style: const TextStyle(fontSize: 11)),
+              title: Text(_contacts[i]['name'] ?? "이름 없음", style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+              subtitle: Text(_contacts[i]['number'] ?? "", style: const TextStyle(fontSize: 11)),
               trailing: IconButton(icon: const Icon(Icons.remove_circle_outline, color: Color(0xFFE57373), size: 20), onPressed: () {
                 setState(() => _contacts.removeAt(i));
                 SharedPreferences.getInstance().then((p) => p.setString('contacts_list', json.encode(_contacts)));
