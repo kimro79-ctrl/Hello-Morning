@@ -17,6 +17,9 @@ dependencyResolutionManagement {
 rootProject.name = "Hello-Morning"
 include(":app")
 
-// Flutter 연결 (필수)
-def flutterSdkPath = System.getenv("FLUTTER_ROOT") ?: "../flutter"
+// Flutter 연결 (GitHub Actions 대응)
+def flutterSdkPath = System.getenv("FLUTTER_ROOT") ?: System.getenv("FLUTTER_HOME")
+if (flutterSdkPath == null) {
+    throw new GradleException("FLUTTER_ROOT not set")
+}
 includeBuild("$flutterSdkPath/packages/flutter_tools/gradle")
