@@ -78,7 +78,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     _loadData();
     _updateLocationDisplay();
     
-    // 5분마다 안부 응답 여부 체크
     _timer = Timer.periodic(const Duration(minutes: 5), (t) => _checkAndSendSms());
     
     _dotTimer = Timer.periodic(const Duration(milliseconds: 500), (t) {
@@ -86,15 +85,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         setState(() { _dotCount = (_dotCount + 1) % 4; });
       }
     });
-  }
-
-  Future<bool> _handleLocationPermission() async {
-    LocationPermission permission = await Geolocator.checkPermission();
-    if (permission == LocationPermission.denied) {
-      permission = await Geolocator.requestPermission();
-      if (permission == LocationPermission.denied) return false;
-    }
-    return permission != LocationPermission.deniedForever;
   }
 
   Future<void> _updateLocationDisplay() async {
@@ -128,18 +118,16 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     
     if (DateTime.now().difference(lastTime).inMinutes >= targetMin) {
       List contacts = json.decode(contactsJson);
-      
-      // 최신 위치 좌표 획득
       Position pos = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.medium);
-      String mapLink = "https://www.google.com/maps?q=${pos.latitude},${pos.longitude}";
+      
+      // 보호자가 클릭 시 바로 지도를 볼 수 있는 링크
+      String mapLink = "https://www.google.com/maps/search/?api=1&query=${pos.latitude},${pos.longitude}";
       
       String messageBody = "[안심지키미] 응답 없음!\n마지막 확인: $last\n위치 확인: $mapLink";
       
       for (var c in contacts) {
         if (c['number'] != null) {
-          // 번호에서 하이픈 등 특수문자 제거 (발송 성공률 향상)
           String cleanNumber = c['number'].replaceAll(RegExp(r'[^0-9]'), '');
-          
           try {
             await BackgroundSms.sendMessage(
               phoneNumber: cleanNumber, 
@@ -229,7 +217,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               scale: _scaleAnimation,
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 100),
-                width: 200, height: 200,
+                width: 200, height: 200, // <--- 이미지 크기 200 유지됨
                 decoration: BoxDecoration(
                   shape: BoxShape.circle, 
                   color: Colors.white, 
