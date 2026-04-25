@@ -1,10 +1,3 @@
-plugins {
-    id "com.android.application"
-    id "kotlin-android"
-    id "dev.flutter.flutter-gradle-plugin"
-    id "com.google.gms.google-services" // Firebase 연동
-}
-
 def localProperties = new Properties()
 def localPropertiesFile = rootProject.file('local.properties')
 if (localPropertiesFile.exists()) {
@@ -23,8 +16,14 @@ if (flutterVersionName == null) {
     flutterVersionName = '1.0'
 }
 
+// 에러를 방지하기 위해 전통적인 apply 방식을 사용합니다.
+apply plugin: 'com.android.application'
+apply plugin: 'kotlin-android'
+apply from: "$flutterRoot/packages/flutter_tools/gradle/flutter.gradle"
+apply plugin: 'com.google.gms.google-services' // Firebase 필수
+
 android {
-    // Firebase 콘솔에 등록된 패키지명 (대소문자 일치)
+    // Firebase 콘솔과 동일한 패키지명 (대문자 시작)
     namespace "Com.hello_morning" 
     compileSdkVersion flutter.compileSdkVersion
     ndkVersion flutter.ndkVersion
@@ -52,7 +51,6 @@ android {
 
     buildTypes {
         release {
-            // 테스트 빌드를 위해 디버그 서명을 사용합니다.
             signingConfig signingConfigs.debug
         }
     }
@@ -63,10 +61,10 @@ flutter {
 }
 
 dependencies {
-    // Firebase SDK 통합
-    implementation platform('com.google.firebase:firebase-bom:32.7.2')
+    // Firebase 라이브러리 (버전 고정으로 안정성 확보)
+    implementation platform('com.google.firebase:firebase-bom:31.2.3')
     implementation 'com.google.firebase:firebase-analytics'
     implementation 'com.google.firebase:firebase-messaging'
     
-    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.9.0"
+    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
 }
