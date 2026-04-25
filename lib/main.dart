@@ -19,11 +19,7 @@ class DailySafetyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) => MaterialApp(
     debugShowCheckedModeBanner: false,
-    theme: ThemeData(
-      scaffoldBackgroundColor: const Color(0xFFFDFCFB),
-      useMaterial3: true,
-      colorSchemeSeed: const Color(0xFFFF8A65),
-    ),
+    theme: ThemeData(scaffoldBackgroundColor: const Color(0xFFFDFCFB), useMaterial3: true, colorSchemeSeed: const Color(0xFFFF8A65)),
     home: const MainNavigation(),
   );
 }
@@ -43,8 +39,7 @@ class _MainNavigationState extends State<MainNavigation> {
     bottomNavigationBar: BottomNavigationBar(
       currentIndex: _currentIndex,
       selectedItemColor: const Color(0xFFFF8A65),
-      selectedFontSize: 9,
-      unselectedFontSize: 9,
+      selectedFontSize: 9, unselectedFontSize: 9,
       onTap: (index) => setState(() => _currentIndex = index),
       items: const [
         BottomNavigationBarItem(icon: Icon(Icons.home_filled, size: 16), label: '홈'),
@@ -67,7 +62,6 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   Timer? _timer;
   late AnimationController _controller;
   late Animation<double> _scaleAnimation;
-
   final String w3wApiKey = "WTE21N79"; 
 
   @override
@@ -80,7 +74,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     _timer = Timer.periodic(const Duration(minutes: 1), (t) => _checkAndSendSms());
   }
 
-  // 위치 업데이트 로직 개선
+  // 끈기 있게 위치를 기다리는 로직
   Future<void> _updateW3WDisplay() async {
     if (!mounted) return;
     setState(() => _currentW3W = "위치 수신 중...");
@@ -90,35 +84,32 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
 
   Future<String> _getW3WAddress() async {
     try {
-      // 1. 위치 서비스 활성화 체크
-      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-      if (!serviceEnabled) return "GPS를 켜주세요";
+      // GPS 활성화 확인
+      if (!await Geolocator.isLocationServiceEnabled()) return "GPS 꺼짐";
 
-      // 2. 현재 위치 가져오기 (대기 시간 10초로 연장)
+      // 대기 시간을 30초로 대폭 연장하고, 정확도 설정을 조정
       Position pos = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
-        timeLimit: const Duration(seconds: 10), // 대기 시간 증가
+        desiredAccuracy: LocationAccuracy.best,
+        timeLimit: const Duration(seconds: 30),
       );
 
-      // 3. w3w 변환
       final url = "https://api.what3words.com/v3/convert-to-3wa?coordinates=${pos.latitude},${pos.longitude}&key=$w3wApiKey&language=ko";
       final response = await http.get(Uri.parse(url));
-      
       if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        return "///${data['words']}";
+        return "///${json.decode(response.body)['words']}";
       }
     } catch (e) {
-      // 실패 시 마지막으로 알려진 위치라도 시도
+      // 실패 시 마지막 위치라도 가져오기 시도
       try {
         Position? lastPos = await Geolocator.getLastKnownPosition();
         if (lastPos != null) {
-          return "수신 지연(최근 위치 사용)";
+          final url = "https://api.what3words.com/v3/convert-to-3wa?coordinates=${lastPos.latitude},${lastPos.longitude}&key=$w3wApiKey&language=ko";
+          final res = await http.get(Uri.parse(url));
+          if (res.statusCode == 200) return "///${json.decode(res.body)['words']}(지연)";
         }
       } catch (_) {}
-      return "위치 확인 불가(재시도 중)";
     }
-    return "위치 확인 불가";
+    return "위치 확인 불가(재시도)";
   }
 
   @override
@@ -139,13 +130,11 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     if (last == null || contactsJson == null) return;
 
     DateTime lastTime = DateFormat('yyyy-MM-dd HH:mm').parse(last);
-    int diffInMin = DateTime.now().difference(lastTime).inMinutes;
     int targetMin = _selectedHours == 0 ? 5 : _selectedHours * 60;
 
-    if (diffInMin >= targetMin) {
+    if (DateTime.now().difference(lastTime).inMinutes >= targetMin) {
       List contacts = json.decode(contactsJson);
       String w3wAddress = await _getW3WAddress();
-      
       for (var c in contacts) {
         if (c['number'] != null) {
           await BackgroundSms.sendMessage(
@@ -169,39 +158,26 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text("안심 지키미", style: TextStyle(color: Color(0xFFFF8A65), fontWeight: FontWeight.bold, fontSize: 12)),
-        backgroundColor: const Color(0xFFFFF3E0),
-        centerTitle: true,
-        toolbarHeight: 35,
-      ),
+      appBar: AppBar(title: const Text("안심 지키미", style: TextStyle(color: Color(0xFFFF8A65), fontWeight: FontWeight.bold, fontSize: 12)), backgroundColor: const Color(0xFFFFF3E0), centerTitle: true, toolbarHeight: 35),
       body: Column(
         children: [
           Container(
-            padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 10),
-            width: double.infinity,
-            color: Colors.orange.withOpacity(0.05),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(Icons.location_on, color: Colors.redAccent, size: 10),
-                const SizedBox(width: 4),
-                Flexible(child: Text("현재 위치: $_currentW3W", style: const TextStyle(fontSize: 8, color: Colors.black87), overflow: TextOverflow.ellipsis)),
-              ],
-            ),
+            padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 10), width: double.infinity, color: Colors.orange.withOpacity(0.05),
+            child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+              const Icon(Icons.location_on, color: Colors.redAccent, size: 10),
+              const SizedBox(width: 4),
+              Flexible(child: Text("위치: $_currentW3W", style: const TextStyle(fontSize: 8, color: Colors.black87), overflow: TextOverflow.ellipsis)),
+            ]),
           ),
           const SizedBox(height: 8),
-          Wrap(
-            spacing: 5,
-            children: [0, 1, 12, 24].map((h) => ChoiceChip(
-              label: Text(h == 0 ? "5분" : "$h시간", style: const TextStyle(fontSize: 8)),
-              selected: _selectedHours == h,
-              onSelected: (v) async {
-                setState(() => _selectedHours = h);
-                (await SharedPreferences.getInstance()).setInt('selectedHours', h);
-              },
-            )).toList(),
-          ),
+          Wrap(spacing: 5, children: [0, 1, 12, 24].map((h) => ChoiceChip(
+            label: Text(h == 0 ? "5분" : "$h시간", style: const TextStyle(fontSize: 8)),
+            selected: _selectedHours == h,
+            onSelected: (v) async {
+              setState(() => _selectedHours = h);
+              (await SharedPreferences.getInstance()).setInt('selectedHours', h);
+            },
+          )).toList()),
           const Spacer(),
           const Text("마지막 확인", style: TextStyle(color: Colors.grey, fontSize: 8)),
           Text(_lastCheckIn, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
@@ -219,10 +195,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
             ),
           ),
           const Spacer(),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 15),
-            child: Text("미응답 시 세 단어 주소가 포함된 문자가 보호자에게 발송됩니다.", textAlign: TextAlign.center, style: TextStyle(fontSize: 7, color: Colors.grey.shade400)),
-          ),
+          Padding(padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 15), child: Text("미응답 시 보호자에게 세 단어 주소가 전송됩니다.", textAlign: TextAlign.center, style: TextStyle(fontSize: 7, color: Colors.grey.shade400))),
           const SizedBox(height: 15),
         ],
       ),
@@ -244,56 +217,45 @@ class _SettingScreenState extends State<SettingScreen> {
     final p = await SharedPreferences.getInstance();
     setState(() => _contacts = json.decode(p.getString('contacts_list') ?? "[]"));
   }
-
-  Future<void> _requestPermissions() async {
-    await [Permission.contacts, Permission.sms, Permission.location].request();
-    await Permission.locationAlways.request();
-    if (mounted) openAppSettings();
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text("설정", style: TextStyle(fontSize: 12)), backgroundColor: const Color(0xFFFFF3E0), toolbarHeight: 35),
       body: Column(
         children: [
-          Expanded(child: ListView.builder(
-            itemCount: _contacts.length,
-            itemBuilder: (c, i) => ListTile(
-              title: Text(_contacts[i]['name'], style: const TextStyle(fontSize: 10)),
-              subtitle: Text(_contacts[i]['number'], style: const TextStyle(fontSize: 8)),
-              trailing: IconButton(icon: const Icon(Icons.delete, color: Colors.red, size: 14), onPressed: () {
-                setState(() => _contacts.removeAt(i));
-                SharedPreferences.getInstance().then((p) => p.setString('contacts_list', json.encode(_contacts)));
-              }),
+          Expanded(child: ListView.builder(itemCount: _contacts.length, itemBuilder: (c, i) => ListTile(
+            title: Text(_contacts[i]['name'], style: const TextStyle(fontSize: 10)),
+            subtitle: Text(_contacts[i]['number'], style: const TextStyle(fontSize: 8)),
+            trailing: IconButton(icon: const Icon(Icons.delete, color: Colors.red, size: 14), onPressed: () {
+              setState(() => _contacts.removeAt(i));
+              SharedPreferences.getInstance().then((p) => p.setString('contacts_list', json.encode(_contacts)));
+            }),
+          ))),
+          Padding(padding: const EdgeInsets.all(10), child: Column(children: [
+            ElevatedButton(
+              onPressed: () async {
+                if (await Permission.contacts.request().isGranted) {
+                  final c = await ContactsService.openDeviceContactPicker();
+                  if (c != null && c.phones!.isNotEmpty) {
+                    setState(() => _contacts.add({'name': c.displayName, 'number': c.phones?.first.value}));
+                    (await SharedPreferences.getInstance()).setString('contacts_list', json.encode(_contacts));
+                  }
+                }
+              },
+              style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 30)),
+              child: const Text("연락처 추가", style: TextStyle(fontSize: 10)),
             ),
-          )),
-          Padding(
-            padding: const EdgeInsets.all(10),
-            child: Column(
-              children: [
-                ElevatedButton(
-                  onPressed: () async {
-                    if (await Permission.contacts.request().isGranted) {
-                      final c = await ContactsService.openDeviceContactPicker();
-                      if (c != null && c.phones!.isNotEmpty) {
-                        setState(() => _contacts.add({'name': c.displayName, 'number': c.phones?.first.value}));
-                        (await SharedPreferences.getInstance()).setString('contacts_list', json.encode(_contacts));
-                      }
-                    }
-                  },
-                  style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 30)),
-                  child: const Text("보호자 추가", style: TextStyle(fontSize: 10)),
-                ),
-                const SizedBox(height: 5),
-                ElevatedButton(
-                  onPressed: _requestPermissions,
-                  style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 30), backgroundColor: Colors.orangeAccent, foregroundColor: Colors.white),
-                  child: const Text("권한 설정 가기", style: TextStyle(fontSize: 10)),
-                ),
-              ],
+            const SizedBox(height: 5),
+            ElevatedButton(
+              onPressed: () async {
+                await [Permission.contacts, Permission.sms, Permission.location].request();
+                await Permission.locationAlways.request();
+                if (mounted) openAppSettings();
+              },
+              style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 30), backgroundColor: Colors.orangeAccent, foregroundColor: Colors.white),
+              child: const Text("권한 설정 가기", style: TextStyle(fontSize: 10)),
             ),
-          ),
+          ])),
         ],
       ),
     );
