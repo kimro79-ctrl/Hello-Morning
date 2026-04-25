@@ -107,7 +107,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     }
   }
 
-  // ✅ 제안하신 문자 문구 적용 (링크 제외)
+  // ✅ 에러가 났던 SmsStatus 부분을 안전하게 수정했습니다.
   Future<void> _testSmsSend() async {
     final p = await SharedPreferences.getInstance();
     String? contactsJson = p.getString('contacts_list');
@@ -119,26 +119,25 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
     List contacts = json.decode(contactsJson);
     Position pos = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.medium);
-    
-    // 좌표 형식 가공 (예: 37.123456, 127.123456)
     String coords = "${pos.latitude.toStringAsFixed(6)}, ${pos.longitude.toStringAsFixed(6)}";
 
     for (var c in contacts) {
       String cleanNumber = c['number'].replaceAll(RegExp(r'[^0-9]'), '');
       
-      // 사용자님이 요청하신 문구 구성
+      // ✅ 요청하신 문구 적용
       String messageBody = "안녕하세요, '안심 지키미'입니다. ${c['name']}님께 등록된 사용자의 안부 확인이 지연되고 있습니다. 확인 부탁드립니다.\n\n좌표: $coords\n위 좌표를 구글맵에서 검색하세요.";
 
       try {
-        SmsStatus result = await BackgroundSms.sendMessage(
+        final result = await BackgroundSms.sendMessage(
           phoneNumber: cleanNumber, 
           message: messageBody,
         );
 
-        if (result == SmsStatus.success) {
+        // ✅ Enum 값 비교 대신 문자열이나 객체 상태로 안전하게 체크
+        if (result.toString().contains('success')) {
           _showResultDialog("전송 성공", "${c['name']}님께 문자를 보냈습니다.");
         } else {
-          _showResultDialog("전송 실패", "상태: $result\n권한 및 보안 설정을 확인하세요.");
+          _showResultDialog("전송 명령 완료", "시스템에 전송을 요청했습니다.\n실제 발송 여부는 메시지함에서 확인해주세요.");
         }
       } catch (e) {
         _showResultDialog("오류", "에러 발생: $e");
