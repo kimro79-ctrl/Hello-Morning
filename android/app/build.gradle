@@ -5,42 +5,21 @@ plugins {
     id "com.google.gms.google-services"
 }
 
+// ... 중략 (local.properties 읽는 부분)
+
 android {
-    namespace "com.hello_morning"
-    compileSdk 34
+    // 파이어베이스 콘솔에 새로 등록한 소문자 이름과 일치시켜야 합니다.
+    namespace "com.hello_morning" 
+    compileSdkVersion 34
 
     defaultConfig {
+        // 여기가 google-services.json에 적힌 패키지명과 100% 일치해야 함
         applicationId "com.hello_morning"
-        minSdk 21
-        targetSdk 34
-        versionCode 1
-        versionName "1.0"
+        minSdkVersion 21
+        targetSdkVersion 34
+        versionCode flutterVersionCode.toInteger()
+        versionName flutterVersionName
     }
-
-    buildTypes {
-        release {
-            signingConfig signingConfigs.debug
-            minifyEnabled false
-            shrinkResources false
-        }
-    }
-
-    compileOptions {
-        sourceCompatibility JavaVersion.VERSION_17
-        targetCompatibility JavaVersion.VERSION_17
-    }
-
-    kotlinOptions {
-        jvmTarget = '17'
-    }
-}
-
-flutter {
-    source '../..'
-}
-
-dependencies {
-    implementation platform('com.google.firebase:firebase-bom:32.7.2')
-    implementation 'com.google.firebase:firebase-analytics'
-    implementation 'com.google.firebase:firebase-messaging'
+    
+    // ... 후략
 }
