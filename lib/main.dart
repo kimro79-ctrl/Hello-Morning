@@ -7,22 +7,28 @@ import 'package:background_sms/background_sms.dart';
 import 'package:geolocator/geolocator.dart';
 import 'dart:async';
 import 'dart:convert';
-
-// 만약 Firebase를 사용 중이라면 아래 주석을 해제하고 사용하세요.
+// 만약 파이어베이스 패키지를 사용 중이라면 아래 주석을 해제하세요.
 // import 'package:firebase_core/firebase_core.dart';
 
-void main() async {
-  // 앱 시작 시 엔진 초기화 보장 (빈 화면 방지 핵심)
+void main() {
+  // 1. 엔진 초기화 (이건 필수입니다)
   WidgetsFlutterBinding.ensureInitialized();
   
-  // 파이어베이스 초기화 시 에러가 나도 앱은 켜지도록 try-catch 처리
-  try {
-    // await Firebase.initializeApp(); 
-  } catch (e) {
-    debugPrint("Firebase init error: $e");
-  }
+  // 2. 파이어베이스 초기화를 별도의 비동기 루틴으로 빼서 앱 실행을 방해하지 않게 함
+  // 이 부분이 핵심입니다. 파이어베이스를 기다리지 않고 바로 runApp을 실행합니다.
+  _initFirebase();
 
   runApp(const DailySafetyApp());
+}
+
+// 파이어베이스 초기화를 앱 실행과 분리
+Future<void> _initFirebase() async {
+  try {
+    // await Firebase.initializeApp();
+    debugPrint("Firebase initialized in background");
+  } catch (e) {
+    debugPrint("Firebase init failed but app continues: $e");
+  }
 }
 
 class DailySafetyApp extends StatelessWidget {
@@ -30,12 +36,7 @@ class DailySafetyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) => MaterialApp(
     debugShowCheckedModeBanner: false,
-    theme: ThemeData(
-      scaffoldBackgroundColor: const Color(0xFFFDFCFB), 
-      useMaterial3: true,
-      // 폰트나 테마 로딩 문제로 멈추는 것 방지
-      visualDensity: VisualDensity.adaptivePlatformDensity,
-    ),
+    theme: ThemeData(scaffoldBackgroundColor: const Color(0xFFFDFCFB), useMaterial3: true),
     home: const MainNavigation(),
   );
 }
@@ -51,21 +52,18 @@ class _MainNavigationState extends State<MainNavigation> {
   final List<Widget> _screens = [const HomeScreen(), const SettingScreen()];
   
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      // IndexedStack을 사용하여 화면 전환 시 상태 유지 및 렌더링 오류 방지
-      body: IndexedStack(index: _currentIndex, children: _screens),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _currentIndex,
-        selectedItemColor: const Color(0xFFFF8A65),
-        onTap: (index) => setState(() => _currentIndex = index),
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home_filled, size: 20), label: '홈'),
-          BottomNavigationBarItem(icon: Icon(Icons.settings, size: 20), label: '설정'),
-        ],
-      ),
-    );
-  }
+  Widget build(BuildContext context) => Scaffold(
+    body: IndexedStack(index: _currentIndex, children: _screens),
+    bottomNavigationBar: BottomNavigationBar(
+      currentIndex: _currentIndex,
+      selectedItemColor: const Color(0xFFFF8A65),
+      onTap: (index) => setState(() => _currentIndex = index),
+      items: const [
+        BottomNavigationBarItem(icon: Icon(Icons.home_filled, size: 20), label: '홈'),
+        BottomNavigationBarItem(icon: Icon(Icons.settings, size: 20), label: '설정'),
+      ],
+    ),
+  );
 }
 
 class HomeScreen extends StatefulWidget {
@@ -79,40 +77,32 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   int _selectedHours = 1; 
   Timer? _timer;
   bool _isPressed = false;
-  
   late AnimationController _controller;
   late Animation<double> _scaleAnimation;
 
   @override
   void initState() {
     super.initState();
-    _loadData();
-    // 타이머 시작 시간을 약간 늦춰서 초기 화면 렌더링 방해 안 하게 함
-    Future.delayed(const Duration(seconds: 2), () {
-      _timer = Timer.periodic(const Duration(minutes: 1), (t) => _checkAndSendSms());
-    });
     _controller = AnimationController(vsync: this, duration: const Duration(milliseconds: 100));
     _scaleAnimation = Tween<double>(begin: 1.0, end: 0.92).animate(_controller);
+    
+    // 화면이 그려진 직후에 데이터를 불러옴 (로딩 병목 현상 방지)
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadData();
+      _timer = Timer.periodic(const Duration(minutes: 1), (t) => _checkAndSendSms());
+    });
   }
 
   @override
-  void dispose() { 
-    _timer?.cancel(); 
-    _controller.dispose(); 
-    super.dispose(); 
-  }
+  void dispose() { _timer?.cancel(); _controller.dispose(); super.dispose(); }
 
   void _loadData() async {
-    try {
-      final p = await SharedPreferences.getInstance();
-      if (mounted) {
-        setState(() {
-          _lastCheckIn = p.getString('lastCheckIn') ?? "오늘 안부를 전하세요";
-          _selectedHours = p.getInt('selectedHours') ?? 1;
-        });
-      }
-    } catch (e) {
-      debugPrint("SharedPreferences error: $e");
+    final p = await SharedPreferences.getInstance();
+    if (mounted) {
+      setState(() {
+        _lastCheckIn = p.getString('lastCheckIn') ?? "오늘 안부를 전하세요";
+        _selectedHours = p.getInt('selectedHours') ?? 1;
+      });
     }
   }
 
@@ -120,8 +110,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     final p = await SharedPreferences.getInstance();
     String? last = p.getString('lastCheckIn');
     String? contactsJson = p.getString('contacts_list');
-    
-    if (last == null || contactsJson == null || last == "기록 없음") return;
+    if (last == null || contactsJson == null) return;
 
     try {
       DateTime lastTime = DateFormat('yyyy-MM-dd HH:mm').parse(last);
@@ -131,26 +120,17 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
       if (diffInMin >= targetMin) {
         List contacts = json.decode(contactsJson);
         String mapUrl = "";
-        
         try {
-          Position pos = await Geolocator.getCurrentPosition(
-            desiredAccuracy: LocationAccuracy.low,
-            timeLimit: const Duration(seconds: 5),
-          );
-          mapUrl = "\n위치: https://www.google.com/maps?q=${pos.latitude},${pos.longitude}";
+          Position pos = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.low, timeLimit: const Duration(seconds: 3));
+          mapUrl = "\n위치: http://maps.google.com/?q=${pos.latitude},${pos.longitude}";
         } catch (e) { mapUrl = "\n(위치 확인 실패)"; }
 
         for (var c in contacts) {
-          if (c['number'] != null) {
-            await BackgroundSms.sendMessage(
-              phoneNumber: c['number'],
-              message: "[안심지키미] 응답 없음!\n마지막 확인: $last$mapUrl",
-            );
-          }
+          await BackgroundSms.sendMessage(phoneNumber: c['number'], message: "[안심지키미] 응답 없음!\n마지막 확인: $last$mapUrl");
         }
         _updateCheckIn();
       }
-    } catch (e) { debugPrint("SMS 로직 에러: $e"); }
+    } catch (e) { debugPrint(e.toString()); }
   }
 
   void _updateCheckIn() async {
@@ -214,7 +194,6 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                   child: Image.asset(
                     'assets/smile.png',
                     fit: BoxFit.contain,
-                    // 이미지 로딩 실패 시 튕기지 않게 아이콘으로 대체
                     errorBuilder: (context, error, stackTrace) => const Icon(Icons.favorite, size: 80, color: Color(0xFFFF80AB)),
                   ),
                 ),
@@ -253,16 +232,8 @@ class _SettingScreenState extends State<SettingScreen> {
   }
 
   Future<void> _requestPermissions() async {
-    await Permission.contacts.request();
-    await Permission.sms.request();
-    await Permission.location.request();
-    if (await Permission.location.isGranted) {
-      await Permission.locationAlways.request(); 
-    }
-    await Permission.ignoreBatteryOptimizations.request();
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("권한 설정을 완료했습니다.")));
-    }
+    await [Permission.contacts, Permission.sms, Permission.location, Permission.ignoreBatteryOptimizations].request();
+    if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("권한 설정을 완료했습니다.")));
   }
 
   @override
@@ -274,7 +245,7 @@ class _SettingScreenState extends State<SettingScreen> {
           Expanded(child: ListView.builder(
             itemCount: _contacts.length,
             itemBuilder: (c, i) => ListTile(
-              title: Text(_contacts[i]['name'] ?? "이름 없음", style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+              title: Text(_contacts[i]['name'] ?? "", style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
               subtitle: Text(_contacts[i]['number'] ?? "", style: const TextStyle(fontSize: 11)),
               trailing: IconButton(icon: const Icon(Icons.remove_circle_outline, color: Color(0xFFE57373), size: 20), onPressed: () {
                 setState(() => _contacts.removeAt(i));
