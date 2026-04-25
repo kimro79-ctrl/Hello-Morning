@@ -55,7 +55,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateMixin {
   String _lastCheckIn = "기록 없음";
-  int _selectedHours = 1; // 기본값 1시간
+  int _selectedHours = 1; 
   Timer? _timer;
   bool _isPressed = false;
   
@@ -66,7 +66,6 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   void initState() {
     super.initState();
     _loadData();
-    // 타이머가 죽지 않도록 1분 주기로 계속 체크
     _timer = Timer.periodic(const Duration(minutes: 1), (t) => _checkAndSendSms());
     _controller = AnimationController(vsync: this, duration: const Duration(milliseconds: 100));
     _scaleAnimation = Tween<double>(begin: 1.0, end: 0.92).animate(_controller);
@@ -90,12 +89,10 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     if (last == null || contactsJson == null || last == "기록 없음") return;
 
     DateTime lastTime = DateFormat('yyyy-MM-dd HH:mm').parse(last);
-    
-    // 5분(0시간으로 표시될 수 있음) 처리를 위해 분 단위로 계산
-    int differenceInMinutes = DateTime.now().difference(lastTime).inMinutes;
-    int targetMinutes = _selectedHours == 0 ? 5 : _selectedHours * 60;
+    int diffInMin = DateTime.now().difference(lastTime).inMinutes;
+    int targetMin = _selectedHours == 0 ? 5 : _selectedHours * 60;
 
-    if (differenceInMinutes >= targetMinutes) {
+    if (diffInMin >= targetMin) {
       List contacts = json.decode(contactsJson);
       String mapUrl = "";
       try {
@@ -103,7 +100,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
           desiredAccuracy: LocationAccuracy.medium,
           timeLimit: const Duration(seconds: 10),
         );
-        mapUrl = "\n위치: https://www.google.com/maps?q=${pos.latitude},${pos.longitude}";
+        mapUrl = "\n위치: https://googleusercontent.com/maps.google.com/?q=${pos.latitude},${pos.longitude}";
       } catch (e) { mapUrl = "\n(위치 확인 실패)"; }
 
       for (var c in contacts) {
@@ -134,14 +131,12 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
       body: Column(
         children: [
           const SizedBox(height: 20),
-          // 은은한 배너 UI 유지
           Container(
             margin: const EdgeInsets.symmetric(horizontal: 20),
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(color: const Color(0xFFFFCCBC).withOpacity(0.15), borderRadius: BorderRadius.circular(20)),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              // 요청하신 5분(0으로 처리), 1시간, 12시간, 24시간으로 수정
               children: [0, 1, 12, 24].map((h) => ChoiceChip(
                 label: Text(h == 0 ? "5분" : "$h시간", style: const TextStyle(fontSize: 11)),
                 selected: _selectedHours == h,
@@ -158,7 +153,6 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
           const Text("마지막 확인 기록", style: TextStyle(color: Color(0xFF90A4AE), fontSize: 11)),
           Text(_lastCheckIn, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF546E7A))),
           const SizedBox(height: 40),
-          // 터치할 때만 레드핑크 컬러가 나오는 효과 유지
           GestureDetector(
             onTapDown: (_) { _controller.forward(); setState(() => _isPressed = true); },
             onTapUp: (_) { _controller.reverse(); setState(() => _isPressed = false); _updateCheckIn(); },
@@ -174,7 +168,18 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                     else const BoxShadow(color: Colors.black12, blurRadius: 10),
                   ],
                 ),
-                child: ClipOval(child: Image.asset('assets/smile.png', fit: BoxFit.contain, errorBuilder: (c,e,s) => const Icon(Icons.favorite, size: 80, color: Color(0xFFFF80AB)))),
+                child: ClipOval(
+                  child: Image.asset(
+                    'assets/smile.png',
+                    fit: BoxFit.contain,
+                    // [핵심] 이미지를 불러오는 동안 비어있지 않게 처리
+                    frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
+                      return frame == null ? const Icon(Icons.favorite, size: 80, color: Color(0xFFFF80AB)) : child;
+                    },
+                    // [핵심] 에러 발생 시 앱이 꺼지지 않고 아이콘을 보여줌
+                    errorBuilder: (context, error, stackTrace) => const Icon(Icons.favorite, size: 80, color: Color(0xFFFF80AB)),
+                  ),
+                ),
               ),
             ),
           ),
@@ -210,17 +215,14 @@ class _SettingScreenState extends State<SettingScreen> {
   }
 
   Future<void> _requestPermissions() async {
-    // 모든 필수 권한 요청 (순차적)
     await Permission.contacts.request();
     await Permission.sms.request();
     await Permission.location.request();
     if (await Permission.location.isGranted) {
       await Permission.locationAlways.request(); 
     }
-    // 백그라운드 유지를 위해 배터리 최적화 제외 팝업 띄우기
     await Permission.ignoreBatteryOptimizations.request();
-    
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("권한 설정을 완료했습니다. 백그라운드 실행을 확인하세요.")));
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("권한 설정을 완료했습니다.")));
   }
 
   @override
@@ -258,7 +260,6 @@ class _SettingScreenState extends State<SettingScreen> {
                   child: const Text("연락처에서 추가", style: TextStyle(fontSize: 13)),
                 ),
                 const SizedBox(height: 12),
-                // 버튼 이름 변경하여 명확하게 알림
                 ElevatedButton(
                   onPressed: _requestPermissions,
                   style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFF8A65), foregroundColor: Colors.white, elevation: 0, minimumSize: const Size(double.infinity, 50), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))),
