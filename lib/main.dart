@@ -55,7 +55,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateMixin {
   String _lastCheckIn = "기록 없음";
-  int _selectedHours = 1;
+  int _selectedHours = 1; // 기본값 1시간
   Timer? _timer;
   bool _isPressed = false;
   
@@ -90,7 +90,12 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     if (last == null || contactsJson == null || last == "기록 없음") return;
 
     DateTime lastTime = DateFormat('yyyy-MM-dd HH:mm').parse(last);
-    if (DateTime.now().difference(lastTime).inHours >= _selectedHours) {
+    
+    // 5분(0시간으로 표시될 수 있음) 처리를 위해 분 단위로 계산
+    int differenceInMinutes = DateTime.now().difference(lastTime).inMinutes;
+    int targetMinutes = _selectedHours == 0 ? 5 : _selectedHours * 60;
+
+    if (differenceInMinutes >= targetMinutes) {
       List contacts = json.decode(contactsJson);
       String mapUrl = "";
       try {
@@ -136,8 +141,9 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
             decoration: BoxDecoration(color: const Color(0xFFFFCCBC).withOpacity(0.15), borderRadius: BorderRadius.circular(20)),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [1, 12, 24, 36].map((h) => ChoiceChip(
-                label: Text("$h시간", style: const TextStyle(fontSize: 11)),
+              // 요청하신 5분(0으로 처리), 1시간, 12시간, 24시간으로 수정
+              children: [0, 1, 12, 24].map((h) => ChoiceChip(
+                label: Text(h == 0 ? "5분" : "$h시간", style: const TextStyle(fontSize: 11)),
                 selected: _selectedHours == h,
                 selectedColor: const Color(0xFFFFAB91).withOpacity(0.8),
                 backgroundColor: Colors.white.withOpacity(0.5),
@@ -178,7 +184,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
             child: Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(color: const Color(0xFFFFEBEE).withOpacity(0.6), borderRadius: BorderRadius.circular(15)),
-              child: Text("$_selectedHours시간 미응답 시 보호자에게 문자가 전송됩니다.", textAlign: TextAlign.center, style: const TextStyle(color: Color(0xFFE57373), fontSize: 10, fontWeight: FontWeight.w600)),
+              child: Text("${_selectedHours == 0 ? "5분" : "$_selectedHours시간"} 미응답 시 보호자에게 문자가 전송됩니다.", textAlign: TextAlign.center, style: const TextStyle(color: Color(0xFFE57373), fontSize: 10, fontWeight: FontWeight.w600)),
             ),
           ),
           const SizedBox(height: 60),
