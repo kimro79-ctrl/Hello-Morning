@@ -60,15 +60,14 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateMixin {
   String _lastCheckIn = "기록 없음";
-  String _currentW3W = "위치 권한을 설정해주세요";
+  String _currentW3W = "위치 확인 중...";
   int _selectedHours = 1; 
   Timer? _timer;
-  bool _isPressed = false;
   late AnimationController _controller;
   late Animation<double> _scaleAnimation;
 
-  // what3words API 키 (https://developer.what3words.com/ 에서 발급)
-  final String w3wApiKey = "YOUR_W3W_API_KEY"; 
+  // 발급받으신 W3W API 키 적용
+  final String w3wApiKey = "WTE21N79"; 
 
   @override
   void initState() {
@@ -76,24 +75,8 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     _controller = AnimationController(vsync: this, duration: const Duration(milliseconds: 100));
     _scaleAnimation = Tween<double>(begin: 1.0, end: 0.92).animate(_controller);
     _loadData();
-    _checkLocationPermission(); // 앱 시작 시 위치 권한 체크
+    _updateW3WDisplay();
     _timer = Timer.periodic(const Duration(minutes: 1), (t) => _checkAndSendSms());
-  }
-
-  // 위치 권한 상태를 확인하고 UI에 반영하는 함수
-  Future<void> _checkLocationPermission() async {
-    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-    if (!serviceEnabled) {
-      setState(() => _currentW3W = "GPS가 꺼져 있습니다");
-      return;
-    }
-
-    LocationPermission permission = await Geolocator.checkPermission();
-    if (permission == LocationPermission.always || permission == LocationPermission.whileInUse) {
-      _updateW3WDisplay();
-    } else {
-      setState(() => _currentW3W = "위치 권한 허용 필요");
-    }
   }
 
   Future<void> _updateW3WDisplay() async {
@@ -103,12 +86,6 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
 
   Future<String> _getW3WAddress() async {
     try {
-      // 위치 권한 체크를 먼저 수행하여 에러 방지
-      LocationPermission permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied || permission == LocationPermission.deniedForever) {
-        return "권한 없음";
-      }
-
       Position pos = await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.high,
         timeLimit: const Duration(seconds: 5)
@@ -122,7 +99,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
         return "///${data['words']}";
       }
     } catch (e) {
-      return "위치 수신 대기 중...";
+      return "위치 수신 실패 (권한 설정 확인)";
     }
     return "위치 정보 없음";
   }
@@ -167,7 +144,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     final p = await SharedPreferences.getInstance();
     await p.setString('lastCheckIn', now);
     setState(() => _lastCheckIn = now);
-    _checkLocationPermission(); // 버튼 누를 때마다 권한 확인 및 주소 갱신
+    _updateW3WDisplay();
   }
 
   @override
@@ -182,15 +159,15 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
         children: [
           const SizedBox(height: 20),
           Container(
-            padding: const EdgeInsets.all(10),
+            padding: const EdgeInsets.all(12),
             width: double.infinity,
             color: Colors.orange.withOpacity(0.1),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Icon(Icons.location_on, color: Colors.redAccent, size: 16),
+                const Icon(Icons.location_on, color: Colors.redAccent, size: 18),
                 const SizedBox(width: 8),
-                Text("현재 위치: $_currentW3W", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                Text("현재 위치: $_currentW3W", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
               ],
             ),
           ),
@@ -208,7 +185,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
           ),
           const Spacer(),
           const Text("마지막 확인 시간", style: TextStyle(color: Colors.grey)),
-          Text(_lastCheckIn, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+          Text(_lastCheckIn, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
           const SizedBox(height: 40),
           GestureDetector(
             onTapDown: (_) => _controller.forward(),
@@ -224,8 +201,8 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
           ),
           const Spacer(),
           const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 30, vertical: 20),
-            child: Text("응답이 없으면 보호자에게 '세 단어 주소'가 발송됩니다.", textAlign: TextAlign.center, style: TextStyle(fontSize: 11, color: Colors.grey)),
+            padding: EdgeInsets.symmetric(horizontal: 40, vertical: 20),
+            child: Text("미응답 시 보호자에게 세 단어 주소가 포함된 안심 문자가 발송됩니다.", textAlign: TextAlign.center, style: TextStyle(fontSize: 12, color: Colors.grey)),
           ),
           const SizedBox(height: 40),
         ],
@@ -249,15 +226,9 @@ class _SettingScreenState extends State<SettingScreen> {
     setState(() => _contacts = json.decode(p.getString('contacts_list') ?? "[]"));
   }
 
-  // 가장 강력한 권한 요청 로직
   Future<void> _requestPermissions() async {
-    // 1. 기본 권한들 요청
     await [Permission.contacts, Permission.sms, Permission.location].request();
-    
-    // 2. 백그라운드 위치 권한 (안드로이드 10+)
-    var status = await Permission.locationAlways.request();
-    
-    // 3. 배터리 최적화 제외 (앱 꺼짐 방지)
+    var status = await Permission.locationAlways.request(); 
     await Permission.ignoreBatteryOptimizations.request();
 
     if (status.isDenied) {
@@ -265,17 +236,17 @@ class _SettingScreenState extends State<SettingScreen> {
         showDialog(
           context: context,
           builder: (context) => AlertDialog(
-            title: const Text("위치 권한 필수 설정"),
-            content: const Text("앱이 백그라운드에서도 위치를 찾으려면\n'설정 > 권한 > 위치'에서\n'항상 허용'으로 직접 바꿔주셔야 합니다."),
+            title: const Text("위치 권한 설정 필수"),
+            content: const Text("세 단어 주소를 전송하려면 위치 권한을 '항상 허용'으로 직접 설정해야 합니다."),
             actions: [
               TextButton(onPressed: () => openAppSettings(), child: const Text("설정하러 가기")),
-              TextButton(onPressed: () => Navigator.pop(context), child: const Text("확인")),
+              TextButton(onPressed: () => Navigator.pop(context), child: const Text("닫기")),
             ],
           ),
         );
       }
     } else {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("권한 설정이 완료되었습니다.")));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("권한 설정 완료!")));
     }
   }
 
