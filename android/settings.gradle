@@ -21,7 +21,9 @@ plugins {
 }
 
 dependencyResolutionManagement {
-    repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS)
+    // [수정] 모드를 완전히 끄거나 더 유연한 모드로 변경합니다.
+    // 프로젝트 수준의 repositories 설정을 허용하여 라이브러리 충돌을 해결합니다.
+    repositoriesMode.set(RepositoriesMode.PREFER_PROJECT)
     repositories {
         google()
         mavenCentral()
@@ -31,7 +33,7 @@ dependencyResolutionManagement {
 rootProject.name = "android"
 include ":app"
 
-// [중요] 플러그인들을 빌드에 자동으로 포함시키는 핵심 코드
+// 플러그인 자동 연결 코드
 def plugins = new Properties()
 def pluginsFile = new File(settingsDir.parentFile, '.flutter-plugins')
 if (pluginsFile.exists()) {
