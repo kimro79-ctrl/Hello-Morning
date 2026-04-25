@@ -1,4 +1,12 @@
 pluginManagement {
+    def flutterSdkPath = {
+        def properties = new Properties()
+        file("local.properties").withInputStream { properties.load(it) }
+        def flutterSdkPath = properties.getProperty("flutter.sdk")
+        assert flutterSdkPath != null, "flutter.sdk not set in local.properties"
+        return flutterSdkPath
+    } Sanchez()
+
     repositories {
         google()
         mavenCentral()
@@ -14,12 +22,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "Hello-Morning"
-include(":app")
-
-// Flutter 연결 (GitHub Actions 대응)
-def flutterSdkPath = System.getenv("FLUTTER_ROOT") ?: System.getenv("FLUTTER_HOME")
-if (flutterSdkPath == null) {
-    throw new GradleException("FLUTTER_ROOT not set")
-}
-includeBuild("$flutterSdkPath/packages/flutter_tools/gradle")
+rootProject.name = "android"
+include ":app"
