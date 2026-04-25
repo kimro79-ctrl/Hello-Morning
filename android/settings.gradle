@@ -1,19 +1,18 @@
-include ':app'
-
-def localPropertiesFile = new File(rootProject.projectDir, "local.properties")
-def properties = new Properties()
-
-if (localPropertiesFile.exists()) {
-    localPropertiesFile.withReader("UTF-8") { reader -> properties.load(reader) }
+pluginManagement {
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+    }
 }
 
-def flutterSdkPath = properties.getProperty("flutter.sdk")
-if (flutterSdkPath == null) {
-    flutterSdkPath = System.getenv("FLUTTER_ROOT")
-}
-if (flutterSdkPath == null) {
-    // 깃허브 액션 환경을 위한 기본값
-    flutterSdkPath = "/opt/hostedtoolcache/flutter/common"
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories {
+        google()
+        mavenCentral()
+    }
 }
 
-apply from: "$flutterSdkPath/packages/flutter_tools/gradle/app_plugin_loader.gradle"
+rootProject.name = "android"
+include ":app"
