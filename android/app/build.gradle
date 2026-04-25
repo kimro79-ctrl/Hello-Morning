@@ -5,21 +5,25 @@ plugins {
     id "com.google.gms.google-services"
 }
 
-def localProperties = new Properties()
-def localPropertiesFile = rootProject.file('local.properties')
-if (localPropertiesFile.exists()) {
-    localPropertiesFile.withReader('UTF-8') { reader ->
-        localProperties.load(reader)
-    }
-}
-
-def flutterVersionCode = localProperties.getProperty('flutter.versionCode') ?: '1'
-def flutterVersionName = localProperties.getProperty('flutter.versionName') ?: '1.0'
-
 android {
-    // [중요] 안드로이드 표준에 맞춰 소문자로 변경
-    namespace "com.hello_morning" 
-    compileSdkVersion 34
+    namespace "com.hello_morning"
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "com.hello_morning"
+        minSdk 21
+        targetSdk 34
+        versionCode 1
+        versionName "1.0"
+    }
+
+    buildTypes {
+        release {
+            signingConfig signingConfigs.debug
+            minifyEnabled false
+            shrinkResources false
+        }
+    }
 
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
@@ -28,23 +32,6 @@ android {
 
     kotlinOptions {
         jvmTarget = '17'
-    }
-
-    defaultConfig {
-        // [중요] Firebase 콘솔 설정과 별개로 빌드 통과를 위해 소문자 사용
-        applicationId "com.hello_morning" 
-        minSdkVersion 21
-        targetSdkVersion 34
-        versionCode flutterVersionCode.toInteger()
-        versionName flutterVersionName
-    }
-
-    buildTypes {
-        release {
-            signingConfig signingConfigs.debug
-            shrinkResources false
-            minifyEnabled false
-        }
     }
 }
 
@@ -56,6 +43,4 @@ dependencies {
     implementation platform('com.google.firebase:firebase-bom:32.7.2')
     implementation 'com.google.firebase:firebase-analytics'
     implementation 'com.google.firebase:firebase-messaging'
-    
-    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.8.22"
 }
