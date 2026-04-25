@@ -1,4 +1,3 @@
-// [최종] 모든 플러그인 버전을 명시하여 GitHub Actions 환경에 최적화합니다.
 plugins {
     id "com.android.application" version "8.1.0" apply false
     id "org.jetbrains.kotlin.android" version "1.8.22" apply false
