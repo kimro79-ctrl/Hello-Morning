@@ -1,5 +1,5 @@
 name: hello_morning
-description: "하루 한번 안심 지키미"
+description: A new Flutter project.
 publish_to: 'none'
 version: 1.0.0+1
 
@@ -9,13 +9,14 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  shared_preferences: ^2.2.2
+  cupertino_icons: ^1.0.6
+  shared_preferences: ^2.2.3
   contacts_service: ^0.6.3
+  permission_handler: ^11.3.1
   intl: ^0.19.0
-  permission_handler: ^11.3.0
-  url_launcher: ^6.2.5
-  geolocator: ^11.0.0
-  background_sms: ^0.0.1
+  background_sms: ^0.0.4
+  geolocator: ^11.1.0
+  http: ^1.1.0 # what3words 통신을 위해 반드시 필요
 
 dev_dependencies:
   flutter_test:
@@ -24,7 +25,5 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
-
-  # [수정] 파일명 대신 폴더명을 등록하여 인식 오류를 방지합니다.
   assets:
-    - assets/
+    - assets/smile.png
