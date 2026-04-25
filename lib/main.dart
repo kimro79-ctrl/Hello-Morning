@@ -43,12 +43,12 @@ class _MainNavigationState extends State<MainNavigation> {
     bottomNavigationBar: BottomNavigationBar(
       currentIndex: _currentIndex,
       selectedItemColor: const Color(0xFFFF8A65),
-      selectedFontSize: 12, // 텍스트 크기 상향
-      unselectedFontSize: 11,
+      selectedFontSize: 14, // 하단 메뉴 텍스트 확대
+      unselectedFontSize: 12,
       onTap: (index) => setState(() => _currentIndex = index),
       items: const [
-        BottomNavigationBarItem(icon: Icon(Icons.home_filled, size: 22), label: '홈'),
-        BottomNavigationBarItem(icon: Icon(Icons.settings, size: 22), label: '설정'),
+        BottomNavigationBarItem(icon: Icon(Icons.home_filled, size: 28), label: '홈'),
+        BottomNavigationBarItem(icon: Icon(Icons.settings, size: 28), label: '설정'),
       ],
     ),
   );
@@ -71,6 +71,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   late AnimationController _controller;
   late Animation<double> _scaleAnimation;
+  
+  // 사용자님의 실제 API 키
   final String w3wApiKey = "WTE21N79"; 
 
   @override
@@ -82,12 +84,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     _updateW3WDisplay();
     _timer = Timer.periodic(const Duration(minutes: 1), (t) => _checkAndSendSms());
     
-    // 점 애니메이션 타이머 (0.5초마다 갱신)
+    // "..." 움직이는 애니메이션 타이머
     _dotTimer = Timer.periodic(const Duration(milliseconds: 500), (t) {
       if (_isLocating && mounted) {
-        setState(() {
-          _dotCount = (_dotCount + 1) % 4;
-        });
+        setState(() { _dotCount = (_dotCount + 1) % 4; });
       }
     });
   }
@@ -107,37 +107,43 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     }
   }
 
+  // 위치 수신 로직 강화 (가장 정확한 위치를 끈질기게 요청)
   Future<String> _getW3WAddress() async {
     try {
-      if (!await Geolocator.isLocationServiceEnabled()) return "GPS 꺼짐";
-      Position pos = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.best,
-        timeLimit: const Duration(seconds: 25),
-      );
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) return "GPS를 켜주세요";
+
+      // 1순위: 현재 위치 직접 요청 (최대 15초 대기)
+      Position? pos;
+      try {
+        pos = await Geolocator.getCurrentPosition(
+          desiredAccuracy: LocationAccuracy.best,
+          timeLimit: const Duration(seconds: 15),
+        );
+      } catch (e) {
+        // 2순위: 타임아웃 시 마지막으로 기록된 위치라도 가져옴
+        pos = await Geolocator.getLastKnownPosition();
+      }
+
+      if (pos == null) return "실외에서 다시 시도";
+
       final url = "https://api.what3words.com/v3/convert-to-3wa?coordinates=${pos.latitude},${pos.longitude}&key=$w3wApiKey&language=ko";
       final response = await http.get(Uri.parse(url));
+      
       if (response.statusCode == 200) {
-        return "///${json.decode(response.body)['words']}";
+        final data = json.decode(response.body);
+        return "///${data['words']}";
+      } else {
+        return "API 연결 확인 필요";
       }
     } catch (e) {
-      try {
-        Position? lastPos = await Geolocator.getLastKnownPosition();
-        if (lastPos != null) {
-          final url = "https://api.what3words.com/v3/convert-to-3wa?coordinates=${lastPos.latitude},${lastPos.longitude}&key=$w3wApiKey&language=ko";
-          final res = await http.get(Uri.parse(url));
-          if (res.statusCode == 200) return "///${json.decode(res.body)['words']}(지연)";
-        }
-      } catch (_) {}
+      return "위치 신호 약함";
     }
-    return "위치 확인 불가";
   }
 
   @override
   void dispose() { 
-    _timer?.cancel(); 
-    _dotTimer?.cancel();
-    _controller.dispose(); 
-    super.dispose(); 
+    _timer?.cancel(); _dotTimer?.cancel(); _controller.dispose(); super.dispose(); 
   }
 
   void _loadData() async {
@@ -186,31 +192,34 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text("안심 지키미", style: TextStyle(color: Color(0xFFFF8A65), fontWeight: FontWeight.bold, fontSize: 16)),
+        title: const Text("안심 지키미", style: TextStyle(color: Color(0xFFFF8A65), fontWeight: FontWeight.bold, fontSize: 20)),
         backgroundColor: const Color(0xFFFFF3E0),
         centerTitle: true,
-        toolbarHeight: 45,
+        toolbarHeight: 60,
       ),
       body: Column(
         children: [
+          // 위치 표시바 크기 확대
           Container(
-            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 20),
             width: double.infinity,
-            color: Colors.orange.withOpacity(0.05),
+            color: Colors.orange.withOpacity(0.1),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Icon(Icons.location_on, color: Colors.redAccent, size: 14),
-                const SizedBox(width: 6),
-                Flexible(child: Text(displayW3W, style: const TextStyle(fontSize: 12, color: Colors.black87, fontWeight: FontWeight.w500), overflow: TextOverflow.ellipsis)),
+                const Icon(Icons.location_on, color: Colors.redAccent, size: 20),
+                const SizedBox(width: 10),
+                Flexible(child: Text(displayW3W, style: const TextStyle(fontSize: 16, color: Colors.black, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis)),
               ],
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 20),
+          // 선택 버튼 크기 확대
           Wrap(
-            spacing: 8,
+            spacing: 12,
             children: [0, 1, 12, 24].map((h) => ChoiceChip(
-              label: Text(h == 0 ? "5분" : "$h시간", style: const TextStyle(fontSize: 12)),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              label: Text(h == 0 ? "5분" : "$h시간", style: const TextStyle(fontSize: 16)),
               selected: _selectedHours == h,
               onSelected: (v) async {
                 setState(() => _selectedHours = h);
@@ -219,27 +228,28 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             )).toList(),
           ),
           const Spacer(),
-          const Text("마지막 확인 시간", style: TextStyle(color: Colors.grey, fontSize: 11)),
-          Text(_lastCheckIn, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 25),
+          const Text("마지막 안부 확인 시각", style: TextStyle(color: Colors.grey, fontSize: 14)),
+          const SizedBox(height: 5),
+          Text(_lastCheckIn, style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Colors.black87)),
+          const SizedBox(height: 40),
+          // 버튼 크기 및 그림자 강조
           GestureDetector(
             onTapDown: (_) => _controller.forward(),
             onTapUp: (_) { _controller.reverse(); _updateCheckIn(); },
             child: ScaleTransition(
               scale: _scaleAnimation,
               child: Container(
-                width: 160, height: 160,
-                decoration: const BoxDecoration(shape: BoxShape.circle, color: Colors.white, boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 8)]),
-                child: ClipOval(child: Image.asset('assets/smile.png', fit: BoxFit.contain, errorBuilder: (c, e, s) => const Icon(Icons.favorite, size: 60, color: Colors.orange))),
+                width: 200, height: 200,
+                decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.white, boxShadow: [BoxShadow(color: Colors.orange.withOpacity(0.2), blurRadius: 15, spreadRadius: 5, offset: const Offset(0, 5))]),
+                child: ClipOval(child: Image.asset('assets/smile.png', fit: BoxFit.contain, errorBuilder: (c, e, s) => const Icon(Icons.favorite, size: 100, color: Colors.orange))),
               ),
             ),
           ),
           const Spacer(),
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
-            child: Text("미응답 시 보호자에게 세 단어 주소가 전송됩니다.", textAlign: TextAlign.center, style: TextStyle(fontSize: 10, color: Colors.grey.shade400)),
+            padding: const EdgeInsets.symmetric(horizontal: 50, vertical: 30),
+            child: Text("미응답 시 보호자에게 현재 위치(세 단어 주소)가 문자로 자동 발송됩니다.", textAlign: TextAlign.center, style: TextStyle(fontSize: 13, color: Colors.grey.shade600, height: 1.5)),
           ),
-          const SizedBox(height: 20),
         ],
       ),
     );
@@ -263,25 +273,27 @@ class _SettingScreenState extends State<SettingScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("설정", style: TextStyle(fontSize: 16)), backgroundColor: const Color(0xFFFFF3E0), toolbarHeight: 45),
+      appBar: AppBar(title: const Text("앱 설정", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)), backgroundColor: const Color(0xFFFFF3E0), toolbarHeight: 60),
       body: Column(
         children: [
           Expanded(child: ListView.builder(
             itemCount: _contacts.length,
             itemBuilder: (c, i) => ListTile(
-              title: Text(_contacts[i]['name'], style: const TextStyle(fontSize: 14)),
-              subtitle: Text(_contacts[i]['number'], style: const TextStyle(fontSize: 12)),
-              trailing: IconButton(icon: const Icon(Icons.delete, color: Colors.red, size: 20), onPressed: () {
+              contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 5),
+              title: Text(_contacts[i]['name'], style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w500)),
+              subtitle: Text(_contacts[i]['number'], style: const TextStyle(fontSize: 15, color: Colors.grey)),
+              trailing: IconButton(icon: const Icon(Icons.delete, color: Colors.redAccent, size: 28), onPressed: () {
                 setState(() => _contacts.removeAt(i));
                 SharedPreferences.getInstance().then((p) => p.setString('contacts_list', json.encode(_contacts)));
               }),
             ),
           )),
           Padding(
-            padding: const EdgeInsets.all(15),
+            padding: const EdgeInsets.all(25),
             child: Column(
               children: [
-                ElevatedButton(
+                ElevatedButton.icon(
+                  icon: const Icon(Icons.person_add),
                   onPressed: () async {
                     if (await Permission.contacts.request().isGranted) {
                       final c = await ContactsService.openDeviceContactPicker();
@@ -291,18 +303,19 @@ class _SettingScreenState extends State<SettingScreen> {
                       }
                     }
                   },
-                  style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 40)),
-                  child: const Text("보호자 연락처 추가", style: TextStyle(fontSize: 14)),
+                  style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 55), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))),
+                  label: const Text("보호자 연락처 추가하기", style: TextStyle(fontSize: 18)),
                 ),
-                const SizedBox(height: 10),
-                ElevatedButton(
+                const SizedBox(height: 15),
+                ElevatedButton.icon(
+                  icon: const Icon(Icons.settings_suggest),
                   onPressed: () async {
                     await [Permission.contacts, Permission.sms, Permission.location].request();
                     await Permission.locationAlways.request();
                     if (mounted) openAppSettings();
                   },
-                  style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 40), backgroundColor: Colors.orangeAccent, foregroundColor: Colors.white),
-                  child: const Text("앱 권한 설정", style: TextStyle(fontSize: 14)),
+                  style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 55), backgroundColor: Colors.orangeAccent, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))),
+                  label: const Text("앱 권한 완벽 설정", style: TextStyle(fontSize: 18)),
                 ),
               ],
             ),
