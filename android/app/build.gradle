@@ -2,7 +2,7 @@ plugins {
     id "com.android.application"
     id "kotlin-android"
     id "dev.flutter.flutter-gradle-plugin"
-    // Firebase 구글 서비스 플러그인 추가
+    // Firebase 구글 서비스 플러그인
     id "com.google.gms.google-services"
 }
 
@@ -25,7 +25,10 @@ if (flutterVersionName == null) {
 }
 
 android {
-    namespace "com.example.hello_morning" // 본인의 패키지명과 일치하는지 확인하세요
+    // [중요] GitHub Actions 빌드 에러 해결을 위한 네임스페이스 설정
+    // Firebase 콘솔에 등록된 이름과 똑같이 대소문자를 맞춰줍니다.
+    namespace "Com.hello_morning" 
+    
     compileSdkVersion flutter.compileSdkVersion
     ndkVersion flutter.ndkVersion
 
@@ -43,7 +46,8 @@ android {
     }
 
     defaultConfig {
-        applicationId "com.example.hello_morning" // Firebase 콘솔에 등록한 패키지명과 같아야 합니다
+        // Firebase 콘솔에 등록한 패키지명과 일치해야 합니다.
+        applicationId "Com.hello_morning" 
         minSdkVersion 21
         targetSdkVersion flutter.targetSdkVersion
         versionCode flutterVersionCode.toInteger()
@@ -52,7 +56,12 @@ android {
 
     buildTypes {
         release {
+            // 디버그 키로 서명 설정 (필요시 출시용 키로 변경)
             signingConfig signingConfigs.debug
+            
+            // 코드 압축 및 최적화 설정 (필요시)
+            shrinkResources false
+            minifyEnabled false
         }
     }
 }
@@ -62,8 +71,11 @@ flutter {
 }
 
 dependencies {
-    // Firebase BoM (버전 관리 효율화)
+    // Firebase BoM (버전 관리 통합)
     implementation platform('com.google.firebase:firebase-bom:32.7.2')
     implementation 'com.google.firebase:firebase-analytics'
     implementation 'com.google.firebase:firebase-messaging'
+    
+    // 기본 안드로이드 라이브러리
+    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
 }
