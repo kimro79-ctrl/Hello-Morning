@@ -17,5 +17,6 @@ dependencyResolutionManagement {
 rootProject.name = "Hello-Morning"
 include(":app")
 
-def flutterSdkPath = System.getenv("FLUTTER_ROOT")
+// Flutter 연결 (필수)
+def flutterSdkPath = System.getenv("FLUTTER_ROOT") ?: "../flutter"
 includeBuild("$flutterSdkPath/packages/flutter_tools/gradle")
