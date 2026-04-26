@@ -94,7 +94,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   Future<void> _updateLocation() async {
     try {
       Position pos = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.medium);
-      if (mounted) setState(() => _locationInfo = "${pos.latitude.toStringAsFixed(5)}, ${pos.longitude.toStringAsFixed(5)}");
+      if (mounted) setState(() => _locationInfo = "${pos.latitude.toStringAsFixed(7)}, ${pos.longitude.toStringAsFixed(7)}");
     } catch (e) {
       if (mounted) setState(() => _locationInfo = "위치 확인 불가");
     }
@@ -115,9 +115,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       Position pos = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.medium);
       List contacts = json.decode(contactsJson);
       for (var c in contacts) {
+        // ✅ 요청하신 문자 문구로 수정 완료
         await BackgroundSms.sendMessage(
           phoneNumber: c['number'], 
-          message: "[안심지키미] 응답 지연!\n위치: https://www.google.com/maps?q=${pos.latitude},${pos.longitude}"
+          message: "[안부 지킴이] 사용자 응답 지연!\n좌표: ${pos.latitude},${pos.longitude}\n구글맵에 좌표를 검색하세요."
         );
       }
       _updateCheckIn();
@@ -236,7 +237,6 @@ class _SettingScreenState extends State<SettingScreen> {
       appBar: AppBar(title: const Text("설정"), backgroundColor: Colors.transparent, elevation: 0),
       body: Column(
         children: [
-          // ✅ 권한 설정 안내 배너 추가
           Container(
             margin: const EdgeInsets.all(16),
             padding: const EdgeInsets.all(16),
@@ -267,7 +267,6 @@ class _SettingScreenState extends State<SettingScreen> {
               ],
             ),
           ),
-
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
             child: Row(
