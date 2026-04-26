@@ -35,22 +35,8 @@ class MainNavigation extends StatefulWidget {
 
 class _MainNavigationState extends State<MainNavigation> {
   int _currentIndex = 0;
+  // ✅ SettingScreen 클래스가 하단에 정의되어 있어야 에러가 나지 않습니다.
   final List<Widget> _screens = [const HomeScreen(), const SettingScreen()];
-
-  @override
-  void initState() {
-    super.initState();
-    _requestAllPermissions();
-  }
-
-  Future<void> _requestAllPermissions() async {
-    // SMS, 위치, 연락처 권한 요청
-    await [Permission.sms, Permission.location, Permission.contacts].request();
-    // 백그라운드 위치 권한은 별도 요청
-    if (await Permission.location.isGranted) {
-      await Permission.locationAlways.request();
-    }
-  }
 
   @override
   Widget build(BuildContext context) => Scaffold(
@@ -78,7 +64,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   String _currentLocationText = "위치 확인 중..."; 
   int _selectedHours = 1; 
   Timer? _timer;
-  bool _isPressed = false; // ✅ 연핑크 테두리 효과용 상태값
+  bool _isPressed = false; // 연핑크 테두리 상태
 
   late AnimationController _controller;
   late Animation<double> _scaleAnimation;
@@ -86,8 +72,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
-    // ✅ 누르는 애니메이션 속도 조절
-    _controller = AnimationController(vsync: this, duration: const Duration(milliseconds: 150));
+    _controller = AnimationController(vsync: this, duration: const Duration(milliseconds: 100));
     _scaleAnimation = Tween<double>(begin: 1.0, end: 0.92).animate(_controller);
     _loadData();
     _updateLocationDisplay();
@@ -96,11 +81,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   Future<void> _updateLocationDisplay() async {
     try {
-      Position position = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.medium);
+      Position pos = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.medium);
       if (mounted) {
-        setState(() {
-          _currentLocationText = "좌표: ${position.latitude.toStringAsFixed(6)}, ${position.longitude.toStringAsFixed(6)}";
-        });
+        setState(() => _currentLocationText = "좌표: ${pos.latitude.toStringAsFixed(6)}, ${pos.longitude.toStringAsFixed(6)}");
       }
     } catch (e) {
       if (mounted) setState(() => _currentLocationText = "위치 확인 불가");
@@ -120,13 +103,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     
     if (DateTime.now().difference(lastTime).inMinutes >= targetMin) {
       Position pos = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.medium);
-      String coords = "${pos.latitude.toStringAsFixed(6)}, ${pos.longitude.toStringAsFixed(6)}";
       List contacts = json.decode(contactsJson);
-      
       for (var c in contacts) {
-        String cleanNumber = c['number'].replaceAll(RegExp(r'[^0-9]'), '');
-        String messageBody = "['안부 지킴이'] 사용자 안부 확인 지연.\n좌표: $coords\n구글맵에서 검색하세요.";
-        await BackgroundSms.sendMessage(phoneNumber: cleanNumber, message: messageBody);
+        String message = "[안부 지킴이] 응답 지연!\n좌표: ${pos.latitude},${pos.longitude}";
+        await BackgroundSms.sendMessage(phoneNumber: c['number'], message: message);
       }
       _updateCheckIn();
     }
@@ -140,9 +120,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     _updateLocationDisplay();
   }
 
-  @override
-  void dispose() { _timer?.cancel(); _controller.dispose(); super.dispose(); }
-
   void _loadData() async {
     final p = await SharedPreferences.getInstance();
     setState(() {
@@ -152,25 +129,20 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   @override
+  void dispose() { _timer?.cancel(); _controller.dispose(); super.dispose(); }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text("안심 지키미", style: TextStyle(color: Color(0xFFFF8A65), fontWeight: FontWeight.bold)),
-        backgroundColor: const Color(0xFFFFF3E0),
-        centerTitle: true,
-      ),
+      appBar: AppBar(title: const Text("안심 지키미", style: TextStyle(color: Color(0xFFFF8A65), fontWeight: FontWeight.bold))),
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              decoration: BoxDecoration(color: Colors.orange.withOpacity(0.1), borderRadius: BorderRadius.circular(20)),
-              child: Text(_currentLocationText, style: const TextStyle(color: Color(0xFFFF8A65), fontWeight: FontWeight.bold)),
-            ),
-            const SizedBox(height: 30),
+            Text(_currentLocationText, style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFFFF8A65))),
+            const SizedBox(height: 20),
             Wrap(
-              spacing: 10,
+              spacing: 8,
               children: [0, 1, 12, 24].map((h) => ChoiceChip(
                 label: Text(h == 0 ? "5분" : "$h시간"),
                 selected: _selectedHours == h,
@@ -181,59 +153,36 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               )).toList(),
             ),
             const Spacer(),
-            Text("마지막 확인: $_lastCheckIn", style: const TextStyle(color: Colors.black54, fontWeight: FontWeight.bold)),
+            Text(_lastCheckIn, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
             const SizedBox(height: 40),
-            
-            // ✅ 사용자님의 이미지 + 애니메이션 + 연핑크 테두리 효과
             GestureDetector(
-              onTapDown: (_) {
-                setState(() => _isPressed = true); // 테두리 켜기
-                _controller.forward();
-              },
-              onTapUp: (_) {
-                setState(() => _isPressed = false); // 테두리 끄기
-                _controller.reverse();
-                _updateCheckIn();
-              },
-              onTapCancel: () {
-                setState(() => _isPressed = false);
-                _controller.reverse();
-              },
+              onTapDown: (_) { setState(() => _isPressed = true); _controller.forward(); },
+              onTapUp: (_) { setState(() => _isPressed = false); _controller.reverse(); _updateCheckIn(); },
+              onTapCancel: () { setState(() => _isPressed = false); _controller.reverse(); },
               child: ScaleTransition(
                 scale: _scaleAnimation,
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 100),
-                  width: 220, height: 220,
+                  width: 200, height: 200,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle, 
-                    color: Colors.white, 
-                    // ✅ 누를 때 연핑크색(Color(0xFFFFC1CC)) 번짐 효과
+                    color: Colors.white,
                     boxShadow: [
                       BoxShadow(
-                        color: _isPressed ? const Color(0xFFFFC1CC).withOpacity(0.6) : Colors.black.withOpacity(0.05), 
-                        blurRadius: _isPressed ? 30 : 15, 
-                        spreadRadius: _isPressed ? 10 : 2
+                        color: _isPressed ? const Color(0xFFFFC1CC) : Colors.black12, 
+                        blurRadius: _isPressed ? 25 : 10,
+                        spreadRadius: _isPressed ? 8 : 2,
                       )
                     ],
-                    // ✅ 테두리 연핑크색 적용
-                    border: Border.all(
-                      color: _isPressed ? const Color(0xFFFFC1CC) : Colors.transparent, 
-                      width: 4
-                    ),
+                    border: Border.all(color: _isPressed ? const Color(0xFFFFC1CC) : Colors.transparent, width: 4),
                   ),
-                  child: Center(
-                    child: Image.asset(
-                      'assets/smile.png', // ✅ 사용자님의 에셋 적용
-                      width: 160, 
-                      errorBuilder: (c, e, s) => const Icon(Icons.face, size: 100, color: Colors.orange)
-                    ),
-                  ),
+                  child: ClipOval(child: Image.asset('assets/smile.png', fit: BoxFit.contain, errorBuilder: (c,e,s) => const Icon(Icons.favorite, size: 80, color: Colors.orange))),
                 ),
               ),
             ),
             const Spacer(),
-            const Text("미응답 시 보호자에게 위치가 전송됩니다.", style: TextStyle(color: Colors.grey, fontSize: 13)),
-            const SizedBox(height: 30),
+            const Text("미응답 시 보호자에게 위치가 전송됩니다.", style: TextStyle(color: Colors.grey, fontSize: 12)),
+            const SizedBox(height: 20),
           ],
         ),
       ),
@@ -241,4 +190,67 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 }
 
-// (이후 SettingScreen 코드는 이전과 동일하므로 생략하거나 기존 코드를 유지하시면 됩니다.)
+// ✅ 오류의 원인이었던 SettingScreen 클래스를 추가했습니다.
+class SettingScreen extends StatefulWidget {
+  const SettingScreen({super.key});
+  @override
+  State<SettingScreen> createState() => _SettingScreenState();
+}
+
+class _SettingScreenState extends State<SettingScreen> {
+  List _contacts = [];
+  bool _autoSmsEnabled = false;
+
+  @override
+  void initState() { super.initState(); _load(); }
+  void _load() async {
+    final p = await SharedPreferences.getInstance();
+    setState(() {
+      _contacts = json.decode(p.getString('contacts_list') ?? "[]");
+      _autoSmsEnabled = p.getBool('auto_sms_enabled') ?? false;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text("설정")),
+      body: Column(
+        children: [
+          SwitchListTile(
+            title: const Text("자동 문자 전송"),
+            value: _autoSmsEnabled,
+            onChanged: (v) async {
+              final p = await SharedPreferences.getInstance();
+              await p.setBool('auto_sms_enabled', v);
+              setState(() => _autoSmsEnabled = v);
+            },
+          ),
+          Expanded(child: ListView.builder(
+            itemCount: _contacts.length,
+            itemBuilder: (c, i) => ListTile(
+              title: Text(_contacts[i]['name']),
+              subtitle: Text(_contacts[i]['number']),
+              trailing: IconButton(icon: const Icon(Icons.delete), onPressed: () async {
+                setState(() => _contacts.removeAt(i));
+                (await SharedPreferences.getInstance()).setString('contacts_list', json.encode(_contacts));
+              }),
+            ),
+          )),
+          ElevatedButton(
+            onPressed: () async {
+              if (await Permission.contacts.request().isGranted) {
+                final c = await ContactsService.openDeviceContactPicker();
+                if (c != null && c.phones!.isNotEmpty) {
+                  setState(() => _contacts.add({'name': c.displayName, 'number': c.phones?.first.value}));
+                  (await SharedPreferences.getInstance()).setString('contacts_list', json.encode(_contacts));
+                }
+              }
+            },
+            child: const Text("보호자 추가"),
+          ),
+        ],
+      ),
+    );
+  }
+}
