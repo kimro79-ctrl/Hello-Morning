@@ -160,16 +160,18 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           child: Column(
             children: [
               const SizedBox(height: 40),
-              // ✅ 텍스트 크기 축소 (28 -> 20)
-              const Text("안심 지키미", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF5C6BC0))),
+              // 상단 타이틀 중앙 배치 및 크기 축소
+              const Center(
+                child: Text("안심 지키미", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF5C6BC0))),
+              ),
               const SizedBox(height: 8),
-              // ✅ 위치 텍스트 축소
-              Text(_locationInfo, style: const TextStyle(color: Color(0xFF5C6BC0), fontSize: 13, fontWeight: FontWeight.w400)),
+              // 위치 텍스트 크기 축소
+              Text(_locationInfo, style: const TextStyle(color: Color(0xFF5C6BC0), fontSize: 12, fontWeight: FontWeight.w400)),
               const SizedBox(height: 25),
               Wrap(
                 spacing: 6,
                 children: [0, 1, 12, 24].map((h) => ChoiceChip(
-                  label: Text(h == 0 ? "5분" : "$h시간", style: const TextStyle(fontSize: 12)),
+                  label: Text(h == 0 ? "5분" : "$h시간", style: const TextStyle(fontSize: 11)),
                   selected: _selectedHours == h,
                   padding: const EdgeInsets.symmetric(horizontal: 4),
                   onSelected: (v) async {
@@ -179,8 +181,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 )).toList(),
               ),
               const Spacer(flex: 2),
-              // ✅ 날짜 텍스트 축소
-              Text(_lastCheckIn, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: Colors.black87)),
+              // 기록 텍스트 크기 축소
+              Text(_lastCheckIn, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.black87)),
               const SizedBox(height: 30),
               GestureDetector(
                 onTapDown: (_) { setState(() => _isPressed = true); _controller.forward(); },
@@ -192,16 +194,15 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     width: 200, height: 200,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      // ✅ 사각형 배경 원천 차단
-                      color: Colors.transparent, 
+                      color: Colors.transparent, // 사각형 배경 제거
                       boxShadow: [
                         BoxShadow(
-                          color: _isPressed ? const Color(0xFFFFC1CC).withOpacity(0.6) : Colors.black.withOpacity(0.03), 
+                          color: _isPressed ? const Color(0xFFFFC1CC).withOpacity(0.6) : Colors.black.withOpacity(0.02), 
                           blurRadius: _isPressed ? 25 : 15, spreadRadius: _isPressed ? 8 : 1,
                         )
                       ],
                     ),
-                    // ✅ 이미지 사각형 방지
+                    // ClipOval을 사용하여 이미지가 무조건 원형으로만 보이게 고정
                     child: ClipOval(
                       child: Image.asset(
                         'assets/smile.png', 
@@ -213,7 +214,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 ),
               ),
               const Spacer(flex: 3),
-              // ✅ 하단 문구 크기 축소
+              // 안내 문구 크기 축소
               const Text("미응답 시 보호자에게 위치가 전송됩니다.", style: TextStyle(color: Colors.grey, fontSize: 11)),
               const SizedBox(height: 40),
             ],
@@ -248,7 +249,7 @@ class _SettingScreenState extends State<SettingScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("설정", style: TextStyle(fontSize: 18)), 
+        title: const Text("설정", style: TextStyle(fontSize: 16)), 
         backgroundColor: Colors.transparent, 
         centerTitle: true,
         elevation: 0
@@ -264,18 +265,18 @@ class _SettingScreenState extends State<SettingScreen> {
             ),
             child: Row(
               children: [
-                const Icon(Icons.info_outline, color: Colors.orange, size: 24),
+                const Icon(Icons.security, color: Colors.orange, size: 24),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text("위치 권한 안내", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                      const Text("안전한 보호를 위해 '항상 허용'이 필요합니다.", style: TextStyle(fontSize: 11, color: Colors.black87)),
+                      const Text("필수 권한 안내", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                      const Text("위치 권한을 '항상 허용'으로 설정해야 합니다.", style: TextStyle(fontSize: 11, color: Colors.black87)),
                       const SizedBox(height: 4),
-                      GestureDetector(
+                      InkWell(
                         onTap: () => openAppSettings(),
-                        child: const Text("설정 바로가기 >", style: TextStyle(color: Colors.blue, fontWeight: FontWeight.bold, fontSize: 12)),
+                        child: const Text("설정 바로가기 >", style: TextStyle(color: Colors.blue, fontWeight: FontWeight.bold, fontSize: 11)),
                       )
                     ],
                   ),
@@ -309,10 +310,10 @@ class _SettingScreenState extends State<SettingScreen> {
             itemCount: _contacts.length,
             itemBuilder: (c, i) => ListTile(
               dense: true,
-              leading: const CircleAvatar(radius: 15, backgroundColor: Color(0xFFE3F2FD), child: Icon(Icons.person, size: 18, color: Colors.blue)),
-              title: Text(_contacts[i]['name'], style: const TextStyle(fontSize: 14)),
-              subtitle: Text(_contacts[i]['number'], style: const TextStyle(fontSize: 12)),
-              trailing: IconButton(icon: const Icon(Icons.delete_outline, size: 20, color: Colors.redAccent), onPressed: () async {
+              leading: const CircleAvatar(radius: 14, backgroundColor: Color(0xFFE3F2FD), child: Icon(Icons.person, size: 16, color: Colors.blue)),
+              title: Text(_contacts[i]['name'], style: const TextStyle(fontSize: 13)),
+              subtitle: Text(_contacts[i]['number'], style: const TextStyle(fontSize: 11)),
+              trailing: IconButton(icon: const Icon(Icons.delete_outline, size: 18, color: Colors.redAccent), onPressed: () async {
                 setState(() => _contacts.removeAt(i));
                 (await SharedPreferences.getInstance()).setString('contacts_list', json.encode(_contacts));
               }),
@@ -322,7 +323,9 @@ class _SettingScreenState extends State<SettingScreen> {
             padding: const EdgeInsets.all(20),
             child: SizedBox(
               width: double.infinity, height: 48,
-              child: ElevatedButton(
+              child: ElevatedButton.icon(
+                icon: const Icon(Icons.person_add_alt_1, size: 18),
+                label: const Text("보호자 추가", style: TextStyle(fontSize: 14)),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF5C6BC0), foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))
@@ -336,10 +339,10 @@ class _SettingScreenState extends State<SettingScreen> {
                     }
                   }
                 },
-                child: const Text("보호자 추가", style: TextStyle(fontSize: 14)),
               ),
             ),
           ),
+          const SizedBox(height: 10),
         ],
       ),
     );
