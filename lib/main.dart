@@ -19,7 +19,7 @@ class DailySafetyApp extends StatelessWidget {
   Widget build(BuildContext context) => MaterialApp(
     debugShowCheckedModeBanner: false,
     theme: ThemeData(
-      scaffoldBackgroundColor: const Color(0xFFF5F5DC), // 진한 아이보리 유지
+      scaffoldBackgroundColor: const Color(0xFFF5F5DC), // 진한 아이보리 배경 유지
       useMaterial3: true,
       colorSchemeSeed: const Color(0xFFFF8A65),
     ),
@@ -144,7 +144,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     _scaleAnimation = Tween<double>(begin: 1.0, end: 0.94).animate(_controller);
     _loadData();
     _updateLocation();
-    // ✅ 3분 주기 자동 체크 로직 유지
     _timer = Timer.periodic(const Duration(minutes: 3), (t) => _checkAndSendSms());
   }
 
@@ -257,7 +256,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     ),
                     child: ClipOval(
                       child: Image.asset(
-                        'assets/smile.png', // ✅ 중앙 버튼은 smile.png 유지
+                        'assets/smile.png', // 중앙 스마일 이미지 그대로
                         fit: BoxFit.cover,
                         errorBuilder: (c,e,s) => const Icon(Icons.face, size: 100, color: Colors.orange)
                       ),
