@@ -27,4 +27,4 @@ flutter:
   uses-material-design: true
   assets:
     - assets/smile.png
-    - assets/icon/safety_icon.png # ✅ 바뀐 파일명 반영 완료
+    - assets/icon/safety_icon.png # ✅ 바뀐 파일명을 여기에 똑같이 적어주세요.
