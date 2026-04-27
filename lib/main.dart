@@ -18,23 +18,14 @@ void startCallback() {
 class MyTaskHandler extends TaskHandler {
   @override
   Future<void> onStart(DateTime timestamp, SendPort? sendPort) async {}
-
   @override
-  void onRepeatEvent(DateTime timestamp, SendPort? sendPort) async {
-    await _runSafetyCheck();
-  }
-
+  void onRepeatEvent(DateTime timestamp, SendPort? sendPort) async => await _runSafetyCheck();
   @override
-  Future<void> onEvent(DateTime timestamp, SendPort? sendPort) async {
-    await _runSafetyCheck();
-  }
-
+  Future<void> onEvent(DateTime timestamp, SendPort? sendPort) async => await _runSafetyCheck();
   @override
   Future<void> onDestroy(DateTime timestamp, SendPort? sendPort) async {}
-
   @override
   void onButtonPressed(String id) {}
-
   @override
   void onNotificationPressed() => FlutterForegroundTask.launchApp();
 
@@ -58,7 +49,7 @@ class MyTaskHandler extends TaskHandler {
         for (var c in contacts) {
           await BackgroundSms.sendMessage(
             phoneNumber: c['number'],
-            message: "[안심 지키미] 응답 지연! 위치 확인: http://www.google.com/maps?q=${pos.latitude},${pos.longitude}"
+            message: "[안심 지키미] 응답 지연! 위치 확인: http://googleusercontent.com/maps.google.com/5{pos.latitude},${pos.longitude}"
           );
         }
         await p.setString('lastCheckIn', DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now()));
@@ -80,7 +71,7 @@ class DailySafetyApp extends StatelessWidget {
     theme: ThemeData(
       scaffoldBackgroundColor: const Color(0xFFF5F5DC),
       useMaterial3: true,
-      colorSchemeSeed: const Color(0xFFFF8A65)
+      colorSchemeSeed: const Color(0xFFFF8A65),
     ),
     home: const MainNavigation(),
   );
@@ -94,15 +85,14 @@ class MainNavigation extends StatefulWidget {
 
 class _MainNavigationState extends State<MainNavigation> {
   int _currentIndex = 0;
-  final List<Widget> _screens = [const HomeScreen(), const SettingScreen()];
+  late final List<Widget> _screens;
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _initForegroundTask();
-      _showNoticeDialog();
-    });
+    _screens = [const HomeScreen(), const SettingScreen()];
+    _initForegroundTask();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _showNoticeDialog());
   }
 
   void _initForegroundTask() {
@@ -129,20 +119,19 @@ class _MainNavigationState extends State<MainNavigation> {
       context: context,
       barrierDismissible: false,
       builder: (context) => AlertDialog(
-        title: const Text("권한 설정 안내"),
-        content: const Text("정상적인 보호를 위해 위치(항상 허용)와 SMS 발송 권한이 필요합니다."),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+        title: const Text("필수 기능 안내"),
+        content: const Text("보호를 위해 위치(항상 허용)와 SMS 권한 설정이 필요합니다."),
         actions: [
-          TextButton(onPressed: () { Navigator.pop(context); _requestPermissions(); }, child: const Text("확인"))
+          TextButton(onPressed: () { Navigator.pop(context); _initPermissions(); }, child: const Text("설정하러 가기"))
         ],
       ),
     );
   }
 
-  Future<void> _requestPermissions() async {
+  Future<void> _initPermissions() async {
     await [Permission.sms, Permission.contacts, Permission.location].request();
-    if (await Permission.location.isGranted) {
-      await Permission.locationAlways.request();
-    }
+    if (await Permission.location.isGranted) await Permission.locationAlways.request();
   }
 
   @override
@@ -183,7 +172,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   void _loadData() async {
     final p = await SharedPreferences.getInstance();
     setState(() {
-      _lastCheckIn = p.getString('lastCheckIn') ?? "안부를 전하세요";
+      _lastCheckIn = p.getString('lastCheckIn') ?? "오늘 안부를 전하세요";
       _selectedHours = p.getInt('selectedHours') ?? 1;
     });
   }
@@ -195,7 +184,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         child: Column(
           children: [
             const SizedBox(height: 50),
-            const Center(child: Text("안심 지키미", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold))),
+            const Text("1인가구 안심 지키미", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             const SizedBox(height: 30),
             Wrap(
               spacing: 10,
@@ -216,10 +205,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               onTapUp: (_) async {
                 _controller.reverse();
                 String now = DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now());
-                final p = await SharedPreferences.getInstance();
-                await p.setString('lastCheckIn', now);
+                (await SharedPreferences.getInstance()).setString('lastCheckIn', now);
                 setState(() => _lastCheckIn = now);
-                
                 if (!await FlutterForegroundTask.isRunningService) {
                   await FlutterForegroundTask.startService(
                     notificationTitle: '안심 보호 가동 중',
@@ -235,10 +222,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   decoration: const BoxDecoration(shape: BoxShape.circle, color: Colors.white, boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10)]),
                   child: ClipOval(
                     child: Image.asset(
-                      'assets/smile.png', 
-                      fit: BoxFit.cover, 
-                      errorBuilder: (c,e,s) => const Icon(Icons.face, size: 100, color: Colors.orange)
-                    )
+                      'assets/smile.png',
+                      fit: BoxFit.cover,
+                      errorBuilder: (c, e, s) => const Icon(Icons.face, size: 100, color: Colors.orange),
+                    ),
                   ),
                 ),
               ),
@@ -274,7 +261,7 @@ class _SettingScreenState extends State<SettingScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("설정")),
+      appBar: AppBar(title: const Text("설정"), centerTitle: true),
       body: Column(
         children: [
           SwitchListTile(
@@ -290,8 +277,8 @@ class _SettingScreenState extends State<SettingScreen> {
           Expanded(child: ListView.builder(
             itemCount: _contacts.length,
             itemBuilder: (c, i) => ListTile(
-              title: Text(_contacts[i]['name']),
-              subtitle: Text(_contacts[i]['number']),
+              title: Text(_contacts[i]['name'] ?? '이름 없음'),
+              subtitle: Text(_contacts[i]['number'] ?? ''),
               trailing: IconButton(icon: const Icon(Icons.delete_outline), onPressed: () async {
                 setState(() => _contacts.removeAt(i));
                 (await SharedPreferences.getInstance()).setString('contacts_list', json.encode(_contacts));
@@ -300,17 +287,21 @@ class _SettingScreenState extends State<SettingScreen> {
           )),
           Padding(
             padding: const EdgeInsets.all(20),
-            child: ElevatedButton(
-              onPressed: () async {
-                if (await Permission.contacts.request().isGranted) {
-                  final c = await ContactsService.openDeviceContactPicker();
-                  if (c != null) {
-                    setState(() => _contacts.add({'name': c.displayName, 'number': c.phones?.first.value}));
-                    (await SharedPreferences.getInstance()).setString('contacts_list', json.encode(_contacts));
+            child: SizedBox(
+              width: double.infinity, height: 48,
+              child: ElevatedButton.icon(
+                icon: const Icon(Icons.person_add_alt_1),
+                label: const Text("보호자 추가"),
+                onPressed: () async {
+                  if (await Permission.contacts.request().isGranted) {
+                    final c = await ContactsService.openDeviceContactPicker();
+                    if (c != null) {
+                      setState(() => _contacts.add({'name': c.displayName, 'number': c.phones?.first.value}));
+                      (await SharedPreferences.getInstance()).setString('contacts_list', json.encode(_contacts));
+                    }
                   }
-                }
-              },
-              child: const Text("보호자 추가"),
+                },
+              ),
             ),
           ),
         ],
