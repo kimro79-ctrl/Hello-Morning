@@ -17,7 +17,6 @@ dependencies:
   background_sms: ^0.0.4
   geolocator: ^11.1.0
   http: ^1.1.0
-  # ✅ 아래 패키지가 반드시 있어야 합니다
   flutter_foreground_task: ^6.1.1
 
 dev_dependencies:
