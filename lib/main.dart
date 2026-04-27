@@ -16,9 +16,7 @@ void startCallback() {
 }
 
 class MyTaskHandler extends TaskHandler {
-  @override
-  Future<void> onStart(DateTime timestamp, SendPort? sendPort) async {}
-
+  // ✅ 최근 버전에서는 onEvent를 반드시 구현해야 에러가 나지 않습니다.
   @override
   void onRepeatEvent(DateTime timestamp, SendPort? sendPort) async {
     final p = await SharedPreferences.getInstance();
@@ -42,19 +40,27 @@ class MyTaskHandler extends TaskHandler {
         for (var c in contacts) {
           await BackgroundSms.sendMessage(
             phoneNumber: c['number'],
-            message: "[1인가구 안심 지키미] 응답 지연! 위치: https://www.google.com/maps?q=${pos.latitude},${pos.longitude}"
+            message: "[1인가구 안심 지키미] 응답 지연 발생!\n위치: https://www.google.com/maps?q=${pos.latitude},${pos.longitude}"
           );
         }
+        // 발송 후 시간 갱신 (반복 발송 방지)
         String now = DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now());
         await p.setString('lastCheckIn', now);
       } catch (e) {
-        debugPrint("백그라운드 전송 실패: $e");
+        debugPrint("백그라운드 문자 전송 에러: $e");
       }
     }
   }
 
   @override
+  Future<void> onStart(DateTime timestamp, SendPort? sendPort) async {}
+
+  @override
   Future<void> onDestroy(DateTime timestamp, SendPort? sendPort) async {}
+
+  // ✅ 5.2.1 버전 이상에서 요구하는 인터페이스 대응
+  @override
+  void onNotificationPressed() => FlutterForegroundTask.launchApp();
 }
 
 void main() {
@@ -104,7 +110,6 @@ class _MainNavigationState extends State<MainNavigation> {
       iosNotificationOptions: const IOSNotificationOptions(),
       foregroundTaskOptions: const ForegroundTaskOptions(
         interval: 300000, // 5분마다 체크
-        isOnceEvent: false,
         autoRunOnBoot: true,
         allowWakeLock: true,
         allowWifiLock: true,
@@ -216,7 +221,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   scale: _scaleAnimation,
                   child: Container(
                     width: 200, height: 200,
-                    decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.white, boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 15)]),
+                    decoration: const BoxDecoration(shape: BoxShape.circle, color: Colors.white, boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 15)]),
                     child: ClipOval(child: Image.asset('assets/smile.png', fit: BoxFit.cover, errorBuilder: (c,e,s) => const Icon(Icons.face, size: 100, color: Colors.orange))),
                   ),
                 ),
