@@ -19,7 +19,7 @@ class DailySafetyApp extends StatelessWidget {
   Widget build(BuildContext context) => MaterialApp(
     debugShowCheckedModeBanner: false,
     theme: ThemeData(
-      scaffoldBackgroundColor: const Color(0xFFF5F5DC), // 진한 아이보리
+      scaffoldBackgroundColor: const Color(0xFFF5F5DC), // 진한 아이보리 유지
       useMaterial3: true,
       colorSchemeSeed: const Color(0xFFFF8A65),
     ),
@@ -81,8 +81,6 @@ class _MainNavigationState extends State<MainNavigation> {
                   Expanded(child: Text("SMS 발송\n설정된 시간 동안 응답이 없으면 보호자에게 문자를 전송합니다.", style: TextStyle(fontSize: 12))),
                 ],
               ),
-              SizedBox(height: 15),
-              Text("* 원활한 보호를 위해 모든 권한을 허용해주세요.", style: TextStyle(fontSize: 11, color: Colors.grey)),
             ],
           ),
           actions: [
@@ -146,6 +144,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     _scaleAnimation = Tween<double>(begin: 1.0, end: 0.94).animate(_controller);
     _loadData();
     _updateLocation();
+    // ✅ 3분 주기 자동 체크 로직 유지
     _timer = Timer.periodic(const Duration(minutes: 3), (t) => _checkAndSendSms());
   }
 
@@ -258,7 +257,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     ),
                     child: ClipOval(
                       child: Image.asset(
-                        'assets/smile.png', // ✅ 다시 smile.png로 원상복구 했습니다!
+                        'assets/smile.png', // ✅ 중앙 버튼은 smile.png 유지
                         fit: BoxFit.cover,
                         errorBuilder: (c,e,s) => const Icon(Icons.face, size: 100, color: Colors.orange)
                       ),
