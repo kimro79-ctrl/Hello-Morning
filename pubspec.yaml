@@ -17,6 +17,7 @@ dependencies:
   background_sms: ^0.0.4
   geolocator: ^11.1.0
   http: ^1.1.0
+  # ✅ 빌드 에러 방지를 위해 버전을 고정했습니다.
   flutter_foreground_task: ^6.1.1
 
 dev_dependencies:
