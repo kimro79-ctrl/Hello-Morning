@@ -160,12 +160,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           child: Column(
             children: [
               const SizedBox(height: 40),
-              // 상단 타이틀 중앙 배치 및 크기 축소
               const Center(
                 child: Text("안심 지키미", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF5C6BC0))),
               ),
               const SizedBox(height: 8),
-              // 위치 텍스트 크기 축소
               Text(_locationInfo, style: const TextStyle(color: Color(0xFF5C6BC0), fontSize: 12, fontWeight: FontWeight.w400)),
               const SizedBox(height: 25),
               Wrap(
@@ -181,7 +179,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 )).toList(),
               ),
               const Spacer(flex: 2),
-              // 기록 텍스트 크기 축소
               Text(_lastCheckIn, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.black87)),
               const SizedBox(height: 30),
               GestureDetector(
@@ -194,15 +191,16 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     width: 200, height: 200,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      color: Colors.transparent, // 사각형 배경 제거
+                      color: Colors.white, 
+                      // ✅ 이미지 경계 강화를 위한 테두리 추가
+                      border: Border.all(color: Colors.black.withOpacity(0.05), width: 1),
                       boxShadow: [
                         BoxShadow(
-                          color: _isPressed ? const Color(0xFFFFC1CC).withOpacity(0.6) : Colors.black.withOpacity(0.02), 
+                          color: _isPressed ? const Color(0xFFFFC1CC).withOpacity(0.6) : Colors.black.withOpacity(0.03), 
                           blurRadius: _isPressed ? 25 : 15, spreadRadius: _isPressed ? 8 : 1,
                         )
                       ],
                     ),
-                    // ClipOval을 사용하여 이미지가 무조건 원형으로만 보이게 고정
                     child: ClipOval(
                       child: Image.asset(
                         'assets/smile.png', 
@@ -214,7 +212,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 ),
               ),
               const Spacer(flex: 3),
-              // 안내 문구 크기 축소
               const Text("미응답 시 보호자에게 위치가 전송됩니다.", style: TextStyle(color: Colors.grey, fontSize: 11)),
               const SizedBox(height: 40),
             ],
@@ -295,6 +292,8 @@ class _SettingScreenState extends State<SettingScreen> {
                   child: Switch(
                     value: _autoSmsEnabled,
                     activeColor: const Color(0xFFFF8A65),
+                    // ✅ 스위치 배경(트랙) 가시성 강화
+                    activeTrackColor: const Color(0xFFFF8A65).withOpacity(0.3),
                     onChanged: (v) async {
                       final p = await SharedPreferences.getInstance();
                       await p.setBool('auto_sms_enabled', v);
