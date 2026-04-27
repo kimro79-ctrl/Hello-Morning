@@ -16,7 +16,7 @@ dependencies:
   intl: ^0.19.0
   background_sms: ^0.0.4
   geolocator: ^11.1.0
-  http: ^1.1.0 # what3words 통신을 위해 반드시 필요
+  http: ^1.1.0
 
 dev_dependencies:
   flutter_test:
@@ -27,3 +27,5 @@ flutter:
   uses-material-design: true
   assets:
     - assets/smile.png
+    # ✅ 업로드하신 아이콘 경로 추가
+    - assets/icon/1인가구 안심 지키미.png
