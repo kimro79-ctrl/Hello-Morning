@@ -40,7 +40,65 @@ class _MainNavigationState extends State<MainNavigation> {
   @override
   void initState() {
     super.initState();
-    _initPermissions();
+    // 앱 실행 후 첫 프레임이 그려지면 고지 팝업을 띄움
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _showNoticeDialog();
+    });
+  }
+
+  // ✅ [추가] 필수 권한 고지 팝업 로직
+  void _showNoticeDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false, // 팝업 밖을 눌러도 닫히지 않게 함
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+          title: const Row(
+            children: [
+              Icon(Icons.security, color: Color(0xFFFF8A65)),
+              SizedBox(width: 10),
+              Text("필수 기능 안내", style: TextStyle(fontWeight: FontWeight.bold)),
+            ],
+          ),
+          content: const Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text("안녕하세요. 안심 지키미입니다.\n", style: TextStyle(fontWeight: FontWeight.bold)),
+              Text("보호 대상자의 안전을 위해 아래 두 가지 권한이 반드시 필요합니다.", style: TextStyle(fontSize: 13, color: Colors.black87)),
+              SizedBox(height: 15),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text("1. ", style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF5C6BC0))),
+                  Expanded(child: Text("백그라운드 위치 (항상 허용)\n앱이 꺼져 있어도 위험 상황을 감지하고 위치를 파악하기 위해 필요합니다.", style: TextStyle(fontSize: 12))),
+                ],
+              ),
+              SizedBox(height: 10),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text("2. ", style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF5C6BC0))),
+                  Expanded(child: Text("SMS 발송\n응답이 없을 때 보호자에게 자동으로 구조 요청 문자를 보내기 위해 필요합니다.", style: TextStyle(fontSize: 12))),
+                ],
+              ),
+              SizedBox(height: 15),
+              Text("* 다음 화면에서 권한 요청 시 모두 허용해주셔야 앱이 정상 작동합니다.", style: TextStyle(fontSize: 11, color: Colors.grey)),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop(); // 팝업 닫기
+                _initPermissions(); // 고지 후 실제 권한 요청 진행
+              },
+              child: const Text("확인 및 권한 설정", style: TextStyle(color: Color(0xFF5C6BC0), fontWeight: FontWeight.bold)),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   Future<void> _initPermissions() async {
@@ -192,7 +250,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       color: Colors.white, 
-                      // ✅ 이미지 경계 강화를 위한 테두리 추가
                       border: Border.all(color: Colors.black.withOpacity(0.05), width: 1),
                       boxShadow: [
                         BoxShadow(
@@ -289,16 +346,30 @@ class _SettingScreenState extends State<SettingScreen> {
                 const Text("자동 문자 전송 활성화", style: TextStyle(fontSize: 14)),
                 Transform.scale(
                   scale: 0.8,
-                  child: Switch(
-                    value: _autoSmsEnabled,
-                    activeColor: const Color(0xFFFF8A65),
-                    // ✅ 스위치 배경(트랙) 가시성 강화
-                    activeTrackColor: const Color(0xFFFF8A65).withOpacity(0.3),
-                    onChanged: (v) async {
-                      final p = await SharedPreferences.getInstance();
-                      await p.setBool('auto_sms_enabled', v);
-                      setState(() => _autoSmsEnabled = v);
-                    },
+                  // ✅ [수정] 스위치 가시성 획기적 개선
+                  child: Container(
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: _autoSmsEnabled ? const Color(0xFFFF8A65).withOpacity(0.3) : Colors.black12,
+                          blurRadius: 10,
+                          spreadRadius: 2,
+                        ),
+                      ],
+                    ),
+                    child: Switch(
+                      value: _autoSmsEnabled,
+                      activeColor: Colors.white, // 켰을 때 버튼 색상
+                      activeTrackColor: const Color(0xFFFF8A65), // 켰을 때 배경 색상을 더 짙게
+                      inactiveThumbColor: Colors.grey[400], // 껐을 때 버튼 색상
+                      inactiveTrackColor: Colors.grey[200], // 껐을 때 배경 색상
+                      onChanged: (v) async {
+                        final p = await SharedPreferences.getInstance();
+                        await p.setBool('auto_sms_enabled', v);
+                        setState(() => _autoSmsEnabled = v);
+                      },
+                    ),
                   ),
                 ),
               ],
