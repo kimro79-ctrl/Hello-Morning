@@ -14,13 +14,8 @@ apply plugin: 'kotlin-android'
 apply plugin: 'com.google.gms.google-services'
 apply plugin: 'dev.flutter.flutter-gradle-plugin'
 
-// [핵심 추가] 이 블록이 있어야 Flutter 엔진이 소스 위치를 인식합니다.
-flutter {
-    source '../..'
-}
-
 android {
-    namespace "com.hello_morning" 
+    namespace "com.hello_morning"
     compileSdkVersion 34
 
     compileOptions {
@@ -34,7 +29,8 @@ android {
 
     defaultConfig {
         applicationId "com.hello_morning"
-        minSdkVersion 23
+        // ✅ 21에서 23으로 상향 조정하여 플러그인 호환성 해결
+        minSdkVersion 23 
         targetSdkVersion 34
         versionCode flutterVersionCode.toInteger()
         versionName flutterVersionName
