@@ -19,7 +19,7 @@ class DailySafetyApp extends StatelessWidget {
   Widget build(BuildContext context) => MaterialApp(
     debugShowCheckedModeBanner: false,
     theme: ThemeData(
-      // ✅ [수정] 배경색을 좀 더 진한 아이보리로 변경
+      // ✅ 요청하신 진한 아이보리 배경색
       scaffoldBackgroundColor: const Color(0xFFF5F5DC),
       useMaterial3: true,
       colorSchemeSeed: const Color(0xFFFF8A65),
@@ -46,7 +46,6 @@ class _MainNavigationState extends State<MainNavigation> {
     });
   }
 
-  // ✅ [수정] 앱 이름 '1인가구 안심 지키미' 반영
   void _showNoticeDialog() {
     showDialog(
       context: context,
@@ -148,7 +147,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     _scaleAnimation = Tween<double>(begin: 1.0, end: 0.94).animate(_controller);
     _loadData();
     _updateLocation();
-    // ✅ [수정] 타이머 주기를 3분으로 조정
+    // ✅ 요청하신 3분 타이머 주기 적용
     _timer = Timer.periodic(const Duration(minutes: 3), (t) => _checkAndSendSms());
   }
 
@@ -170,7 +169,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     if (last == null || contactsJson == null || contactsJson == "[]") return;
     
     DateTime lastTime = DateFormat('yyyy-MM-dd HH:mm').parse(last);
-    // 0시간(5분 설정)일 경우 5분 적용, 그 외에는 시간 단위 적용
     int limitMin = _selectedHours == 0 ? 5 : _selectedHours * 60;
     
     if (DateTime.now().difference(lastTime).inMinutes >= limitMin) {
@@ -209,11 +207,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   Widget build(BuildContext context) {
     return Scaffold(
       body: Container(
-        decoration: BoxDecoration(
+        decoration: const BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter, end: Alignment.bottomCenter,
-            colors: [const Color(0xFFE3F2FD), const Color(0xFFF5F5DC)], // 아이보리 톤 반영
-            stops: const [0.0, 0.4],
+            colors: [Color(0xFFE3F2FD), Color(0xFFF5F5DC)],
+            stops: [0.0, 0.4],
           ),
         ),
         child: SafeArea(
@@ -262,7 +260,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     ),
                     child: ClipOval(
                       child: Image.asset(
-                        'assets/smile.png', 
+                        // ✅ 업로드하신 아이콘 이미지 경로 적용
+                        'assets/icon/1인가구 안심 지키미.png', 
                         fit: BoxFit.cover,
                         errorBuilder: (c,e,s) => const Icon(Icons.face, size: 100, color: Colors.orange)
                       ),
@@ -316,7 +315,7 @@ class _SettingScreenState extends State<SettingScreen> {
             margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: const Color(0xFFFFE0B2).withOpacity(0.6), // 좀 더 진한 오렌지 배경
+              color: const Color(0xFFFFE0B2).withOpacity(0.6),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Row(
@@ -359,11 +358,11 @@ class _SettingScreenState extends State<SettingScreen> {
                         ),
                       ],
                     ),
-                    // ✅ [수정] 스위치 색상 대비 강화
+                    // ✅ 입체감이 강조된 스위치 디자인 유지
                     child: Switch(
                       value: _autoSmsEnabled,
                       activeColor: Colors.white,
-                      activeTrackColor: const Color(0xFFFF7043), // 더 짙은 오렌지색
+                      activeTrackColor: const Color(0xFFFF7043),
                       inactiveThumbColor: Colors.grey[600],
                       inactiveTrackColor: Colors.grey[300],
                       onChanged: (v) async {
