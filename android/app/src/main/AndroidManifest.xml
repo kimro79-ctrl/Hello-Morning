@@ -6,14 +6,12 @@
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <application
         android:label="1인가구 안심 지키미"
         android:name="${applicationName}"
         android:icon="@android:drawable/ic_dialog_info"
-        android:allowBackup="true"
-        android:supportsRtl="true">
+        android:allowBackup="true">
 
         <activity
             android:name=".MainActivity"
