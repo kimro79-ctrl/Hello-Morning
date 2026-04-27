@@ -58,7 +58,7 @@ class MyTaskHandler extends TaskHandler {
         for (var c in contacts) {
           await BackgroundSms.sendMessage(
             phoneNumber: c['number'],
-            message: "[안심 지키미] 응답 지연! 위치: https://www.google.com/maps?q=${pos.latitude},${pos.longitude}"
+            message: "[안심 지키미] 응답 지연! 위치 확인: http://www.google.com/maps?q=${pos.latitude},${pos.longitude}"
           );
         }
         await p.setString('lastCheckIn', DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now()));
@@ -77,7 +77,11 @@ class DailySafetyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) => MaterialApp(
     debugShowCheckedModeBanner: false,
-    theme: ThemeData(scaffoldBackgroundColor: const Color(0xFFF5F5DC), useMaterial3: true, colorSchemeSeed: const Color(0xFFFF8A65)),
+    theme: ThemeData(
+      scaffoldBackgroundColor: const Color(0xFFF5F5DC),
+      useMaterial3: true,
+      colorSchemeSeed: const Color(0xFFFF8A65)
+    ),
     home: const MainNavigation(),
   );
 }
@@ -105,13 +109,18 @@ class _MainNavigationState extends State<MainNavigation> {
     FlutterForegroundTask.init(
       androidNotificationOptions: AndroidNotificationOptions(
         channelId: 'safety_service',
-        channelName: '안심 보호 중',
+        channelName: '안심 보호 가동 중',
         channelImportance: NotificationChannelImportance.LOW,
         priority: NotificationPriority.LOW,
         iconData: const NotificationIconData(resType: ResourceType.mipmap, resPrefix: ResourcePrefix.ic, name: 'launcher'),
       ),
       iosNotificationOptions: const IOSNotificationOptions(),
-      foregroundTaskOptions: const ForegroundTaskOptions(interval: 300000, autoRunOnBoot: true, allowWakeLock: true, allowWifiLock: true),
+      foregroundTaskOptions: const ForegroundTaskOptions(
+        interval: 300000,
+        autoRunOnBoot: true,
+        allowWakeLock: true,
+        allowWifiLock: true
+      ),
     );
   }
 
@@ -120,16 +129,20 @@ class _MainNavigationState extends State<MainNavigation> {
       context: context,
       barrierDismissible: false,
       builder: (context) => AlertDialog(
-        title: const Text("권한 안내"),
-        content: const Text("보호를 위해 위치(항상 허용)와 SMS 발송 권한이 필요합니다."),
-        actions: [TextButton(onPressed: () { Navigator.pop(context); _requestPermissions(); }, child: const Text("확인"))],
+        title: const Text("권한 설정 안내"),
+        content: const Text("정상적인 보호를 위해 위치(항상 허용)와 SMS 발송 권한이 필요합니다."),
+        actions: [
+          TextButton(onPressed: () { Navigator.pop(context); _requestPermissions(); }, child: const Text("확인"))
+        ],
       ),
     );
   }
 
   Future<void> _requestPermissions() async {
     await [Permission.sms, Permission.contacts, Permission.location].request();
-    if (await Permission.location.isGranted) { await Permission.locationAlways.request(); }
+    if (await Permission.location.isGranted) {
+      await Permission.locationAlways.request();
+    }
   }
 
   @override
@@ -182,7 +195,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         child: Column(
           children: [
             const SizedBox(height: 50),
-            const Center(child: Text("1인가구 안심 지키미", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold))),
+            const Center(child: Text("안심 지키미", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold))),
             const SizedBox(height: 30),
             Wrap(
               spacing: 10,
@@ -196,7 +209,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               )).toList(),
             ),
             const Spacer(),
-            Text(_lastCheckIn),
+            Text("마지막 체크인: $_lastCheckIn"),
             const SizedBox(height: 30),
             GestureDetector(
               onTapDown: (_) => _controller.forward(),
@@ -206,9 +219,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 final p = await SharedPreferences.getInstance();
                 await p.setString('lastCheckIn', now);
                 setState(() => _lastCheckIn = now);
+                
                 if (!await FlutterForegroundTask.isRunningService) {
                   await FlutterForegroundTask.startService(
-                    notificationTitle: '안심 보호 중',
+                    notificationTitle: '안심 보호 가동 중',
                     notificationText: '백그라운드에서 안전을 확인합니다.',
                     callback: startCallback,
                   );
@@ -219,7 +233,13 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 child: Container(
                   width: 200, height: 200,
                   decoration: const BoxDecoration(shape: BoxShape.circle, color: Colors.white, boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10)]),
-                  child: ClipOval(child: Image.asset('assets/smile.png', fit: BoxFit.cover, errorBuilder: (c,e,s) => const Icon(Icons.face, size: 100, color: Colors.orange))),
+                  child: ClipOval(
+                    child: Image.asset(
+                      'assets/smile.png', 
+                      fit: BoxFit.cover, 
+                      errorBuilder: (c,e,s) => const Icon(Icons.face, size: 100, color: Colors.orange)
+                    )
+                  ),
                 ),
               ),
             ),
@@ -272,7 +292,7 @@ class _SettingScreenState extends State<SettingScreen> {
             itemBuilder: (c, i) => ListTile(
               title: Text(_contacts[i]['name']),
               subtitle: Text(_contacts[i]['number']),
-              trailing: IconButton(icon: const Icon(Icons.delete), onPressed: () async {
+              trailing: IconButton(icon: const Icon(Icons.delete_outline), onPressed: () async {
                 setState(() => _contacts.removeAt(i));
                 (await SharedPreferences.getInstance()).setString('contacts_list', json.encode(_contacts));
               }),
