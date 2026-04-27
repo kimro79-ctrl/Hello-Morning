@@ -19,7 +19,7 @@ dependencies:
   background_sms: ^0.0.1
   geolocator: ^10.1.0
   # 만약 포그라운드 서비스를 사용한다면 추가 (선택사항)
-  # flutter_foreground_task: ^6.1.1 
+  flutter_foreground_task: ^6.1.1 
 
 dev_dependencies:
   flutter_test:
