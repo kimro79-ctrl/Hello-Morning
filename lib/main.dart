@@ -5,8 +5,72 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:intl/intl.dart';
 import 'package:background_sms/background_sms.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'dart:async';
 import 'dart:convert';
+
+// ✅ 백그라운드 작업 핸들러 (이솔레이트 환경)
+@pragma('vm:entry-point')
+void startCallback() {
+  FlutterForegroundTask.setTaskHandler(MyTaskHandler());
+}
+
+class MyTaskHandler extends TaskHandler {
+  @override
+  Future<void> onStart(DateTime timestamp, TaskStarter starter) async {}
+
+  @override
+  void onRepeatEvent(DateTime timestamp, TaskStarter starter) async {
+    // ✅ 1. SharedPreferences 접근 안정화 (reload 추가)
+    final p = await SharedPreferences.getInstance();
+    await p.reload(); 
+
+    if (!(p.getBool('auto_sms_enabled') ?? false)) return;
+
+    String? last = p.getString('lastCheckIn');
+    String? contactsJson = p.getString('contacts_list');
+    int selectedHours = p.getInt('selectedHours') ?? 1;
+
+    if (last == null || contactsJson == null || contactsJson == "[]") return;
+
+    DateTime lastTime = DateFormat('yyyy-MM-dd HH:mm').parse(last);
+    int limitMin = selectedHours == 0 ? 5 : selectedHours * 60;
+
+    if (DateTime.now().difference(lastTime).inMinutes >= limitMin) {
+      try {
+        Position pos = await Geolocator.getCurrentPosition(
+          desiredAccuracy: LocationAccuracy.high,
+          timeLimit: const Duration(seconds: 10),
+        );
+        List contacts = json.decode(contactsJson);
+        
+        for (var c in contacts) {
+          // ✅ 2. SMS 결과 확인 로직 추가 (삼성/샤오미 대응)
+          SmsStatus result = await BackgroundSms.sendMessage(
+            phoneNumber: c['number'],
+            message: "[안심 지킴이] 응답 없음! 구글맵 확인:\nhttp://google.com/maps?q=${pos.latitude},${pos.longitude}"
+          );
+          
+          debugPrint("SMS 발송 결과: $result");
+          
+          // 서비스 알림창에 전송 상태 표시
+          FlutterForegroundTask.updateService(
+            notificationTitle: '안심 지키미 알림',
+            notificationText: result == SmsStatus.sent ? '긴급 문자 발송 완료' : '문자 발송 실패(권한 확인 필요)',
+          );
+        }
+
+        String now = DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now());
+        await p.setString('lastCheckIn', now);
+      } catch (e) {
+        debugPrint("백그라운드 에러: $e");
+      }
+    }
+  }
+
+  @override
+  Future<void> onDestroy(DateTime timestamp, TaskStarter starter) async {}
+}
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -40,70 +104,82 @@ class _MainNavigationState extends State<MainNavigation> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _showNoticeDialog();
-    });
+    _initForegroundTask();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _showNoticeDialog());
   }
 
+  void _initForegroundTask() {
+    FlutterForegroundTask.init(
+      androidNotificationOptions: AndroidNotificationOptions(
+        channelId: 'safety_service',
+        channelName: '안심 지킴이 감시 서비스',
+        channelImportance: NotificationChannelImportance.DEFAULT,
+        priority: NotificationPriority.HIGH, // 우선순위 상향
+        iconData: const NotificationIconData(resType: ResourceType.mipmap, resPrefix: ResourcePrefix.ic, name: 'launcher'),
+      ),
+      iosNotificationOptions: const IOSNotificationOptions(showNotification: true, playSound: false),
+      foregroundTaskOptions: const ForegroundTaskOptions(
+        interval: 180000, // 3분
+        isOnceEvent: false,
+        autoRunOnBoot: true,
+        allowWakeLock: true,
+        allowWifiLock: true,
+      ),
+    );
+  }
+
+  // ✅ 3. 강력한 경고 문구로 수정된 권한 다이얼로그
   void _showNoticeDialog() {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-          title: const Row(
-            children: [
-              Icon(Icons.security, color: Color(0xFFFF8A65)),
-              SizedBox(width: 10),
-              Text("필수 기능 안내", style: TextStyle(fontWeight: FontWeight.bold)),
-            ],
-          ),
-          content: const Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text("안녕하세요. 안심 지키미입니다.\n", style: TextStyle(fontWeight: FontWeight.bold)),
-              Text("앱이 꺼져 있어도 3분마다 안부를 확인하기 위해 아래 설정이 반드시 필요합니다.", style: TextStyle(fontSize: 13, color: Colors.black87)),
-              SizedBox(height: 15),
-              Text("1. 위치: '항상 허용'\n2. SMS 및 연락처 권한\n3. 배터리 최적화 제외 (필수)", 
-                  style: TextStyle(fontSize: 12, height: 1.5)),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-                _initPermissions();
-              },
-              child: const Text("확인 및 설정", style: TextStyle(color: Color(0xFF5C6BC0), fontWeight: FontWeight.bold)),
-            ),
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+        title: const Text("⚠️ 필수 설정 안내", style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
+        content: const Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text("삼성/샤오미 폰 사용자는 아래 설정을 안 하면\n위험 상황 시 문자가 절대 발송되지 않습니다.\n", style: TextStyle(fontSize: 13)),
+            Divider(),
+            Text("1. 위치: '항상 허용'\n2. 배터리: '제한 없음' 설정\n3. SMS/연락처 권한 승인", style: TextStyle(fontSize: 12, height: 1.8)),
           ],
-        );
-      },
+        ),
+        actions: [
+          TextButton(
+            onPressed: () { Navigator.pop(context); _startServiceWithPermissions(); },
+            child: const Text("설정 및 서비스 시작"),
+          )
+        ],
+      ),
     );
   }
 
-  Future<void> _initPermissions() async {
-    await [Permission.sms, Permission.contacts, Permission.location].request();
-    if (await Permission.location.isGranted) {
-      await Permission.locationAlways.request();
-    }
-    if (await Permission.ignoreBatteryOptimizations.isDenied) {
-      await Permission.ignoreBatteryOptimizations.request();
+  Future<void> _startServiceWithPermissions() async {
+    await [Permission.sms, Permission.contacts, Permission.location, Permission.notification].request();
+    await Permission.locationAlways.request();
+    await Permission.ignoreBatteryOptimizations.request(); // 핵심 대책
+
+    if (await FlutterForegroundTask.isRunningService) {
+      await FlutterForegroundTask.restartService();
+    } else {
+      await FlutterForegroundTask.startService(
+        notificationTitle: '안심 지키미 작동 중',
+        notificationText: '3분마다 안전을 확인하고 있습니다.',
+        callback: startCallback,
+      );
     }
   }
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    body: IndexedStack(index: _currentIndex, children: _screens),
+    body: WithForegroundTask(child: IndexedStack(index: _currentIndex, children: _screens)),
     bottomNavigationBar: BottomNavigationBar(
       currentIndex: _currentIndex,
       selectedItemColor: const Color(0xFFFF8A65),
       onTap: (index) => setState(() => _currentIndex = index),
       items: const [
-        BottomNavigationBarItem(icon: Icon(Icons.home_filled, size: 20), label: '홈'),
-        BottomNavigationBarItem(icon: Icon(Icons.settings, size: 20), label: '설정'),
+        BottomNavigationBarItem(icon: Icon(Icons.home_filled), label: '홈'),
+        BottomNavigationBarItem(icon: Icon(Icons.settings), label: '설정'),
       ],
     ),
   );
@@ -115,67 +191,21 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
+class _HomeScreenState extends State<HomeScreen> {
   String _lastCheckIn = "기록 없음";
-  String _locationInfo = "위치 확인 중..."; 
-  int _selectedHours = 1; 
-  Timer? _timer;
-  bool _isPressed = false;
-  late AnimationController _controller;
-  late Animation<double> _scaleAnimation;
+  int _selectedHours = 1;
+  bool _isRunning = false;
 
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(vsync: this, duration: const Duration(milliseconds: 100));
-    _scaleAnimation = Tween<double>(begin: 1.0, end: 0.94).animate(_controller);
     _loadData();
-    _updateLocation();
-    // 3분마다 자동 체크
-    _timer = Timer.periodic(const Duration(minutes: 3), (t) => _checkAndSendSms());
+    _checkServiceStatus();
   }
 
-  Future<void> _updateLocation() async {
-    try {
-      Position pos = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.medium);
-      if (mounted) setState(() => _locationInfo = "${pos.latitude.toStringAsFixed(6)}, ${pos.longitude.toStringAsFixed(6)}");
-    } catch (e) {
-      if (mounted) setState(() => _locationInfo = "위치 확인 불가");
-    }
-  }
-
-  Future<void> _checkAndSendSms() async {
-    final p = await SharedPreferences.getInstance();
-    if (!(p.getBool('auto_sms_enabled') ?? false)) return;
-
-    String? last = p.getString('lastCheckIn');
-    String? contactsJson = p.getString('contacts_list');
-    if (last == null || contactsJson == null || contactsJson == "[]") return;
-    
-    DateTime lastTime = DateFormat('yyyy-MM-dd HH:mm').parse(last);
-    int limitMin = _selectedHours == 0 ? 5 : _selectedHours * 60;
-    
-    if (DateTime.now().difference(lastTime).inMinutes >= limitMin) {
-      Position pos = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.medium);
-      List contacts = json.decode(contactsJson);
-      
-      for (var c in contacts) {
-        // ✅ [수정] 구글맵 참고 문구 및 다이렉트 링크 추가
-        await BackgroundSms.sendMessage(
-          phoneNumber: c['number'], 
-          message: "[안심 지킴이] 사용자 응답 없음!\n아래 구글맵 링크를 참고하세요.\nhttps://www.google.com/maps?q=${pos.latitude},${pos.longitude}"
-        );
-      }
-      _updateCheckIn();
-    }
-  }
-
-  void _updateCheckIn() async {
-    String now = DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now());
-    final p = await SharedPreferences.getInstance();
-    await p.setString('lastCheckIn', now);
-    if (mounted) setState(() => _lastCheckIn = now);
-    _updateLocation();
+  void _checkServiceStatus() async {
+    bool running = await FlutterForegroundTask.isRunningService;
+    setState(() => _isRunning = running);
   }
 
   void _loadData() async {
@@ -186,70 +216,61 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     });
   }
 
-  @override
-  void dispose() { _timer?.cancel(); _controller.dispose(); super.dispose(); }
+  void _updateCheckIn() async {
+    String now = DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now());
+    final p = await SharedPreferences.getInstance();
+    await p.setString('lastCheckIn', now);
+    setState(() => _lastCheckIn = now);
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter, end: Alignment.bottomCenter,
-            colors: [Color(0xFFE3F2FD), Color(0xFFFFFDF9)],
-            stops: [0.0, 0.4],
-          ),
-        ),
-        child: SafeArea(
-          child: Column(
-            children: [
-              const SizedBox(height: 40),
-              const Center(child: Text("안심 지키미", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF5C6BC0)))),
-              const SizedBox(height: 8),
-              Text(_locationInfo, style: const TextStyle(color: Color(0xFF5C6BC0), fontSize: 12)),
-              const SizedBox(height: 25),
-              Wrap(
-                spacing: 6,
-                children: [0, 1, 12, 24].map((h) => ChoiceChip(
-                  label: Text(h == 0 ? "5분" : "$h시간", style: const TextStyle(fontSize: 11)),
-                  selected: _selectedHours == h,
-                  onSelected: (v) async {
-                    setState(() => _selectedHours = h);
-                    (await SharedPreferences.getInstance()).setInt('selectedHours', h);
-                  },
-                )).toList(),
-              ),
-              const Spacer(flex: 2),
-              Text(_lastCheckIn, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
-              const SizedBox(height: 30),
-              GestureDetector(
-                onTapDown: (_) { setState(() => _isPressed = true); _controller.forward(); },
-                onTapUp: (_) { setState(() => _isPressed = false); _controller.reverse(); _updateCheckIn(); },
-                child: ScaleTransition(
-                  scale: _scaleAnimation,
-                  child: Container(
-                    width: 200, height: 200,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle, color: Colors.white,
-                      border: Border.all(color: Colors.black.withOpacity(0.05), width: 1),
-                      boxShadow: [
-                        BoxShadow(
-                          color: _isPressed ? const Color(0xFFFFC1CC).withOpacity(0.6) : Colors.black.withOpacity(0.03),
-                          blurRadius: _isPressed ? 25 : 15, spreadRadius: _isPressed ? 8 : 1,
-                        )
-                      ],
-                    ),
-                    child: ClipOval(
-                      child: Image.asset('assets/smile.png', fit: BoxFit.cover, errorBuilder: (c,e,s) => const Icon(Icons.face, size: 100, color: Colors.orange)),
-                    ),
-                  ),
+      body: SafeArea(
+        child: Column(
+          children: [
+            const SizedBox(height: 40),
+            // ✅ 서비스 실행 상태 시각화
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  width: 10, height: 10,
+                  decoration: BoxDecoration(shape: BoxShape.circle, color: _isRunning ? Colors.green : Colors.red),
                 ),
+                const SizedBox(width: 8),
+                Text(_isRunning ? "지킴이 작동 중" : "지킴이 정지됨", style: const TextStyle(fontSize: 12, color: Colors.grey)),
+              ],
+            ),
+            const SizedBox(height: 20),
+            const Text("안심 지키미", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF5C6BC0))),
+            const SizedBox(height: 25),
+            Wrap(
+              spacing: 8,
+              children: [0, 1, 12, 24].map((h) => ChoiceChip(
+                label: Text(h == 0 ? "5분" : "$h시간", style: const TextStyle(fontSize: 11)),
+                selected: _selectedHours == h,
+                onSelected: (v) async {
+                  setState(() => _selectedHours = h);
+                  (await SharedPreferences.getInstance()).setInt('selectedHours', h);
+                },
+              )).toList(),
+            ),
+            const Spacer(),
+            Text(_lastCheckIn, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+            const SizedBox(height: 30),
+            GestureDetector(
+              onTap: _updateCheckIn,
+              child: Container(
+                width: 180, height: 180,
+                decoration: const BoxDecoration(shape: BoxShape.circle, color: Colors.white, boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 15)]),
+                child: const Icon(Icons.face_retouching_natural, size: 80, color: Colors.orangeAccent),
               ),
-              const Spacer(flex: 3),
-              const Text("미응답 시 보호자에게 위치가 전송됩니다.", style: TextStyle(color: Colors.grey, fontSize: 11)),
-              const SizedBox(height: 40),
-            ],
-          ),
+            ),
+            const Spacer(flex: 2),
+            const Text("미응답 시 보호자에게 위치가 발송됩니다.", style: TextStyle(color: Colors.grey, fontSize: 11)),
+            const SizedBox(height: 40),
+          ],
         ),
       ),
     );
@@ -279,90 +300,60 @@ class _SettingScreenState extends State<SettingScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("설정", style: TextStyle(fontSize: 16)), centerTitle: true, elevation: 0, backgroundColor: Colors.transparent),
+      appBar: AppBar(title: const Text("설정", style: TextStyle(fontSize: 16)), centerTitle: true),
       body: Column(
         children: [
+          // ✅ 시스템 설정 바로가기 배너 (강조)
           Container(
-            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            margin: const EdgeInsets.all(16),
             padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: const Color(0xFFFFE0B2).withOpacity(0.4),
-              borderRadius: BorderRadius.circular(12),
-            ),
+            decoration: BoxDecoration(color: Colors.red.withOpacity(0.05), borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.red.withOpacity(0.2))),
             child: Row(
               children: [
-                const Icon(Icons.security, color: Colors.orange, size: 24),
+                const Icon(Icons.error_outline, color: Colors.red),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text("필수 권한 안내", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                      const Text("3분 체크 기능을 위해 배터리 최적화 제외 설정이 필수입니다.", style: TextStyle(fontSize: 11, color: Colors.black87)),
+                      const Text("삼성/샤오미 필수 체크", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                      const Text("앱 배터리 설정을 '제한 없음'으로 하셨나요?", style: TextStyle(fontSize: 11)),
                       const SizedBox(height: 4),
-                      InkWell(
-                        onTap: () => openAppSettings(),
-                        child: const Text("설정 바로가기 >", style: TextStyle(color: Colors.blue, fontWeight: FontWeight.bold, fontSize: 11)),
-                      )
+                      InkWell(onTap: () => openAppSettings(), child: const Text("지금 확인하기 >", style: TextStyle(color: Colors.blue, fontWeight: FontWeight.bold, fontSize: 11))),
                     ],
                   ),
-                ),
+                )
               ],
             ),
           ),
-          
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text("자동 문자 전송 활성화", style: TextStyle(fontSize: 14)),
-                Transform.scale(
-                  scale: 0.8,
-                  child: Switch(
-                    value: _autoSmsEnabled,
-                    activeColor: Colors.white,
-                    activeTrackColor: const Color(0xFFFF8A65),
-                    onChanged: (v) async {
-                      final p = await SharedPreferences.getInstance();
-                      await p.setBool('auto_sms_enabled', v);
-                      setState(() => _autoSmsEnabled = v);
-                    },
-                  ),
-                ),
-              ],
-            ),
+          SwitchListTile(
+            title: const Text("자동 문자 발송 활성화"),
+            value: _autoSmsEnabled,
+            activeColor: const Color(0xFFFF8A65),
+            onChanged: (v) async {
+              final p = await SharedPreferences.getInstance();
+              await p.setBool('auto_sms_enabled', v);
+              setState(() => _autoSmsEnabled = v);
+            },
           ),
-          
-          const Divider(height: 20),
-          
+          const Divider(),
           Expanded(child: ListView.builder(
             itemCount: _contacts.length,
             itemBuilder: (c, i) => ListTile(
-              dense: true,
-              leading: const CircleAvatar(radius: 14, backgroundColor: Color(0xFFE3F2FD), child: Icon(Icons.person, size: 16, color: Colors.blue)),
-              title: Text(_contacts[i]['name'], style: const TextStyle(fontSize: 13)),
-              subtitle: Text(_contacts[i]['number'], style: const TextStyle(fontSize: 11)),
-              trailing: IconButton(icon: const Icon(Icons.delete_outline, size: 18, color: Colors.redAccent), onPressed: () async {
+              title: Text(_contacts[i]['name'] ?? '이름 없음'),
+              subtitle: Text(_contacts[i]['number'] ?? '번호 없음'),
+              trailing: IconButton(icon: const Icon(Icons.delete_outline, color: Colors.redAccent), onPressed: () async {
                 setState(() => _contacts.removeAt(i));
                 (await SharedPreferences.getInstance()).setString('contacts_list', json.encode(_contacts));
               }),
             ),
           )),
-          
           Padding(
             padding: const EdgeInsets.all(20),
             child: SizedBox(
-              width: double.infinity,
-              height: 48,
-              child: ElevatedButton.icon(
-                icon: const Icon(Icons.person_add_alt_1, size: 18),
-                label: const Text("보호자 추가", style: TextStyle(fontSize: 14)),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF5C6BC0), 
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))
-                ),
+              width: double.infinity, height: 50,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF5C6BC0), foregroundColor: Colors.white),
                 onPressed: () async {
                   if (await Permission.contacts.request().isGranted) {
                     final c = await ContactsService.openDeviceContactPicker();
@@ -372,9 +363,10 @@ class _SettingScreenState extends State<SettingScreen> {
                     }
                   }
                 },
+                child: const Text("보호자 연락처 추가"),
               ),
             ),
-          ),
+          )
         ],
       ),
     );
