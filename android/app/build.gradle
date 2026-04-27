@@ -9,10 +9,18 @@ if (localPropertiesFile.exists()) {
 def flutterVersionCode = localProperties.getProperty('flutter.versionCode') ?: '1'
 def flutterVersionName = localProperties.getProperty('flutter.versionName') ?: '1.0.0'
 
+// ✅ 핵심 수정: 이미지에서 확인된 flutter { source } 구문 대신 
+// Flutter SDK 경로를 직접 참조하여 플러그인을 적용해야 합니다.
+def flutterRoot = localProperties.getProperty('flutter.sdk')
+if (flutterRoot == null) {
+    flutterRoot = System.getenv('FLUTTER_ROOT')
+}
+
 apply plugin: 'com.android.application'
 apply plugin: 'kotlin-android'
 apply plugin: 'com.google.gms.google-services'
-apply plugin: 'dev.flutter.flutter-gradle-plugin'
+// ✅ Flutter Gradle 플러그인 로드
+apply from: "$flutterRoot/packages/flutter_tools/gradle/flutter.gradle"
 
 android {
     namespace "com.hello_morning"
@@ -29,7 +37,7 @@ android {
 
     defaultConfig {
         applicationId "com.hello_morning"
-        // ✅ 빌드 에러 해결을 위해 23으로 설정
+        // ✅ 이미지 로그의 요구사항대로 23 설정
         minSdkVersion 23 
         targetSdkVersion 34
         versionCode flutterVersionCode.toInteger()
@@ -43,6 +51,11 @@ android {
             minifyEnabled false
         }
     }
+}
+
+// ✅ Flutter 설정 블록
+flutter {
+    source '../..'
 }
 
 dependencies {
