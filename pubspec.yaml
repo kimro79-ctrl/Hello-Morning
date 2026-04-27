@@ -17,6 +17,8 @@ dependencies:
   background_sms: ^0.0.4
   geolocator: ^11.1.0
   http: ^1.1.0
+  # ✅ 아래 패키지가 반드시 있어야 합니다
+  flutter_foreground_task: ^6.1.1
 
 dev_dependencies:
   flutter_test:
@@ -27,5 +29,4 @@ flutter:
   uses-material-design: true
   assets:
     - assets/smile.png
-    # ✅ 업로드하신 아이콘 경로 추가
-    - assets/icon/1인가구 안심 지키미.png
+    - assets/icon/1번가구 안심 지키미.png
