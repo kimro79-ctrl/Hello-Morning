@@ -16,7 +16,7 @@ dependencies:
   intl: ^0.19.0
   background_sms: ^0.0.4
   geolocator: ^11.1.0
-  flutter_foreground_task: ^6.1.1 # 백그라운드 서비스 필수
+  flutter_foreground_task: ^6.1.1
 
 dev_dependencies:
   flutter_test:
@@ -27,4 +27,4 @@ flutter:
   uses-material-design: true
   assets:
     - assets/smile.png
-    - assets/icon/1인가구 안심 지키미.png
+    - assets/icon/safety_icon.png # ✅ 바뀐 파일명 반영 완료
