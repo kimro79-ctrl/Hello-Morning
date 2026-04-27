@@ -29,7 +29,7 @@ android {
 
     defaultConfig {
         applicationId "com.hello_morning"
-        // ✅ 21에서 23으로 상향 조정하여 플러그인 호환성 해결
+        // ✅ 빌드 에러 해결을 위해 23으로 설정
         minSdkVersion 23 
         targetSdkVersion 34
         versionCode flutterVersionCode.toInteger()
