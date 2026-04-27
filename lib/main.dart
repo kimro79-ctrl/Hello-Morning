@@ -19,8 +19,7 @@ class DailySafetyApp extends StatelessWidget {
   Widget build(BuildContext context) => MaterialApp(
     debugShowCheckedModeBanner: false,
     theme: ThemeData(
-      // ✅ 요청하신 진한 아이보리 배경색
-      scaffoldBackgroundColor: const Color(0xFFF5F5DC),
+      scaffoldBackgroundColor: const Color(0xFFF5F5DC), // 진한 아이보리
       useMaterial3: true,
       colorSchemeSeed: const Color(0xFFFF8A65),
     ),
@@ -147,7 +146,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     _scaleAnimation = Tween<double>(begin: 1.0, end: 0.94).animate(_controller);
     _loadData();
     _updateLocation();
-    // ✅ 요청하신 3분 타이머 주기 적용
     _timer = Timer.periodic(const Duration(minutes: 3), (t) => _checkAndSendSms());
   }
 
@@ -177,7 +175,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       for (var c in contacts) {
         await BackgroundSms.sendMessage(
           phoneNumber: c['number'], 
-          message: "[1인가구 안심 지키미] 사용자 응답 지연!\n좌표: ${pos.latitude},${pos.longitude}\n구글맵에 좌표를 검색하세요."
+          message: "[1인가구 안심 지키미] 응답 지연 발생!\n좌표: ${pos.latitude},${pos.longitude}"
         );
       }
       _updateCheckIn();
@@ -260,8 +258,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     ),
                     child: ClipOval(
                       child: Image.asset(
-                        // ✅ 업로드하신 아이콘 이미지 경로 적용
-                        'assets/icon/1인가구 안심 지키미.png', 
+                        'assets/smile.png', // ✅ 다시 smile.png로 원상복구 했습니다!
                         fit: BoxFit.cover,
                         errorBuilder: (c,e,s) => const Icon(Icons.face, size: 100, color: Colors.orange)
                       ),
@@ -358,7 +355,6 @@ class _SettingScreenState extends State<SettingScreen> {
                         ),
                       ],
                     ),
-                    // ✅ 입체감이 강조된 스위치 디자인 유지
                     child: Switch(
                       value: _autoSmsEnabled,
                       activeColor: Colors.white,
