@@ -5,12 +5,12 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:intl/intl.dart';
 import 'package:background_sms/background_sms.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:flutter_foreground_task/flutter_foreground_task.dart'; // ✅ 패키지 적용 확인
+import 'package:flutter_foreground_task/flutter_foreground_task.dart'; // ✅ 에러 해결을 위한 필수 임포트
 import 'dart:async';
 import 'dart:convert';
 import 'dart:isolate';
 
-// ✅ 포그라운드 서비스 핸들러 (앱이 꺼져도 3분마다 체크)
+// ✅ 포그라운드 작업 핸들러 (앱 종료 시에도 동작)
 @pragma('vm:entry-point')
 void startCallback() {
   FlutterForegroundTask.setTaskHandler(MyTaskHandler());
@@ -34,13 +34,10 @@ class MyTaskHandler extends TaskHandler {
     DateTime lastTime = DateFormat('yyyy-MM-dd HH:mm').parse(last);
     int limitMin = selectedHours == 0 ? 5 : selectedHours * 60;
 
-    // 설정 시간이 지났는지 확인
     if (DateTime.now().difference(lastTime).inMinutes >= limitMin) {
       Position pos = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.medium);
       List contacts = json.decode(contactsJson);
-      
-      // ✅ 구글 맵 링크 포함 문자 발송
-      String googleMapsUrl = "https://www.google.com/maps?q=${pos.latitude},${pos.longitude}";
+      String googleMapsUrl = "https://www.google.com/maps/search/?api=1&query=${pos.latitude},${pos.longitude}";
 
       for (var c in contacts) {
         await BackgroundSms.sendMessage(
@@ -48,9 +45,8 @@ class MyTaskHandler extends TaskHandler {
           message: "[안심 지키미] 응답 지연 발생!\n위치 확인: $googleMapsUrl"
         );
       }
-      // 발송 후 체크인 시간 자동 갱신
-      String now = DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now());
-      await p.setString('lastCheckIn', now);
+      // 발송 후 자동 갱신으로 중복 발송 방지
+      await p.setString('lastCheckIn', DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now()));
     }
   }
 
@@ -69,7 +65,7 @@ class DailySafetyApp extends StatelessWidget {
   Widget build(BuildContext context) => MaterialApp(
     debugShowCheckedModeBanner: false,
     theme: ThemeData(
-      scaffoldBackgroundColor: const Color(0xFFF5F5DC), // ✅ 원본 진한 아이보리 유지
+      [span_0](start_span)scaffoldBackgroundColor: const Color(0xFFF5F5DC), // ✅ 원본 아이보리 유지[span_0](end_span)
       useMaterial3: true,
       colorSchemeSeed: const Color(0xFFFF8A65),
     ),
@@ -90,26 +86,25 @@ class _MainNavigationState extends State<MainNavigation> {
   @override
   void initState() {
     super.initState();
-    _initForegroundTask(); // ✅ 서비스 초기화
+    _initForegroundTask(); // ✅ 서비스 초기화 호출
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _showNoticeDialog();
+      _[span_1](start_span)showNoticeDialog(); // ✅ 권한 안내 다이얼로그[span_1](end_span)
     });
   }
 
-  // ✅ 포그라운드 설정
   void _initForegroundTask() {
     FlutterForegroundTask.init(
       androidNotificationOptions: AndroidNotificationOptions(
-        channelId: 'safety_check',
-        channelName: '안심 지키미 보호 중',
-        channelDescription: '사용자의 안전 상태를 확인하고 있습니다.',
+        channelId: 'safety_check_channel',
+        channelName: '안심 지키미 서비스',
+        channelDescription: '사용자의 안전 상태를 실시간으로 모니터링합니다.',
         channelImportance: NotificationChannelImportance.LOW,
         priority: NotificationPriority.LOW,
         iconData: const NotificationIconData(resType: ResourceType.mipmap, resPrefix: ResourcePrefix.ic, name: 'launcher'),
       ),
       iosNotificationOptions: const IOSNotificationOptions(),
       foregroundTaskOptions: const ForegroundTaskOptions(
-        interval: 180000, // 3분 주기
+        interval: 180000, // ✅ 3분 주기
         isOnceEvent: false,
         autoRunOnBoot: true,
         allowWakeLock: true,
@@ -222,7 +217,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         decoration: const BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter, end: Alignment.bottomCenter,
-            colors: [Color(0xFFE3F2FD), Color(0xFFF5F5DC)], // ✅ 그라데이션 유지
+            [span_2](start_span)colors: [Color(0xFFE3F2FD), Color(0xFFF5F5DC)], // ✅ 그라데이션[span_2](end_span)
             stops: [0.0, 0.4],
           ),
         ),
@@ -234,7 +229,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               const SizedBox(height: 8),
               Text(_locationInfo, style: const TextStyle(color: Color(0xFF5C6BC0), fontSize: 12)),
               const SizedBox(height: 25),
-              // ✅ 5분, 1시간 등 시간 선택 칩 유지
               Wrap(
                 spacing: 6,
                 children: [0, 1, 12, 24].map((h) => ChoiceChip(
@@ -257,16 +251,15 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   child: Container(
                     width: 200, height: 200,
                     decoration: BoxDecoration(
-                      shape: BoxShape.circle, 
-                      color: Colors.white, 
+                      shape: BoxShape.circle, color: Colors.white,
                       boxShadow: [
                         BoxShadow(
-                          color: _isPressed ? const Color(0xFFFFC1CC).withOpacity(0.6) : Colors.black.withOpacity(0.03), // ✅ 핑크빛 그림자 유지
+                          [span_3](start_span)color: _isPressed ? const Color(0xFFFFC1CC).withOpacity(0.6) : Colors.black.withOpacity(0.03), // ✅ 핑크 그림자[span_3](end_span)
                           blurRadius: _isPressed ? 25 : 15, spreadRadius: _isPressed ? 8 : 1,
                         )
                       ],
                     ),
-                    child: ClipOval(child: Image.asset('assets/smile.png', fit: BoxFit.cover, errorBuilder: (c,e,s) => const Icon(Icons.face, size: 100, color: Colors.orange))),
+                    [span_4](start_span)child: ClipOval(child: Image.asset('assets/smile.png', fit: BoxFit.cover, errorBuilder: (c,e,s) => const Icon(Icons.face, size: 100, color: Colors.orange))), // ✅ smile.png 원상복구[span_4](end_span)
                   ),
                 ),
               ),
@@ -301,12 +294,11 @@ class _SettingScreenState extends State<SettingScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return WithForegroundTask( // ✅ 포그라운드 위젯 감싸기
+    return WithForegroundTask( // ✅ 포그라운드 위젯 (임포트 완료)
       child: Scaffold(
         appBar: AppBar(title: const Text("보호자 설정", style: TextStyle(fontSize: 16)), backgroundColor: Colors.transparent, centerTitle: true, elevation: 0),
         body: Column(
           children: [
-            // ✅ 요청하신 권한 안내 배너 유지
             Container(
               margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               padding: const EdgeInsets.all(12),
@@ -338,7 +330,6 @@ class _SettingScreenState extends State<SettingScreen> {
                 await p.setBool('auto_sms_enabled', v);
                 setState(() => _autoSmsEnabled = v);
                 
-                // ✅ 스위치 켜면 서비스 시작, 끄면 종료
                 if (v) {
                   if (!await FlutterForegroundTask.isRunningTask) {
                     FlutterForegroundTask.startService(notificationTitle: '안심 지키미 작동 중', notificationText: '당신의 안전을 확인하고 있습니다.', callback: startCallback);
