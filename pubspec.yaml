@@ -17,8 +17,7 @@ dependencies:
   background_sms: ^0.0.4
   geolocator: ^11.1.0
   http: ^1.1.0
-  # ✅ SDK 21(기본값)에서도 잘 돌아가는 버전입니다.
-  flutter_foreground_task: ^5.0.0
+  flutter_foreground_task: ^6.1.1
 
 dev_dependencies:
   flutter_test:
