@@ -19,7 +19,8 @@ class DailySafetyApp extends StatelessWidget {
   Widget build(BuildContext context) => MaterialApp(
     debugShowCheckedModeBanner: false,
     theme: ThemeData(
-      scaffoldBackgroundColor: const Color(0xFFFFFDF9),
+      // ✅ [수정] 배경색을 좀 더 진한 아이보리로 변경
+      scaffoldBackgroundColor: const Color(0xFFF5F5DC),
       useMaterial3: true,
       colorSchemeSeed: const Color(0xFFFF8A65),
     ),
@@ -40,17 +41,16 @@ class _MainNavigationState extends State<MainNavigation> {
   @override
   void initState() {
     super.initState();
-    // 앱 실행 후 첫 프레임이 그려지면 고지 팝업을 띄움
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _showNoticeDialog();
     });
   }
 
-  // ✅ [추가] 필수 권한 고지 팝업 로직
+  // ✅ [수정] 앱 이름 '1인가구 안심 지키미' 반영
   void _showNoticeDialog() {
     showDialog(
       context: context,
-      barrierDismissible: false, // 팝업 밖을 눌러도 닫히지 않게 함
+      barrierDismissible: false,
       builder: (BuildContext context) {
         return AlertDialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
@@ -65,14 +65,14 @@ class _MainNavigationState extends State<MainNavigation> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text("안녕하세요. 안심 지키미입니다.\n", style: TextStyle(fontWeight: FontWeight.bold)),
-              Text("보호 대상자의 안전을 위해 아래 두 가지 권한이 반드시 필요합니다.", style: TextStyle(fontSize: 13, color: Colors.black87)),
+              Text("안녕하세요. '1인가구 안심 지키미'입니다.\n", style: TextStyle(fontWeight: FontWeight.bold)),
+              Text("사용자의 안전을 위해 아래 두 가지 권한이 반드시 필요합니다.", style: TextStyle(fontSize: 13, color: Colors.black87)),
               SizedBox(height: 15),
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text("1. ", style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF5C6BC0))),
-                  Expanded(child: Text("백그라운드 위치 (항상 허용)\n앱이 꺼져 있어도 위험 상황을 감지하고 위치를 파악하기 위해 필요합니다.", style: TextStyle(fontSize: 12))),
+                  Expanded(child: Text("백그라운드 위치 (항상 허용)\n위급 상황 발생 시 정확한 위치 파악을 위해 필요합니다.", style: TextStyle(fontSize: 12))),
                 ],
               ),
               SizedBox(height: 10),
@@ -80,18 +80,18 @@ class _MainNavigationState extends State<MainNavigation> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text("2. ", style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF5C6BC0))),
-                  Expanded(child: Text("SMS 발송\n응답이 없을 때 보호자에게 자동으로 구조 요청 문자를 보내기 위해 필요합니다.", style: TextStyle(fontSize: 12))),
+                  Expanded(child: Text("SMS 발송\n설정된 시간 동안 응답이 없으면 보호자에게 문자를 전송합니다.", style: TextStyle(fontSize: 12))),
                 ],
               ),
               SizedBox(height: 15),
-              Text("* 다음 화면에서 권한 요청 시 모두 허용해주셔야 앱이 정상 작동합니다.", style: TextStyle(fontSize: 11, color: Colors.grey)),
+              Text("* 원활한 보호를 위해 모든 권한을 허용해주세요.", style: TextStyle(fontSize: 11, color: Colors.grey)),
             ],
           ),
           actions: [
             TextButton(
               onPressed: () {
-                Navigator.of(context).pop(); // 팝업 닫기
-                _initPermissions(); // 고지 후 실제 권한 요청 진행
+                Navigator.of(context).pop();
+                _initPermissions();
               },
               child: const Text("확인 및 권한 설정", style: TextStyle(color: Color(0xFF5C6BC0), fontWeight: FontWeight.bold)),
             ),
@@ -148,7 +148,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     _scaleAnimation = Tween<double>(begin: 1.0, end: 0.94).animate(_controller);
     _loadData();
     _updateLocation();
-    _timer = Timer.periodic(const Duration(minutes: 5), (t) => _checkAndSendSms());
+    // ✅ [수정] 타이머 주기를 3분으로 조정
+    _timer = Timer.periodic(const Duration(minutes: 3), (t) => _checkAndSendSms());
   }
 
   Future<void> _updateLocation() async {
@@ -169,6 +170,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     if (last == null || contactsJson == null || contactsJson == "[]") return;
     
     DateTime lastTime = DateFormat('yyyy-MM-dd HH:mm').parse(last);
+    // 0시간(5분 설정)일 경우 5분 적용, 그 외에는 시간 단위 적용
     int limitMin = _selectedHours == 0 ? 5 : _selectedHours * 60;
     
     if (DateTime.now().difference(lastTime).inMinutes >= limitMin) {
@@ -177,7 +179,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       for (var c in contacts) {
         await BackgroundSms.sendMessage(
           phoneNumber: c['number'], 
-          message: "[안부 지킴이] 사용자 응답 지연!\n좌표: ${pos.latitude},${pos.longitude}\n구글맵에 좌표를 검색하세요."
+          message: "[1인가구 안심 지키미] 사용자 응답 지연!\n좌표: ${pos.latitude},${pos.longitude}\n구글맵에 좌표를 검색하세요."
         );
       }
       _updateCheckIn();
@@ -207,11 +209,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   Widget build(BuildContext context) {
     return Scaffold(
       body: Container(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter, end: Alignment.bottomCenter,
-            colors: [Color(0xFFE3F2FD), Color(0xFFFFFDF9)],
-            stops: [0.0, 0.4],
+            colors: [const Color(0xFFE3F2FD), const Color(0xFFF5F5DC)], // 아이보리 톤 반영
+            stops: const [0.0, 0.4],
           ),
         ),
         child: SafeArea(
@@ -219,7 +221,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             children: [
               const SizedBox(height: 40),
               const Center(
-                child: Text("안심 지키미", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF5C6BC0))),
+                child: Text("1인가구 안심 지키미", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF5C6BC0))),
               ),
               const SizedBox(height: 8),
               Text(_locationInfo, style: const TextStyle(color: Color(0xFF5C6BC0), fontSize: 12, fontWeight: FontWeight.w400)),
@@ -314,7 +316,7 @@ class _SettingScreenState extends State<SettingScreen> {
             margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: const Color(0xFFFFE0B2).withOpacity(0.4),
+              color: const Color(0xFFFFE0B2).withOpacity(0.6), // 좀 더 진한 오렌지 배경
               borderRadius: BorderRadius.circular(12),
             ),
             child: Row(
@@ -325,8 +327,8 @@ class _SettingScreenState extends State<SettingScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text("필수 권한 안내", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                      const Text("위치 권한을 '항상 허용'으로 설정해야 합니다.", style: TextStyle(fontSize: 11, color: Colors.black87)),
+                      const Text("권한 설정 확인", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                      const Text("위치 권한을 '항상 허용'으로 설정해야 보호가 가능합니다.", style: TextStyle(fontSize: 11, color: Colors.black87)),
                       const SizedBox(height: 4),
                       InkWell(
                         onTap: () => openAppSettings(),
@@ -339,31 +341,31 @@ class _SettingScreenState extends State<SettingScreen> {
             ),
           ),
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text("자동 문자 전송 활성화", style: TextStyle(fontSize: 14)),
+                const Text("자동 문자 전송 활성화", style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
                 Transform.scale(
-                  scale: 0.8,
-                  // ✅ [수정] 스위치 가시성 획기적 개선
+                  scale: 0.9,
                   child: Container(
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       boxShadow: [
                         BoxShadow(
-                          color: _autoSmsEnabled ? const Color(0xFFFF8A65).withOpacity(0.3) : Colors.black12,
-                          blurRadius: 10,
+                          color: _autoSmsEnabled ? const Color(0xFFFF8A65).withOpacity(0.5) : Colors.black12,
+                          blurRadius: 12,
                           spreadRadius: 2,
                         ),
                       ],
                     ),
+                    // ✅ [수정] 스위치 색상 대비 강화
                     child: Switch(
                       value: _autoSmsEnabled,
-                      activeColor: Colors.white, // 켰을 때 버튼 색상
-                      activeTrackColor: const Color(0xFFFF8A65), // 켰을 때 배경 색상을 더 짙게
-                      inactiveThumbColor: Colors.grey[400], // 껐을 때 버튼 색상
-                      inactiveTrackColor: Colors.grey[200], // 껐을 때 배경 색상
+                      activeColor: Colors.white,
+                      activeTrackColor: const Color(0xFFFF7043), // 더 짙은 오렌지색
+                      inactiveThumbColor: Colors.grey[600],
+                      inactiveTrackColor: Colors.grey[300],
                       onChanged: (v) async {
                         final p = await SharedPreferences.getInstance();
                         await p.setBool('auto_sms_enabled', v);
@@ -375,7 +377,7 @@ class _SettingScreenState extends State<SettingScreen> {
               ],
             ),
           ),
-          const Divider(height: 20),
+          const Divider(height: 30),
           Expanded(child: ListView.builder(
             itemCount: _contacts.length,
             itemBuilder: (c, i) => ListTile(
