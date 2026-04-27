@@ -13,15 +13,14 @@
     <application
         android:label="안심 지키미"
         android:name="${applicationName}"
-        android:icon="@android:drawable/ic_dialog_info" 
-        android:allowBackup="true"
-        android:supportsRtl="true">
+        android:icon="@android:drawable/btn_star" 
+        android:allowBackup="true">
 
         <activity
             android:name=".MainActivity"
             android:exported="true"
             android:launchMode="singleTop"
-            android:theme="@android:style/Theme.DeviceDefault.NoActionBar" 
+            android:theme="@android:style/Theme.DeviceDefault.NoActionBar"
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
             android:hardwareAccelerated="true"
             android:windowSoftInputMode="adjustResize">
