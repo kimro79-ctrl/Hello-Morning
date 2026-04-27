@@ -5,17 +5,18 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:intl/intl.dart';
 import 'package:background_sms/background_sms.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:flutter_foreground_task/flutter_foreground_task.dart';
+import 'package:flutter_foreground_task/flutter_foreground_task.dart'; // ✅ 패키지 추가 확인
 import 'dart:async';
 import 'dart:convert';
 import 'dart:isolate';
 
+// ✅ 백그라운드 콜백
 @pragma('vm:entry-point')
 void startCallback() {
   FlutterForegroundTask.setTaskHandler(MyTaskHandler());
 }
 
-// ✅ GitHub 빌드 로그의 'onEvent' 미구현 에러 해결 버전
+// ✅ 오류의 원인이었던 모든 메서드(onNotificationPressed 등)를 구현했습니다.
 class MyTaskHandler extends TaskHandler {
   @override
   Future<void> onStart(DateTime timestamp, SendPort? sendPort) async {}
@@ -25,7 +26,6 @@ class MyTaskHandler extends TaskHandler {
     await _runSafetyCheck();
   }
 
-  // ✅ 빌드 에러의 원인이었던 필수 메서드 추가
   @override
   Future<void> onEvent(DateTime timestamp, SendPort? sendPort) async {
     await _runSafetyCheck();
@@ -34,6 +34,7 @@ class MyTaskHandler extends TaskHandler {
   @override
   Future<void> onDestroy(DateTime timestamp, SendPort? sendPort) async {}
 
+  // ✅ [에러 해결] 알림창 클릭 시 앱을 실행하는 필수 메서드 추가
   @override
   void onNotificationPressed() => FlutterForegroundTask.launchApp();
 
@@ -57,7 +58,7 @@ class MyTaskHandler extends TaskHandler {
         for (var c in contacts) {
           await BackgroundSms.sendMessage(
             phoneNumber: c['number'],
-            message: "[안심 지키미] 응답 지연 발생! 위치: https://www.google.com/maps?q=${pos.latitude},${pos.longitude}"
+            message: "[안심 지키미] 응답 지연 발생! 위치: http://www.google.com/maps?q=${pos.latitude},${pos.longitude}"
           );
         }
         await p.setString('lastCheckIn', DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now()));
@@ -66,7 +67,7 @@ class MyTaskHandler extends TaskHandler {
   }
 }
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   runApp(const DailySafetyApp());
 }
@@ -76,11 +77,7 @@ class DailySafetyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) => MaterialApp(
     debugShowCheckedModeBanner: false,
-    theme: ThemeData(
-      scaffoldBackgroundColor: const Color(0xFFF5F5DC),
-      useMaterial3: true,
-      colorSchemeSeed: const Color(0xFFFF8A65),
-    ),
+    theme: ThemeData(scaffoldBackgroundColor: const Color(0xFFF5F5DC), useMaterial3: true, colorSchemeSeed: const Color(0xFFFF8A65)),
     home: const MainNavigation(),
   );
 }
@@ -100,6 +97,7 @@ class _MainNavigationState extends State<MainNavigation> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _initForegroundTask();
+      _showNoticeDialog();
     });
   }
 
@@ -113,13 +111,30 @@ class _MainNavigationState extends State<MainNavigation> {
         iconData: const NotificationIconData(resType: ResourceType.mipmap, resPrefix: ResourcePrefix.ic, name: 'launcher'),
       ),
       iosNotificationOptions: const IOSNotificationOptions(),
-      foregroundTaskOptions: const ForegroundTaskOptions(
-        interval: 300000,
-        autoRunOnBoot: true,
-        allowWakeLock: true,
-        allowWifiLock: true,
+      foregroundTaskOptions: const ForegroundTaskOptions(interval: 300000, autoRunOnBoot: true, allowWakeLock: true, allowWifiLock: true),
+    );
+  }
+
+  void _showNoticeDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+        title: const Text("필수 기능 안내", style: TextStyle(fontWeight: FontWeight.bold)),
+        content: const Text("위치(항상 허용)와 SMS 발송 권한 승인이 반드시 필요합니다."),
+        actions: [
+          TextButton(onPressed: () { Navigator.pop(context); _requestPermissions(); }, child: const Text("권한 설정하기")),
+        ],
       ),
     );
+  }
+
+  Future<void> _requestPermissions() async {
+    await [Permission.sms, Permission.contacts, Permission.location].request();
+    if (await Permission.location.isGranted) {
+      await Permission.locationAlways.request();
+    }
   }
 
   @override
@@ -147,7 +162,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   String _lastCheckIn = "기록 없음";
   String _locationInfo = "위치 확인 중...";
   int _selectedHours = 1;
-  bool _isPressed = false;
   late AnimationController _controller;
   late Animation<double> _scaleAnimation;
 
@@ -180,11 +194,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     return Scaffold(
       body: Container(
         decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter, end: Alignment.bottomCenter,
-            colors: [Color(0xFFE3F2FD), Color(0xFFF5F5DC)],
-            stops: [0.0, 0.4],
-          ),
+          gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Color(0xFFE3F2FD), Color(0xFFF5F5DC)], stops: [0.0, 0.4]),
         ),
         child: SafeArea(
           child: Column(
@@ -209,15 +219,14 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               Text(_lastCheckIn, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
               const SizedBox(height: 30),
               GestureDetector(
-                onTapDown: (_) { setState(() => _isPressed = true); _controller.forward(); },
+                onTapDown: (_) => _controller.forward(),
                 onTapUp: (_) async {
-                  setState(() => _isPressed = false); _controller.reverse();
+                  _controller.reverse();
                   String now = DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now());
                   final p = await SharedPreferences.getInstance();
                   await p.setString('lastCheckIn', now);
                   setState(() => _lastCheckIn = now);
-                  _updateLocation();
-
+                  
                   if (!await FlutterForegroundTask.isRunningService) {
                     await FlutterForegroundTask.startService(
                       notificationTitle: '안심 지키미 작동 중',
@@ -230,10 +239,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   scale: _scaleAnimation,
                   child: Container(
                     width: 200, height: 200,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle, color: Colors.white,
-                      boxShadow: [BoxShadow(color: _isPressed ? Colors.orange.withOpacity(0.3) : Colors.black12, blurRadius: 20)],
-                    ),
+                    decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.white, boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 15)]),
                     child: ClipOval(child: Image.asset('assets/smile.png', fit: BoxFit.cover, errorBuilder: (c,e,s) => const Icon(Icons.face, size: 100, color: Colors.orange))),
                   ),
                 ),
@@ -249,77 +255,4 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 }
 
-class SettingScreen extends StatefulWidget {
-  const SettingScreen({super.key});
-  @override
-  State<SettingScreen> createState() => _SettingScreenState();
-}
-
-class _SettingScreenState extends State<SettingScreen> {
-  List _contacts = [];
-  bool _autoSmsEnabled = false;
-
-  @override
-  void initState() { super.initState(); _load(); }
-  void _load() async {
-    final p = await SharedPreferences.getInstance();
-    setState(() {
-      _contacts = json.decode(p.getString('contacts_list') ?? "[]");
-      _autoSmsEnabled = p.getBool('auto_sms_enabled') ?? false;
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text("설정"), centerTitle: true, backgroundColor: Colors.transparent, elevation: 0),
-      body: Column(
-        children: [
-          SwitchListTile(
-            title: const Text("자동 문자 전송 활성화"),
-            value: _autoSmsEnabled,
-            activeColor: const Color(0xFFFF8A65),
-            onChanged: (v) async {
-              final p = await SharedPreferences.getInstance();
-              await p.setBool('auto_sms_enabled', v);
-              setState(() => _autoSmsEnabled = v);
-            },
-          ),
-          const Divider(),
-          Expanded(child: ListView.builder(
-            itemCount: _contacts.length,
-            itemBuilder: (c, i) => ListTile(
-              leading: const Icon(Icons.person, color: Color(0xFF5C6BC0)),
-              title: Text(_contacts[i]['name']),
-              subtitle: Text(_contacts[i]['number']),
-              trailing: IconButton(icon: const Icon(Icons.delete_outline, color: Colors.redAccent), onPressed: () async {
-                setState(() => _contacts.removeAt(i));
-                (await SharedPreferences.getInstance()).setString('contacts_list', json.encode(_contacts));
-              }),
-            ),
-          )),
-          Padding(
-            padding: const EdgeInsets.all(20),
-            child: SizedBox(
-              width: double.infinity, height: 50,
-              child: ElevatedButton.icon(
-                icon: const Icon(Icons.person_add_alt_1),
-                label: const Text("보호자 연락처 추가"),
-                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF5C6BC0), foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-                onPressed: () async {
-                  if (await Permission.contacts.request().isGranted) {
-                    final c = await ContactsService.openDeviceContactPicker();
-                    if (c != null) {
-                      setState(() => _contacts.add({'name': c.displayName, 'number': c.phones?.first.value}));
-                      (await SharedPreferences.getInstance()).setString('contacts_list', json.encode(_contacts));
-                    }
-                  }
-                },
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
+class SettingScreen extends StatefulWidget
