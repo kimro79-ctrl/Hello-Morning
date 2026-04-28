@@ -11,7 +11,6 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:isolate';
 
-// 포그라운드 작업 핸들러
 @pragma('vm:entry-point')
 void startCallback() {
   FlutterForegroundTask.setTaskHandler(FirstTaskHandler());
@@ -104,17 +103,16 @@ class _MainNavigationState extends State<MainNavigation> {
   Future<void> _initService() async {
     await [Permission.notification, Permission.sms, Permission.locationAlways].request();
 
-    // ✅ 로그 에러 해결: NotificationImportance -> NotificationChannelImportance
     FlutterForegroundTask.init(
       androidNotificationOptions: AndroidNotificationOptions(
         channelId: 'safety_check',
         channelName: '안심 지키미',
-        channelImportance: NotificationChannelImportance.MAX, // 최신 버전 명칭으로 수정
+        channelImportance: NotificationChannelImportance.MAX, 
         priority: NotificationPriority.HIGH,
         iconData: const NotificationIconData(
           resType: ResourceType.drawable,
           resPrefix: ResourcePrefix.img,
-          name: 'btn_star', // Manifest의 @android:drawable/btn_star와 일치시킴
+          name: 'btn_star', 
         ),
       ),
       iosNotificationOptions: const IOSNotificationOptions(showNotification: true, playSound: false),
@@ -173,6 +171,7 @@ class _HomeScreenState extends State<HomeScreen> {
 }
 
 class HistoryScreen extends StatelessWidget {
+  // ✅ 오타 수정: super.head -> super.key
   const HistoryScreen({super.key});
   @override
   Widget build(BuildContext context) => const Center(child: Text("기록 화면"));
