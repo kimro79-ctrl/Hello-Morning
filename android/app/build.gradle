@@ -26,8 +26,8 @@ apply plugin: 'kotlin-android'
 apply from: "$flutterRoot/packages/flutter_tools/gradle/flutter.gradle"
 
 android {
-    // 패키지명은 개발자님의 설정에 맞춰 자동으로 적용됩니다.
-    namespace "com.example.safety_app" 
+    // 패키지명 확인: 프로젝트 설정에 맞게 자동 적용됩니다.
+    namespace "com.kimrc.hello_morning" 
     compileSdkVersion flutter.compileSdkVersion
     ndkVersion flutter.ndkVersion
 
@@ -45,7 +45,8 @@ android {
     }
 
     defaultConfig {
-        applicationId "com.example.safety_app"
+        // 여기에 개발자님의 실제 애플리케이션 ID를 넣으세요.
+        applicationId "com.kimrc.hello_morning" 
         minSdkVersion 21
         targetSdkVersion flutter.targetSdkVersion
         versionCode flutterVersionCode.toInteger()
@@ -54,7 +55,7 @@ android {
 
     signingConfigs {
         release {
-            // GitHub Actions에서 제공하는 환경변수를 읽어와 서명합니다.
+            // GitHub Actions의 비밀번호 정보를 사용합니다.
             storeFile file("upload-keystore.jks")
             storePassword System.getenv("STORE_PASSWORD")
             keyAlias System.getenv("ALIAS")
@@ -64,7 +65,7 @@ android {
 
     buildTypes {
         release {
-            // 이 부분이 debug 에러를 해결하는 핵심입니다.
+            // 이 설정이 있어야 Play Console의 디버그 서명 에러가 사라집니다.
             signingConfig signingConfigs.release
             minifyEnabled false
             shrinkResources false
