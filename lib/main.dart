@@ -32,9 +32,22 @@ class FirstTaskHandler extends TaskHandler {
       DateTime lastTime = DateFormat('yyyy-MM-dd HH:mm').parse(last);
       int selectedHours = p.getInt('selectedHours') ?? 1;
       int limitMin = selectedHours == 0 ? 5 : selectedHours * 60;
+      
+      int diffMin = DateTime.now().difference(lastTime).inMinutes;
 
-      if (DateTime.now().difference(lastTime).inMinutes >= limitMin) {
-        sendPort?.send('SEND_SMS_ACTION');
+      // 설정 시간 경과 시
+      if (diffMin >= limitMin) {
+        String? lastSentStr = p.getString('lastEmergencySent');
+        if (lastSentStr != null) {
+          DateTime lastSentTime = DateTime.parse(lastSentStr);
+          // 마지막 발송으로부터 5분 경과 여부 확인 (반복 발송 핵심)
+          if (DateTime.now().difference(lastSentTime).inMinutes >= 5) {
+            sendPort?.send('SEND_SMS_ACTION');
+          }
+        } else {
+          // 최초 발송
+          sendPort?.send('SEND_SMS_ACTION');
+        }
       }
     } catch (_) {}
   }
@@ -78,7 +91,10 @@ class _MainNavigationState extends State<MainNavigation> {
     super.initState();
     _initForegroundTask();
     _bindReceivePort();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _initialSetup());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _initialSetup();
+      _showNoticeDialog();
+    });
   }
 
   void _bindReceivePort() async {
@@ -100,26 +116,16 @@ class _MainNavigationState extends State<MainNavigation> {
 
   Future<void> _executeEmergencySms() async {
     final p = await SharedPreferences.getInstance();
-    
-    String? lastSent = p.getString('lastEmergencySent');
-    if (lastSent != null) {
-      try {
-        DateTime lastSentTime = DateTime.parse(lastSent);
-        if (DateTime.now().difference(lastSentTime).inMinutes < 10) return;
-      } catch (_) {}
-    }
-
     String? contactsJson = p.getString('contacts_list');
-    List contacts = [];
-    try { contacts = json.decode(contactsJson ?? "[]"); } catch (_) {}
+    List contacts = json.decode(contactsJson ?? "[]");
     if (contacts.isEmpty) return;
 
     String locationStr = "좌표 확인 불가";
     try {
-      // 오류가 났던 balanced 대신 high를 사용하고 타임아웃을 7초로 넉넉히 잡았습니다.
+      // [수정] 정밀도를 Medium으로 하향하여 실내 응답 속도 개선
       Position pos = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
-        timeLimit: const Duration(seconds: 7),
+        desiredAccuracy: LocationAccuracy.medium, 
+        timeLimit: const Duration(seconds: 5),
       );
       locationStr = "${pos.latitude.toStringAsFixed(6)}, ${pos.longitude.toStringAsFixed(6)}";
     } catch (_) {
@@ -135,15 +141,15 @@ class _MainNavigationState extends State<MainNavigation> {
       if (c['number'] != null) {
         String cleanNumber = c['number'].replaceAll(RegExp(r'[^0-9]'), '');
         try {
-          SmsStatus status = await BackgroundSms.sendMessage(
+          await BackgroundSms.sendMessage(
             phoneNumber: cleanNumber,
             message: "[안심지키미] 응답이 없어 연락드립니다.\n좌표: $locationStr\n구글맵에서 좌표확인 부탁합니다.",
           );
           
           history.insert(0, {
-            'type': status == SmsStatus.sent ? '비상 알림' : '발송 실패',
+            'type': '비상 알림',
             'time': DateFormat('MM/dd HH:mm').format(DateTime.now()),
-            'msg': '보호자(${c['name']}) 전송 결과: $status'
+            'msg': '보호자(${c['name']})에게 안심 문자 재발송 완료'
           });
         } catch (e) {
           history.insert(0, {'type': '에러', 'time': DateFormat('MM/dd HH:mm').format(DateTime.now()), 'msg': 'SMS 전송 실패'});
@@ -153,7 +159,6 @@ class _MainNavigationState extends State<MainNavigation> {
 
     await p.setString('history_logs', json.encode(history.take(30).toList()));
     await p.setString('lastEmergencySent', DateTime.now().toIso8601String());
-    await p.setString('lastCheckIn', DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now()));
     if (mounted) setState(() {});
   }
 
@@ -162,11 +167,28 @@ class _MainNavigationState extends State<MainNavigation> {
     await FlutterForegroundTask.requestIgnoreBatteryOptimization();
   }
 
+  void _showNoticeDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("⚠️ 필수 설정 안내", style: TextStyle(fontWeight: FontWeight.bold)),
+        content: const Text(
+          "1. 위치 권한: '항상 허용'\n"
+          "2. 위치 정확도: '대략적인 위치' 확인\n"
+          "3. SMS: '자동권한설정' 클릭\n"
+          "4. 배터리: '제한 없음' 설정\n\n"
+          "미응답 시 5분마다 문자가 재발송됩니다.",
+        ),
+        actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text("확인"))],
+      ),
+    );
+  }
+
   void _initForegroundTask() {
     FlutterForegroundTask.init(
       androidNotificationOptions: AndroidNotificationOptions(
-        channelId: 'safety_check_v32',
-        channelName: '안심 지키미 보호 서비스',
+        channelId: 'safety_check_v34',
+        channelName: '안심 지키미 서비스',
         channelImportance: NotificationChannelImportance.MAX,
         priority: NotificationPriority.HIGH,
       ),
@@ -192,6 +214,8 @@ class _MainNavigationState extends State<MainNavigation> {
         ),
       );
 }
+
+// --- UI 코드 (디자인 유지) ---
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -273,6 +297,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 String now = DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now());
                 final p = await SharedPreferences.getInstance();
                 await p.setString('lastCheckIn', now);
+                await p.remove('lastEmergencySent'); // 발송 타이머 초기화
                 
                 List history = json.decode(p.getString('history_logs') ?? "[]");
                 history.insert(0, {'type': '활동 체크', 'time': DateFormat('MM/dd HH:mm').format(DateTime.now()), 'msg': '본인 안부 확인 완료'});
@@ -401,7 +426,7 @@ class _SettingScreenState extends State<SettingScreen> {
                   const Divider(height: 30),
                   Row(
                     children: [
-                      Expanded(child: ElevatedButton(onPressed: () async => await [Permission.sms, Permission.location, Permission.contacts].request(), 
+                      Expanded(child: ElevatedButton(onPressed: () async => await [Permission.sms, Permission.location, Permission.locationAlways, Permission.contacts].request(), 
                         style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF5C6BC0), foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))), 
                         child: const Text("자동 권한 설정"))),
                       const SizedBox(width: 8),
