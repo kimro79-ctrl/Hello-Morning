@@ -11,12 +11,23 @@ if (flutterRoot == null) {
     throw new GradleException("Flutter SDK not found. Define location with flutter.sdk in the local.properties file.")
 }
 
+def flutterVersionCode = localProperties.getProperty('flutter.versionCode')
+if (flutterVersionCode == null) {
+    flutterVersionCode = '1'
+}
+
+def flutterVersionName = localProperties.getProperty('flutter.versionName')
+if (flutterVersionName == null) {
+    flutterVersionName = '1.0'
+}
+
 apply plugin: 'com.android.application'
 apply plugin: 'kotlin-android'
 apply from: "$flutterRoot/packages/flutter_tools/gradle/flutter.gradle"
 
 android {
-    namespace "com.example.safety_app" // 개발자님의 실제 패키지명 확인
+    // 중요: 아래 패키지명이 개발자님의 프로젝트와 일치하는지 확인하세요!
+    namespace "com.example.safety_app" 
     compileSdkVersion flutter.compileSdkVersion
     ndkVersion flutter.ndkVersion
 
@@ -29,8 +40,12 @@ android {
         jvmTarget = '1.8'
     }
 
+    sourceSets {
+        main.java.srcDirs += 'src/main/kotlin'
+    }
+
     defaultConfig {
-        applicationId "com.example.safety_app" // 실제 패키지명 확인
+        applicationId "com.example.safety_app" // 여기도 확인
         minSdkVersion 21
         targetSdkVersion flutter.targetSdkVersion
         versionCode flutterVersionCode.toInteger()
@@ -39,7 +54,6 @@ android {
 
     signingConfigs {
         release {
-            // Actions에서 생성한 jks 파일을 사용하도록 경로 설정
             storeFile file("upload-keystore.jks")
             storePassword System.getenv("STORE_PASSWORD")
             keyAlias System.getenv("ALIAS")
