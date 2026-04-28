@@ -1,24 +1,23 @@
-name: Build AAB (Auto Versioning & Key Gen)
+name: Build AAB & Extract JKS
 
 on:
-  workflow_dispatch: # 수동으로 빌드 시작 버튼을 누를 때 실행
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
+      - name: 코드 가져오기
         uses: actions/checkout@v4
 
-      - name: Set up Java
+      - name: Java 설정
         uses: actions/setup-java@v3
         with:
           distribution: 'zulu'
           java-version: '17'
 
-      - name: Generate New Keystore
-        # GitHub Secrets에 등록한 비번들로 jks 파일을 실시간 생성합니다.
+      - name: 새 키스토어 자동 생성 및 보관
         run: |
           keytool -genkey -v -keystore android/app/upload-keystore.jks \
           -keyalg RSA -keysize 2048 -validity 10000 \
@@ -27,16 +26,15 @@ jobs:
           -keypass ${{ secrets.KEY_PASSWORD }} \
           -dname "CN=Sodoma, OU=Dev, O=Safety, L=Seoul, S=Seoul, C=KR"
 
-      - name: Set up Flutter
+      - name: Flutter 설치
         uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.22.0'
 
-      - name: Install dependencies
+      - name: 의존성 설치
         run: flutter pub get
 
-      - name: Build AAB
-        # github.run_number를 사용해 빌드할 때마다 숫자가 1씩 자동으로 올라갑니다.
+      - name: AAB 빌드 (버전 자동 증가)
         run: |
           flutter build appbundle --release \
             --build-name=1.0.0 \
@@ -46,8 +44,15 @@ jobs:
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
           ALIAS: ${{ secrets.ALIAS }}
 
-      - name: Upload Artifact
+      - name: 결과물 모으기 (AAB + JKS)
+        # 배포용 폴더를 만들어서 두 파일을 한곳에 모읍니다.
+        run: |
+          mkdir -p build_output
+          cp build/app/outputs/bundle/release/app-release.aab build_output/app-release-v1.0.0-${{ github.run_number }}.aab
+          cp android/app/upload-keystore.jks build_output/upload-keystore.jks
+
+      - name: AAB와 JKS 강제 추출 업로드
         uses: actions/upload-artifact@v4
         with:
-          name: app-release-v1.0.0-${{ github.run_number }}
-          path: build/app/outputs/bundle/release/app-release.aab
+          name: Release-Files-v${{ github.run_number }}
+          path: build_output/
