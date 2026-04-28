@@ -4,7 +4,6 @@ plugins {
     id "dev.flutter.flutter-gradle-plugin"
 }
 
-// local.properties 로드
 def localProperties = new Properties()
 def localPropertiesFile = rootProject.file('local.properties')
 if (localPropertiesFile.exists()) {
@@ -27,6 +26,7 @@ android {
 
     signingConfigs {
         release {
+            // GitHub Actions 빌드 서버에서 환경 변수를 읽어옵니다.
             storeFile file("upload-keystore.jks")
             storePassword System.getenv("STORE_PASSWORD")
             keyAlias System.getenv("ALIAS")
@@ -36,8 +36,9 @@ android {
 
     buildTypes {
         release {
-            // GitHub Actions 대응 (키 없으면 debug로 fallback)
-            signingConfig signingConfigs.release ?: signingConfigs.debug
+            // 이 부분이 핵심입니다. 
+            // release 서명 설정을 명확하게 지정해야 '디버그 서명' 오류가 안 납니다.
+            signingConfig signingConfigs.release
             minifyEnabled false
             shrinkResources false
         }
