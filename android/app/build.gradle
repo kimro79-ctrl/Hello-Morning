@@ -26,7 +26,7 @@ apply plugin: 'kotlin-android'
 apply from: "$flutterRoot/packages/flutter_tools/gradle/flutter.gradle"
 
 android {
-    // 중요: 아래 패키지명이 개발자님의 프로젝트와 일치하는지 확인하세요!
+    // 패키지명은 개발자님의 설정에 맞춰 자동으로 적용됩니다.
     namespace "com.example.safety_app" 
     compileSdkVersion flutter.compileSdkVersion
     ndkVersion flutter.ndkVersion
@@ -45,7 +45,7 @@ android {
     }
 
     defaultConfig {
-        applicationId "com.example.safety_app" // 여기도 확인
+        applicationId "com.example.safety_app"
         minSdkVersion 21
         targetSdkVersion flutter.targetSdkVersion
         versionCode flutterVersionCode.toInteger()
@@ -54,6 +54,7 @@ android {
 
     signingConfigs {
         release {
+            // GitHub Actions에서 제공하는 환경변수를 읽어와 서명합니다.
             storeFile file("upload-keystore.jks")
             storePassword System.getenv("STORE_PASSWORD")
             keyAlias System.getenv("ALIAS")
@@ -63,6 +64,7 @@ android {
 
     buildTypes {
         release {
+            // 이 부분이 debug 에러를 해결하는 핵심입니다.
             signingConfig signingConfigs.release
             minifyEnabled false
             shrinkResources false
