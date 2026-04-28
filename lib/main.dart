@@ -145,7 +145,6 @@ class _MainNavigationState extends State<MainNavigation> {
     if (mounted) setState(() {});
   }
 
-  // [수정] 1인가구 안심 지키미 설정가이드 팝업
   void _showGuideDialog() {
     showDialog(
       context: context,
@@ -254,7 +253,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         child: Column(
           children: [
             const SizedBox(height: 30),
-            // [수정] 상단 타이틀
             const Text("1인가구 안심 지키미", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFF5C6BC0))),
             const SizedBox(height: 5),
             Text(_locationInfo, style: const TextStyle(color: Color(0xFF78909C), fontSize: 12)),
@@ -310,7 +308,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 }
 
 class HistoryScreen extends StatefulWidget {
-  const HistoryScreen({super.key, Key? key});
+  const HistoryScreen({super.key}); // [수정 완료] 중복 파라미터 제거
   @override
   State<HistoryScreen> createState() => HistoryScreenState();
 }
@@ -363,7 +361,6 @@ class _SettingScreenState extends State<SettingScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // [수정] 설정 탭 타이틀
       appBar: AppBar(title: const Text("설정 및 가이드"), backgroundColor: Colors.transparent),
       body: SingleChildScrollView(
         child: Column(
