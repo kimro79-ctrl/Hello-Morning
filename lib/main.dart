@@ -10,7 +10,7 @@ import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:background_sms/background_sms.dart';
 import 'dart:async';
 import 'dart:io';
-import 'dart:isolate'; // ✅ 핵심: SendPort 에러 해결을 위해 반드시 필요
+import 'dart:isolate';
 
 @pragma('vm:entry-point')
 void startCallback() {
@@ -20,23 +20,15 @@ void startCallback() {
 class FirstTaskHandler extends TaskHandler {
   @override
   Future<void> onStart(DateTime timestamp, SendPort? sendPort) async {}
-
   @override
-  Future<void> onRepeatEvent(DateTime timestamp, SendPort? sendPort) async {
-    // 백그라운드 엔진 유지
-  }
-
+  Future<void> onRepeatEvent(DateTime timestamp, SendPort? sendPort) async {}
   @override
   Future<void> onDestroy(DateTime timestamp, SendPort? sendPort) async {}
 }
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  try {
-    await Firebase.initializeApp();
-  } catch (e) {
-    debugPrint("Firebase 초기화 실패: $e");
-  }
+  try { await Firebase.initializeApp(); } catch (e) { debugPrint("Firebase 실패: $e"); }
   runApp(const DailySafetyApp());
 }
 
@@ -88,11 +80,13 @@ class _MainNavigationState extends State<MainNavigation> {
         channelId: 'safety_check',
         channelName: '안심 지키미',
         channelDescription: '안전 감시 중',
-        channelImportance: NotificationImportance.MAX,
+        // ✅ 수정: NotificationImportance.MAX -> NotificationImportance.MAXIMUM
+        channelImportance: NotificationImportance.MAXIMUM,
         priority: NotificationPriority.HIGH,
         iconData: const NotificationIconData(
           resType: ResourceType.drawable,
-          resPrefix: ResourcePrefix.IC_LAUNCHER, // ✅ 수정: 에러 방지를 위해 호환되는 상수로 변경
+          // ✅ 수정: ResourcePrefix.android -> 'resource/drawable' 직접 지정으로 에러 방지
+          resPrefix: ResourcePrefix.drawable,
           name: 'btn_star',
         ),
       ),
@@ -173,7 +167,17 @@ class _HomeScreenState extends State<HomeScreen> {
       List contacts = snap.data()?['contacts'] ?? [];
       for (var contact in contacts) {
         String number = contact['number'].toString().replaceAll('-', '');
-        await BackgroundSms.sendMessage(phoneNumber: number, message: message);
+        SmsStatus status = await BackgroundSms.sendMessage(phoneNumber: number, message: message);
+        
+        // ✅ 발송 기록 저장 로직 추가
+        await FirebaseFirestore.instance.collection('users').doc(_uid).collection('history').add({
+          'receiver': contact['name'],
+          'number': number,
+          'message': message,
+          'time': DateFormat('MM-dd HH:mm').format(DateTime.now()),
+          'status': status == SmsStatus.sent ? "성공" : "실패",
+          'timestamp': FieldValue.serverTimestamp(),
+        });
       }
     }
   }
@@ -216,10 +220,51 @@ class _HomeScreenState extends State<HomeScreen> {
   );
 }
 
-class HistoryScreen extends StatelessWidget {
+// ✅ 문자 발송 기록 화면 구현
+class HistoryScreen extends StatefulWidget {
   const HistoryScreen({super.key});
   @override
-  Widget build(BuildContext context) => const Scaffold(body: Center(child: Text("기록 화면")));
+  State<HistoryScreen> createState() => _HistoryScreenState();
+}
+
+class _HistoryScreenState extends State<HistoryScreen> {
+  String _uid = "";
+
+  @override
+  void initState() { super.initState(); _getUid(); }
+
+  void _getUid() async {
+    var deviceInfo = DeviceInfoPlugin();
+    if (Platform.isAndroid) { _uid = (await deviceInfo.androidInfo).id; setState(() {}); }
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    backgroundColor: const Color(0xFFFDFCF0),
+    appBar: AppBar(title: const Text("문자 발송 기록"), centerTitle: true, backgroundColor: Colors.transparent),
+    body: _uid.isEmpty 
+      ? const Center(child: CircularProgressIndicator())
+      : StreamBuilder<QuerySnapshot>(
+          stream: FirebaseFirestore.instance.collection('users').doc(_uid).collection('history').orderBy('timestamp', descending: true).snapshots(),
+          builder: (context, snap) {
+            if (!snap.hasData) return const Center(child: Text("기록을 불러오는 중..."));
+            final docs = snap.data!.docs;
+            if (docs.isEmpty) return const Center(child: Text("발송 기록이 없습니다."));
+            return ListView.builder(
+              itemCount: docs.length,
+              itemBuilder: (c, i) => Card(
+                margin: const EdgeInsets.symmetric(horizontal: 15, vertical: 5),
+                child: ListTile(
+                  leading: const Icon(Icons.sms, color: Colors.indigo),
+                  title: Text("${docs[i]['receiver']} (${docs[i]['status']})"),
+                  subtitle: Text("${docs[i]['time']}\n${docs[i]['message']}"),
+                  isThreeLine: true,
+                ),
+              ),
+            );
+          },
+        ),
+  );
 }
 
 class SettingScreen extends StatefulWidget {
