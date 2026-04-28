@@ -33,26 +33,34 @@ class FirstTaskHandler extends TaskHandler {
     int limitMin = selectedHours == 0 ? 5 : selectedHours * 60;
 
     if (DateTime.now().difference(lastTime).inMinutes >= limitMin) {
-      Position pos = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
-      List contacts = json.decode(contactsJson);
-      for (var c in contacts) {
-        await BackgroundSms.sendMessage(
-          phoneNumber: c['number'],
-          message: "[안심 지키미] 응답 지연! 위급 상황일 수 있습니다.\n위치: http://maps.google.com/maps?q=${pos.latitude},${pos.longitude}",
-        );
+      try {
+        // 위치 획득 시간 단축을 위해 타임아웃 5초 설정
+        Position pos = await Geolocator.getCurrentPosition(
+          desiredAccuracy: LocationAccuracy.high,
+          timeLimit: const Duration(seconds: 5),
+        ).onError((error, stackTrace) async {
+          return await Geolocator.getLastKnownPosition() ?? Position(longitude: 0, latitude: 0, timestamp: DateTime.now(), accuracy: 0, altitude: 0, heading: 0, speed: 0, speedAccuracy: 0, altitudeAccuracy: 0, headingAccuracy: 0);
+        });
+
+        List contacts = json.decode(contactsJson);
+        for (var c in contacts) {
+          await BackgroundSms.sendMessage(
+            phoneNumber: c['number'],
+            message: "[안심 지키미] 응답 지연! 위급 상황일 수 있습니다.\n위치: http://maps.google.com/maps?q=${pos.latitude},${pos.longitude}",
+          );
+        }
+        
+        List history = json.decode(p.getString('history_logs') ?? "[]");
+        history.insert(0, {
+          'type': '비상 알림',
+          'time': DateFormat('MM/dd HH:mm').format(DateTime.now()),
+          'msg': '응답 지연으로 인한 보호자 문자 발송'
+        });
+        await p.setString('history_logs', json.encode(history.take(30).toList()));
+        await p.setString('lastCheckIn', DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now()));
+      } catch (e) {
+        debugPrint("Background Task Error: $e");
       }
-      
-      // 알림 기록 저장 로직
-      List history = json.decode(p.getString('history_logs') ?? "[]");
-      history.insert(0, {
-        'type': '비상 알림',
-        'time': DateFormat('MM/dd HH:mm').format(DateTime.now()),
-        'msg': '응답 지연으로 인한 보호자 문자 발송'
-      });
-      await p.setString('history_logs', json.encode(history.take(30).toList()));
-      
-      // 발송 후 중복 방지를 위해 시간 초기화
-      await p.setString('lastCheckIn', DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now()));
     }
   }
 
@@ -93,6 +101,22 @@ class _MainNavigationState extends State<MainNavigation> {
   void initState() {
     super.initState();
     _initForegroundTask();
+    // 공지 팝업 띄우기
+    WidgetsBinding.instance.addPostFrameCallback((_) => _showNoticeDialog());
+  }
+
+  void _showNoticeDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Text("⚠️ 필수 설정 안내"),
+        content: const Text("안정적인 감시를 위해 아래 설정을 반드시 완료해주세요.\n\n1. 배터리 최적화 제외 (제한 없음)\n2. 위치 권한 (항상 허용)\n3. SMS 및 연락처 권한 허용"),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text("확인했습니다"))
+        ],
+      ),
+    );
   }
 
   void _initForegroundTask() {
@@ -102,11 +126,7 @@ class _MainNavigationState extends State<MainNavigation> {
         channelName: '안심 지키미 실시간 감시',
         channelImportance: NotificationChannelImportance.MAX,
         priority: NotificationPriority.HIGH,
-        iconData: const NotificationIconData(
-          resType: ResourceType.drawable,
-          resPrefix: ResourcePrefix.img,
-          name: 'btn_star',
-        ),
+        iconData: const NotificationIconData(resType: ResourceType.mipmap, resPrefix: ResourcePrefix.ic, name: 'launcher'),
       ),
       iosNotificationOptions: const IOSNotificationOptions(showNotification: true),
       foregroundTaskOptions: const ForegroundTaskOptions(interval: 60000, autoRunOnBoot: true),
@@ -162,9 +182,17 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   Future<void> _updateLocation() async {
     try {
+      // 속도 향상을 위해 마지막 위치 먼저 시도
+      Position? lastPos = await Geolocator.getLastKnownPosition();
+      if (lastPos != null && mounted) {
+        setState(() => _locationInfo = "최근 위치: ${lastPos.latitude.toStringAsFixed(4)}, ${lastPos.longitude.toStringAsFixed(4)}");
+      }
+      
       Position pos = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.medium);
       if (mounted) setState(() => _locationInfo = "현재: ${pos.latitude.toStringAsFixed(4)}, ${pos.longitude.toStringAsFixed(4)}");
-    } catch (_) {}
+    } catch (_) {
+      if (mounted) setState(() => _locationInfo = "위치 정보를 가져올 수 없음");
+    }
   }
 
   @override
@@ -215,7 +243,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 await p.setString('history_logs', json.encode(history.take(30).toList()));
                 
                 setState(() => _lastCheckIn = now);
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("체크 완료! 좋은 하루 되세요.")));
+                _updateLocation();
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("체크 완료!")));
               },
               child: ScaleTransition(
                 scale: _scaleAnimation,
@@ -250,7 +279,6 @@ class HistoryScreen extends StatefulWidget {
 
 class _HistoryScreenState extends State<HistoryScreen> {
   List _logs = [];
-
   @override
   void initState() { super.initState(); _load(); }
   void _load() async {
@@ -303,7 +331,6 @@ class _SettingScreenState extends State<SettingScreen> {
       body: SingleChildScrollView(
         child: Column(
           children: [
-            // ✅ 실시간 감시 스위치를 포함한 설정 배너
             Container(
               margin: const EdgeInsets.all(16),
               padding: const EdgeInsets.all(20),
@@ -329,6 +356,7 @@ class _SettingScreenState extends State<SettingScreen> {
                           await p.setBool('auto_sms_enabled', v);
                           setState(() => _autoOn = v);
                           if (v) {
+                            await [Permission.sms, Permission.location, Permission.locationAlways, Permission.contacts].request();
                             await FlutterForegroundTask.startService(notificationTitle: "안심 지키미 실행 중", notificationText: "실시간으로 사용자를 보호하고 있습니다.", callback: startCallback);
                           } else {
                             await FlutterForegroundTask.stopService();
@@ -340,7 +368,7 @@ class _SettingScreenState extends State<SettingScreen> {
                   const Divider(height: 30),
                   Row(
                     children: [
-                      Expanded(child: ElevatedButton(onPressed: () async => await [Permission.sms, Permission.location, Permission.contacts].request(), 
+                      Expanded(child: ElevatedButton(onPressed: () async => await [Permission.sms, Permission.location, Permission.locationAlways, Permission.contacts].request(), 
                         style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF5C6BC0), foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))), 
                         child: const Text("자동 권한 설정"))),
                       const SizedBox(width: 8),
