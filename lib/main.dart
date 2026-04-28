@@ -1,89 +1,31 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:contacts_service/contacts_service.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:intl/intl.dart';
-import 'package:background_sms/background_sms.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:flutter_foreground_task/flutter_foreground_task.dart';
+import 'package:device_info_plus/device_info_plus.dart';
 import 'dart:async';
-import 'dart:convert';
-import 'dart:isolate';
-
-@pragma('vm:entry-point')
-void startCallback() {
-  FlutterForegroundTask.setTaskHandler(MyTaskHandler());
-}
-
-class MyTaskHandler extends TaskHandler {
-  @override
-  Future<void> onStart(DateTime timestamp, SendPort? sendPort) async {}
-
-  @override
-  Future<void> onRepeatEvent(DateTime timestamp, SendPort? sendPort) async {
-    final p = await SharedPreferences.getInstance();
-    if (!(p.getBool('auto_sms_enabled') ?? false)) return;
-
-    String? last = p.getString('lastCheckIn');
-    String? contactsJson = p.getString('contacts_list');
-    int hrs = p.getInt('selectedHours') ?? 1;
-
-    if (last == null || contactsJson == null || contactsJson == "[]") return;
-
-    DateTime lastTime = DateFormat('yyyy-MM-dd HH:mm').parse(last);
-    int limitMin = hrs == 0 ? 5 : hrs * 60;
-
-    if (DateTime.now().difference(lastTime).inMinutes >= limitMin) {
-      Position? pos;
-      try {
-        pos = await Geolocator.getCurrentPosition(
-          desiredAccuracy: LocationAccuracy.medium,
-          timeLimit: const Duration(seconds: 8),
-        );
-      } catch (_) {}
-
-      String mapsUrl = pos != null 
-          ? "http://maps.google.com/maps?q=${pos.latitude},${pos.longitude}" 
-          : "위치확인불가";
-
-      List contacts = json.decode(contactsJson);
-      for (var c in contacts) {
-        if (c['number'] == null) continue;
-        String num = c['number'].toString().replaceAll(RegExp(r'[^0-9+]'), '');
-        
-        // ✅ 2, 4번: 결과 체크 및 로깅 강화
-        var result = await BackgroundSms.sendMessage(
-          phoneNumber: num,
-          message: "[안심지키미] 응답지연 발생\n위치확인: $mapsUrl"
-        );
-        
-        if (result != SmsStatus.sent) {
-          debugPrint("⚠️ SMS 발송 실패: $result / 번호: $num");
-        } else {
-          debugPrint("✅ SMS 발송 성공 / 번호: $num");
-        }
-      }
-      await p.setString('lastCheckIn', DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now()));
-    }
-  }
-
-  @override
-  Future<void> onDestroy(DateTime timestamp, SendPort? sendPort) async {}
-}
+import 'dart:io';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
-  // ✅ 1, 2번: 백그라운드 위치 권한 포함 필수 권한 요청
-  Map<Permission, PermissionStatus> statuses = await [
-    Permission.sms,
+  try {
+    await Firebase.initializeApp();
+  } catch (e) {
+    debugPrint("Firebase 초기화 실패: $e");
+  }
+
+  // 필수 권한 요청 (SMS는 서버 발송이므로 위치/연락처 집중)
+  await [
     Permission.contacts,
     Permission.location,
     Permission.notification,
   ].request();
   
-  if (statuses[Permission.location]!.isGranted) {
-    await Permission.locationAlways.request(); // 백그라운드 위치 필수
+  if (await Permission.location.isGranted) {
+    await Permission.locationAlways.request();
   }
   
   runApp(const DailySafetyApp());
@@ -114,30 +56,6 @@ class _MainNavigationState extends State<MainNavigation> {
   final List<Widget> _pages = [const HomeScreen(), const SettingScreen()];
 
   @override
-  void initState() {
-    super.initState();
-    _initTask();
-  }
-
-  void _initTask() {
-    FlutterForegroundTask.init(
-      androidNotificationOptions: AndroidNotificationOptions(
-        channelId: 'safety_check',
-        channelName: '안심지키미 서비스',
-        channelImportance: NotificationChannelImportance.LOW,
-        priority: NotificationPriority.LOW,
-      ),
-      iosNotificationOptions: const IOSNotificationOptions(),
-      foregroundTaskOptions: const ForegroundTaskOptions(
-        interval: 300000,
-        autoRunOnBoot: true,
-        allowWakeLock: true, // ✅ 3번: CPU 휴면 방지
-        allowWifiLock: true, // 네트워크 안정성 확보
-      ),
-    );
-  }
-
-  @override
   Widget build(BuildContext context) => Scaffold(
     body: IndexedStack(index: _idx, children: _pages),
     bottomNavigationBar: BottomNavigationBar(
@@ -158,25 +76,61 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  String _last = "기록없음";
+  String _last = "확인 버튼을 눌러주세요";
   int _hrs = 1;
   bool _down = false;
+  String _uid = "";
 
   @override
-  void initState() { super.initState(); _load(); }
-  void _load() async {
-    final p = await SharedPreferences.getInstance();
-    setState(() {
-      _last = p.getString('lastCheckIn') ?? "확인 버튼을 눌러주세요";
-      _hrs = p.getInt('selectedHours') ?? 1;
+  void initState() { 
+    super.initState(); 
+    _initUserId(); 
+  }
+
+  void _initUserId() async {
+    var deviceInfo = DeviceInfoPlugin();
+    if (Platform.isAndroid) {
+      var androidInfo = await deviceInfo.androidInfo;
+      _uid = androidInfo.id;
+    } else if (Platform.isIOS) {
+      var iosInfo = await deviceInfo.iosInfo;
+      _uid = iosInfo.identifierForVendor ?? "unknown_user";
+    }
+    _listenToFirebase();
+  }
+
+  void _listenToFirebase() {
+    if (_uid.isEmpty) return;
+    FirebaseFirestore.instance.collection('users').doc(_uid).snapshots().listen((snap) {
+      if (snap.exists) {
+        setState(() {
+          _last = snap.data()?['lastCheckIn'] ?? "기록 없음";
+          _hrs = snap.data()?['selectedHours'] ?? 1;
+        });
+      }
     });
   }
 
   void _checkIn() async {
-    final p = await SharedPreferences.getInstance();
+    if (_uid.isEmpty) return;
     String now = DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now());
-    await p.setString('lastCheckIn', now);
-    setState(() => _last = now);
+    
+    Position? pos;
+    try {
+      pos = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.medium,
+        timeLimit: const Duration(seconds: 8)
+      );
+    } catch (_) {}
+
+    // 서버에 판단 근거 전송 및 알람 이력 초기화
+    await FirebaseFirestore.instance.collection('users').doc(_uid).set({
+      'lastCheckIn': now,
+      'lastTimestamp': FieldValue.serverTimestamp(),
+      'lastLocation': pos != null ? "https://www.google.com/maps?q=${pos.latitude},${pos.longitude}" : "위치확인불가",
+      'autoSmsEnabled': true,
+      'lastAlertSent': null, // ✅ 체크인 시 알람 발송 기록 초기화 (중복 방지 해제)
+    }, SetOptions(merge: true));
   }
 
   @override
@@ -197,7 +151,7 @@ class _HomeScreenState extends State<HomeScreen> {
               selected: _hrs == h,
               onSelected: (v) async {
                 setState(() => _hrs = h);
-                (await SharedPreferences.getInstance()).setInt('selectedHours', h);
+                await FirebaseFirestore.instance.collection('users').doc(_uid).update({'selectedHours': h});
               },
             )).toList(),
           ),
@@ -238,14 +192,29 @@ class SettingScreen extends StatefulWidget {
 class _SettingScreenState extends State<SettingScreen> {
   List _list = [];
   bool _on = false;
+  String _uid = "";
 
   @override
-  void initState() { super.initState(); _load(); }
-  void _load() async {
-    final p = await SharedPreferences.getInstance();
-    setState(() {
-      _list = json.decode(p.getString('contacts_list') ?? "[]");
-      _on = p.getBool('auto_sms_enabled') ?? false;
+  void initState() { super.initState(); _initUserId(); }
+
+  void _initUserId() async {
+    var deviceInfo = DeviceInfoPlugin();
+    if (Platform.isAndroid) {
+      _uid = (await deviceInfo.androidInfo).id;
+    } else if (Platform.isIOS) {
+      _uid = (await deviceInfo.iosInfo).identifierForVendor ?? "unknown";
+    }
+    _loadSettings();
+  }
+  
+  void _loadSettings() {
+    FirebaseFirestore.instance.collection('users').doc(_uid).snapshots().listen((snap) {
+      if (snap.exists) {
+        setState(() {
+          _list = snap.data()?['contacts'] ?? [];
+          _on = snap.data()?['autoSmsEnabled'] ?? false;
+        });
+      }
     });
   }
 
@@ -256,14 +225,7 @@ class _SettingScreenState extends State<SettingScreen> {
         Container(
           width: double.infinity, margin: const EdgeInsets.all(10), padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(color: const Color(0xFFFFE0B2), borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.orangeAccent)),
-          child: Row(
-            children: [
-              const Icon(Icons.warning_amber_rounded, size: 20, color: Colors.redAccent),
-              const SizedBox(width: 10),
-              const Expanded(child: Text("필수설정: 위치(항상허용), 배터리최적화 제외가 되어야 문자가 발송됩니다.", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold))),
-              SizedBox(height: 28, child: ElevatedButton(onPressed: () => openAppSettings(), child: const Text("설정", style: TextStyle(fontSize: 10)))),
-            ],
-          ),
+          child: const Text("서버 감시 모드: 폰이 꺼져 있어도 서버에서 시간을 계산하여 문자를 발송합니다.", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
         ),
         Container(
           margin: const EdgeInsets.symmetric(horizontal: 10),
@@ -271,26 +233,15 @@ class _SettingScreenState extends State<SettingScreen> {
           decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
           child: ListTile(
             dense: true,
-            title: const Text("자동 문자 기능 활성화", style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
-            subtitle: const Text("미응답 시 보호자에게 알림", style: TextStyle(fontSize: 10)),
+            title: const Text("서버 자동 감시 활성화", style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+            subtitle: const Text("미응답 시 보호자에게 자동 알림", style: TextStyle(fontSize: 10)),
             trailing: Transform.scale(
-              scale: 1.3, // ✅ 스위치 크기만 확대
+              scale: 1.3,
               child: Switch(
                 value: _on,
                 activeColor: Colors.orange,
                 onChanged: (v) async {
-                  final p = await SharedPreferences.getInstance();
-                  await p.setBool('auto_sms_enabled', v);
-                  setState(() => _on = v);
-                  if (v) {
-                    FlutterForegroundTask.startService(
-                      notificationTitle: '안심지키미 실행 중',
-                      notificationText: '보호 기능 작동 중',
-                      callback: startCallback
-                    );
-                  } else {
-                    FlutterForegroundTask.stopService();
-                  }
+                  await FirebaseFirestore.instance.collection('users').doc(_uid).update({'autoSmsEnabled': v});
                 },
               ),
             ),
@@ -303,11 +254,11 @@ class _SettingScreenState extends State<SettingScreen> {
             itemBuilder: (c, i) => ListTile(
               dense: true,
               leading: const Icon(Icons.person, size: 18),
-              title: Text(_list[i]['name'], style: const TextStyle(fontSize: 12)),
-              subtitle: Text(_list[i]['number'], style: const TextStyle(fontSize: 10)),
+              title: Text(_list[i]['name'] ?? "이름 없음", style: const TextStyle(fontSize: 12)),
+              subtitle: Text(_list[i]['number'] ?? "", style: const TextStyle(fontSize: 10)),
               trailing: IconButton(icon: const Icon(Icons.remove_circle_outline, size: 18, color: Colors.redAccent), onPressed: () async {
-                setState(() => _list.removeAt(i));
-                (await SharedPreferences.getInstance()).setString('contacts_list', json.encode(_list));
+                _list.removeAt(i);
+                await FirebaseFirestore.instance.collection('users').doc(_uid).update({'contacts': _list});
               }),
             ),
           ),
@@ -320,8 +271,9 @@ class _SettingScreenState extends State<SettingScreen> {
               if (await Permission.contacts.request().isGranted) {
                 final c = await ContactsService.openDeviceContactPicker();
                 if (c != null) {
-                  setState(() => _list.add({'name': c.displayName, 'number': c.phones?.first.value}));
-                  (await SharedPreferences.getInstance()).setString('contacts_list', json.encode(_list));
+                  var newContact = {'name': c.displayName, 'number': c.phones?.isNotEmpty == true ? c.phones!.first.value : ""};
+                  _list.add(newContact);
+                  await FirebaseFirestore.instance.collection('users').doc(_uid).update({'contacts': _list});
                 }
               }
             },
