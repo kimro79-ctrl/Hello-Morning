@@ -1,23 +1,24 @@
-name: Build AAB (Auto Versioning)
+name: Build AAB (Auto Versioning & Key Gen)
 
 on:
-  workflow_dispatch:
+  workflow_dispatch: # 수동으로 빌드 시작 버튼을 누를 때 실행
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
-      - name: 코드 가져오기
+      - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Java 설정
+      - name: Set up Java
         uses: actions/setup-java@v3
         with:
           distribution: 'zulu'
           java-version: '17'
 
-      - name: 새 키스토어 자동 생성
+      - name: Generate New Keystore
+        # GitHub Secrets에 등록한 비번들로 jks 파일을 실시간 생성합니다.
         run: |
           keytool -genkey -v -keystore android/app/upload-keystore.jks \
           -keyalg RSA -keysize 2048 -validity 10000 \
@@ -26,18 +27,17 @@ jobs:
           -keypass ${{ secrets.KEY_PASSWORD }} \
           -dname "CN=Sodoma, OU=Dev, O=Safety, L=Seoul, S=Seoul, C=KR"
 
-      - name: Flutter 설치
+      - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.22.0'
 
-      - name: 의존성 설치
+      - name: Install dependencies
         run: flutter pub get
 
-      - name: AAB 빌드 (버전 자동 증가)
+      - name: Build AAB
+        # github.run_number를 사용해 빌드할 때마다 숫자가 1씩 자동으로 올라갑니다.
         run: |
-          # --build-name은 스토어에 표시되는 버전 (예: 1.0.0)
-          # --build-number는 내부 관리용 번호 (빌드할 때마다 1, 2, 3... 자동으로 증가)
           flutter build appbundle --release \
             --build-name=1.0.0 \
             --build-number=${{ github.run_number }}
@@ -46,7 +46,7 @@ jobs:
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
           ALIAS: ${{ secrets.ALIAS }}
 
-      - name: 결과물 업로드
+      - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
           name: app-release-v1.0.0-${{ github.run_number }}
