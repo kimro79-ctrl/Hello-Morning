@@ -11,7 +11,9 @@ import 'dart:convert';
 import 'dart:isolate';
 
 @pragma('vm:entry-point')
-void startCallback() => FlutterForegroundTask.setTaskHandler(MyTaskHandler());
+void startCallback() {
+  FlutterForegroundTask.setTaskHandler(MyTaskHandler());
+}
 
 class MyTaskHandler extends TaskHandler {
   @override
@@ -34,20 +36,32 @@ class MyTaskHandler extends TaskHandler {
     if (DateTime.now().difference(lastTime).inMinutes >= limitMin) {
       Position? pos;
       try {
-        pos = await Geolocator.getCurrentPosition(timeLimit: const Duration(seconds: 8));
+        pos = await Geolocator.getCurrentPosition(
+          desiredAccuracy: LocationAccuracy.medium,
+          timeLimit: const Duration(seconds: 8),
+        );
       } catch (_) {}
 
       String mapsUrl = pos != null 
-          ? "https://www.google.com/maps?q=${pos.latitude},${pos.longitude}" 
-          : "위치정보 확인불가";
+          ? "http://maps.google.com/maps?q=${pos.latitude},${pos.longitude}" 
+          : "위치확인불가";
 
       List contacts = json.decode(contactsJson);
       for (var c in contacts) {
-        String num = c['number'].replaceAll(RegExp(r'[^0-9]'), '');
-        await BackgroundSms.sendMessage(
+        if (c['number'] == null) continue;
+        String num = c['number'].toString().replaceAll(RegExp(r'[^0-9+]'), '');
+        
+        // ✅ 2, 4번: 결과 체크 및 로깅 강화
+        var result = await BackgroundSms.sendMessage(
           phoneNumber: num,
-          message: "[안심지키미] 장시간 응답 없음\n현위치: $mapsUrl"
+          message: "[안심지키미] 응답지연 발생\n위치확인: $mapsUrl"
         );
+        
+        if (result != SmsStatus.sent) {
+          debugPrint("⚠️ SMS 발송 실패: $result / 번호: $num");
+        } else {
+          debugPrint("✅ SMS 발송 성공 / 번호: $num");
+        }
       }
       await p.setString('lastCheckIn', DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now()));
     }
@@ -57,8 +71,21 @@ class MyTaskHandler extends TaskHandler {
   Future<void> onDestroy(DateTime timestamp, SendPort? sendPort) async {}
 }
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
+  // ✅ 1, 2번: 백그라운드 위치 권한 포함 필수 권한 요청
+  Map<Permission, PermissionStatus> statuses = await [
+    Permission.sms,
+    Permission.contacts,
+    Permission.location,
+    Permission.notification,
+  ].request();
+  
+  if (statuses[Permission.location]!.isGranted) {
+    await Permission.locationAlways.request(); // 백그라운드 위치 필수
+  }
+  
   runApp(const DailySafetyApp());
 }
 
@@ -67,7 +94,11 @@ class DailySafetyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) => MaterialApp(
     debugShowCheckedModeBanner: false,
-    theme: ThemeData(scaffoldBackgroundColor: const Color(0xFFFDFCF0), useMaterial3: true),
+    theme: ThemeData(
+      scaffoldBackgroundColor: const Color(0xFFFDFCF0),
+      useMaterial3: true,
+      colorSchemeSeed: const Color(0xFFFF8A65),
+    ),
     home: const MainNavigation(),
   );
 }
@@ -86,52 +117,24 @@ class _MainNavigationState extends State<MainNavigation> {
   void initState() {
     super.initState();
     _initTask();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _showDetailNotice());
   }
 
   void _initTask() {
     FlutterForegroundTask.init(
       androidNotificationOptions: AndroidNotificationOptions(
-        channelId: 'safety', channelName: '안심지키미', 
-        channelImportance: NotificationChannelImportance.LOW, priority: NotificationPriority.LOW,
+        channelId: 'safety_check',
+        channelName: '안심지키미 서비스',
+        channelImportance: NotificationChannelImportance.LOW,
+        priority: NotificationPriority.LOW,
       ),
       iosNotificationOptions: const IOSNotificationOptions(),
-      foregroundTaskOptions: const ForegroundTaskOptions(interval: 180000, autoRunOnBoot: true),
-    );
-  }
-
-  // ✅ 자세한 팝업 공지 기능
-  void _showDetailNotice() {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Row(children: [Icon(Icons.security, color: Colors.orange), SizedBox(width: 8), Text("서비스 이용 안내", style: TextStyle(fontSize: 16))]),
-        content: const Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text("1. 작동 원리", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-            Text("설정한 시간 동안 앱 내 버튼을 누르지 않으면, 등록된 보호자에게 위치가 포함된 문자가 자동 발송됩니다.", style: TextStyle(fontSize: 12)),
-            SizedBox(height: 10),
-            Text("2. 필수 권한 설정 (중요)", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.redAccent)),
-            Text("• 위치: 반드시 '항상 허용' 선택\n• SMS: 문자 발송 권한 허용\n• 배터리: '제한 없음' 또는 '최적화 제외'", style: TextStyle(fontSize: 12)),
-            SizedBox(height: 10),
-            Text("3. 주의 사항", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-            Text("휴대폰이 꺼져있거나 네트워크 연결이 끊기면 작동하지 않을 수 있습니다.", style: TextStyle(fontSize: 12)),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () { Navigator.pop(context); _reqPerms(); }, child: const Text("확인 및 권한설정"))
-        ],
+      foregroundTaskOptions: const ForegroundTaskOptions(
+        interval: 300000,
+        autoRunOnBoot: true,
+        allowWakeLock: true, // ✅ 3번: CPU 휴면 방지
+        allowWifiLock: true, // 네트워크 안정성 확보
       ),
     );
-  }
-
-  Future<void> _reqPerms() async {
-    await [Permission.sms, Permission.contacts, Permission.location, Permission.notification].request();
-    if (await Permission.location.isGranted) await Permission.locationAlways.request();
   }
 
   @override
@@ -141,8 +144,8 @@ class _MainNavigationState extends State<MainNavigation> {
       currentIndex: _idx, selectedFontSize: 10, unselectedFontSize: 10,
       onTap: (i) => setState(() => _idx = i),
       items: const [
-        BottomNavigationBarItem(icon: Icon(Icons.home, size: 18), label: '홈'),
-        BottomNavigationBarItem(icon: Icon(Icons.settings, size: 18), label: '설정'),
+        BottomNavigationBarItem(icon: Icon(Icons.home_filled, size: 20), label: '홈'),
+        BottomNavigationBarItem(icon: Icon(Icons.settings, size: 20), label: '설정'),
       ],
     ),
   );
@@ -180,17 +183,17 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) => SafeArea(
     child: Column(
       children: [
-        const SizedBox(height: 20),
-        const Text("1인가구 안심 지키미", style: TextStyle(fontSize: 17, fontWeight: FontWeight.w900)),
-        const SizedBox(height: 20),
+        const SizedBox(height: 15),
+        const Text("1인가구 안심 지키미", style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
+        const SizedBox(height: 15),
         Container(
-          margin: const EdgeInsets.symmetric(horizontal: 45),
+          margin: const EdgeInsets.symmetric(horizontal: 40),
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [0, 1, 12, 24].map((h) => ChoiceChip(
-              label: Text(h == 0 ? "5분" : "${h}시간", style: const TextStyle(fontSize: 10)),
+              label: Text(h == 0 ? "5분" : "${h}h", style: const TextStyle(fontSize: 10)),
               selected: _hrs == h,
               onSelected: (v) async {
                 setState(() => _hrs = h);
@@ -208,13 +211,18 @@ class _HomeScreenState extends State<HomeScreen> {
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 100),
             width: _down ? 135 : 145, height: _down ? 135 : 145,
-            decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.white, 
-              boxShadow: [BoxShadow(color: Colors.black12, blurRadius: _down ? 5 : 12)]),
-            child: const Icon(Icons.face_retouching_natural, size: 65, color: Colors.orangeAccent),
+            decoration: const BoxDecoration(shape: BoxShape.circle, color: Colors.white),
+            child: ClipOval(
+              child: Image.asset(
+                'assets/smile.png',
+                fit: BoxFit.cover,
+                errorBuilder: (c, e, s) => const Icon(Icons.face_retouching_natural, size: 70, color: Colors.orangeAccent),
+              ),
+            ),
           ),
         ),
         const SizedBox(height: 15),
-        const Text("매일 한 번 버튼을 눌러주세요", style: TextStyle(fontSize: 11, color: Colors.grey)), // ✅ 요청 문구 수정
+        const Text("매일 한 번 버튼을 눌러주세요", style: TextStyle(fontSize: 11, color: Colors.grey)),
         const Spacer(),
       ],
     ),
@@ -246,39 +254,58 @@ class _SettingScreenState extends State<SettingScreen> {
     child: Column(
       children: [
         Container(
-          width: double.infinity, margin: const EdgeInsets.all(10), padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(color: const Color(0xFFFFE0B2), borderRadius: BorderRadius.circular(10)),
+          width: double.infinity, margin: const EdgeInsets.all(10), padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(color: const Color(0xFFFFE0B2), borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.orangeAccent)),
           child: Row(
             children: [
-              const Icon(Icons.info_outline, size: 16, color: Colors.orange),
-              const SizedBox(width: 8),
-              const Expanded(child: Text("발송 오류 방지: 위치(항상허용), 배터리최적화 제외 필수", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold))),
-              GestureDetector(onTap: () => openAppSettings(), child: const Text("설정가기", style: TextStyle(fontSize: 10, color: Colors.red, fontWeight: FontWeight.bold))),
+              const Icon(Icons.warning_amber_rounded, size: 20, color: Colors.redAccent),
+              const SizedBox(width: 10),
+              const Expanded(child: Text("필수설정: 위치(항상허용), 배터리최적화 제외가 되어야 문자가 발송됩니다.", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold))),
+              SizedBox(height: 28, child: ElevatedButton(onPressed: () => openAppSettings(), child: const Text("설정", style: TextStyle(fontSize: 10)))),
             ],
           ),
         ),
-        SwitchListTile(
-          dense: true, title: const Text("자동 문자 기능 활성화", style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
-          value: _on, activeColor: Colors.orange,
-          onChanged: (v) async {
-            final p = await SharedPreferences.getInstance();
-            await p.setBool('auto_sms_enabled', v);
-            setState(() => _on = v);
-            if (v) {
-              FlutterForegroundTask.startService(notificationTitle: '안심지키미 실행 중', notificationText: '당신의 안전을 체크하고 있습니다.', callback: startCallback);
-            } else {
-              FlutterForegroundTask.stopService();
-            }
-          },
+        Container(
+          margin: const EdgeInsets.symmetric(horizontal: 10),
+          padding: const EdgeInsets.symmetric(vertical: 5),
+          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
+          child: ListTile(
+            dense: true,
+            title: const Text("자동 문자 기능 활성화", style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+            subtitle: const Text("미응답 시 보호자에게 알림", style: TextStyle(fontSize: 10)),
+            trailing: Transform.scale(
+              scale: 1.3, // ✅ 스위치 크기만 확대
+              child: Switch(
+                value: _on,
+                activeColor: Colors.orange,
+                onChanged: (v) async {
+                  final p = await SharedPreferences.getInstance();
+                  await p.setBool('auto_sms_enabled', v);
+                  setState(() => _on = v);
+                  if (v) {
+                    FlutterForegroundTask.startService(
+                      notificationTitle: '안심지키미 실행 중',
+                      notificationText: '보호 기능 작동 중',
+                      callback: startCallback
+                    );
+                  } else {
+                    FlutterForegroundTask.stopService();
+                  }
+                },
+              ),
+            ),
+          ),
         ),
-        const Divider(height: 1),
+        const Divider(height: 20),
         Expanded(
           child: ListView.builder(
             itemCount: _list.length,
             itemBuilder: (c, i) => ListTile(
-              dense: true, title: Text(_list[i]['name'], style: const TextStyle(fontSize: 12)),
+              dense: true,
+              leading: const Icon(Icons.person, size: 18),
+              title: Text(_list[i]['name'], style: const TextStyle(fontSize: 12)),
               subtitle: Text(_list[i]['number'], style: const TextStyle(fontSize: 10)),
-              trailing: IconButton(icon: const Icon(Icons.remove_circle_outline, size: 16), onPressed: () async {
+              trailing: IconButton(icon: const Icon(Icons.remove_circle_outline, size: 18, color: Colors.redAccent), onPressed: () async {
                 setState(() => _list.removeAt(i));
                 (await SharedPreferences.getInstance()).setString('contacts_list', json.encode(_list));
               }),
@@ -286,9 +313,9 @@ class _SettingScreenState extends State<SettingScreen> {
           ),
         ),
         Padding(
-          padding: const EdgeInsets.fromLTRB(20, 0, 20, 15),
+          padding: const EdgeInsets.all(15),
           child: SizedBox(width: double.infinity, height: 42, child: ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF5C6BC0), foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF5C6BC0), foregroundColor: Colors.white),
             onPressed: () async {
               if (await Permission.contacts.request().isGranted) {
                 final c = await ContactsService.openDeviceContactPicker();
@@ -298,7 +325,7 @@ class _SettingScreenState extends State<SettingScreen> {
                 }
               }
             },
-            child: const Text("보호자 등록", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+            child: const Text("보호자 등록", style: TextStyle(fontSize: 12)),
           )),
         ),
       ],
