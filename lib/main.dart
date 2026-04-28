@@ -12,12 +12,13 @@ import 'dart:io';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   try {
+    // google-services.json이 android/app 폴더에 있어야 정상 작동합니다.
     await Firebase.initializeApp();
   } catch (e) {
     debugPrint("Firebase 초기화 실패: $e");
   }
 
-  // 필수 권한 요청 (SMS는 서버 발송이므로 위치/연락처 집중)
+  // 필수 권한 요청
   await [
     Permission.contacts,
     Permission.location,
@@ -87,6 +88,7 @@ class _HomeScreenState extends State<HomeScreen> {
     _initUserId(); 
   }
 
+  // ✅ DeviceInfoPlugin 에러 해결
   void _initUserId() async {
     var deviceInfo = DeviceInfoPlugin();
     if (Platform.isAndroid) {
@@ -99,18 +101,22 @@ class _HomeScreenState extends State<HomeScreen> {
     _listenToFirebase();
   }
 
+  // ✅ FirebaseFirestore 에러 해결
   void _listenToFirebase() {
     if (_uid.isEmpty) return;
     FirebaseFirestore.instance.collection('users').doc(_uid).snapshots().listen((snap) {
       if (snap.exists) {
-        setState(() {
-          _last = snap.data()?['lastCheckIn'] ?? "기록 없음";
-          _hrs = snap.data()?['selectedHours'] ?? 1;
-        });
+        if (mounted) {
+          setState(() {
+            _last = snap.data()?['lastCheckIn'] ?? "기록 없음";
+            _hrs = snap.data()?['selectedHours'] ?? 1;
+          });
+        }
       }
     });
   }
 
+  // ✅ FieldValue 및 SetOptions 에러 해결
   void _checkIn() async {
     if (_uid.isEmpty) return;
     String now = DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now());
@@ -123,13 +129,12 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     } catch (_) {}
 
-    // 서버에 판단 근거 전송 및 알람 이력 초기화
     await FirebaseFirestore.instance.collection('users').doc(_uid).set({
       'lastCheckIn': now,
       'lastTimestamp': FieldValue.serverTimestamp(),
-      'lastLocation': pos != null ? "https://www.google.com/maps?q=${pos.latitude},${pos.longitude}" : "위치확인불가",
+      'lastLocation': pos != null ? "https://www.google.com/maps/search/?api=1&query=${pos.latitude},${pos.longitude}" : "위치확인불가",
       'autoSmsEnabled': true,
-      'lastAlertSent': null, // ✅ 체크인 시 알람 발송 기록 초기화 (중복 방지 해제)
+      'lastAlertSent': null,
     }, SetOptions(merge: true));
   }
 
@@ -208,12 +213,15 @@ class _SettingScreenState extends State<SettingScreen> {
   }
   
   void _loadSettings() {
+    if (_uid.isEmpty) return;
     FirebaseFirestore.instance.collection('users').doc(_uid).snapshots().listen((snap) {
       if (snap.exists) {
-        setState(() {
-          _list = snap.data()?['contacts'] ?? [];
-          _on = snap.data()?['autoSmsEnabled'] ?? false;
-        });
+        if (mounted) {
+          setState(() {
+            _list = snap.data()?['contacts'] ?? [];
+            _on = snap.data()?['autoSmsEnabled'] ?? false;
+          });
+        }
       }
     });
   }
