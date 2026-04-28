@@ -10,18 +10,25 @@ dependencies:
   flutter:
     sdk: flutter
   cupertino_icons: ^1.0.6
-  
-  # ✅ Firebase 및 필수 패키지 추가
+
+  # ✅ Firebase 관련 필수 패키지 (누락되었던 부분)
   firebase_core: ^2.27.0
   cloud_firestore: ^4.15.8
+
+  # ✅ 기기 식별 및 시스템 제어
   device_info_plus: ^10.1.0
-  
-  # 기존 유지 패키지
   shared_preferences: ^2.2.2
-  contacts_service: ^0.6.3
+  
+  # ✅ 무료 문자 및 권한 관련
+  background_sms: ^0.0.4
   permission_handler: ^11.3.0
-  intl: ^0.19.0
+  contacts_service: ^0.6.3
+  
+  # ✅ 위치 및 유틸리티
   geolocator: ^11.0.0
+  intl: ^0.19.0
+  
+  # ✅ 백그라운드 서비스 유지용
   flutter_foreground_task: ^6.5.0
 
 dev_dependencies:
