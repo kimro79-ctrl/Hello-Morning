@@ -31,21 +31,21 @@ class FirstTaskHandler extends TaskHandler {
     try {
       DateTime lastTime = DateFormat('yyyy-MM-dd HH:mm').parse(last);
       int selectedHours = p.getInt('selectedHours') ?? 1;
-      int limitMin = selectedHours == 0 ? 5 : selectedHours * 60;
       
-      int diffMin = DateTime.now().difference(lastTime).inMinutes;
+      // [수정] 시스템 지연을 고려하여 기준 시간을 30초 앞당김 (5분 -> 4분 30초)
+      int limitMin = selectedHours == 0 ? 5 : selectedHours * 60;
+      double diffSeconds = DateTime.now().difference(lastTime).inSeconds.toDouble();
+      double limitSeconds = (limitMin * 60) - 30; 
 
-      // 설정 시간 경과 시
-      if (diffMin >= limitMin) {
+      if (diffSeconds >= limitSeconds) {
         String? lastSentStr = p.getString('lastEmergencySent');
         if (lastSentStr != null) {
           DateTime lastSentTime = DateTime.parse(lastSentStr);
-          // 마지막 발송으로부터 5분 경과 여부 확인 (반복 발송 핵심)
-          if (DateTime.now().difference(lastSentTime).inMinutes >= 5) {
+          // 재발송 주기도 5분(300초)에서 지연분 30초를 뺀 270초로 설정
+          if (DateTime.now().difference(lastSentTime).inSeconds >= 270) {
             sendPort?.send('SEND_SMS_ACTION');
           }
         } else {
-          // 최초 발송
           sendPort?.send('SEND_SMS_ACTION');
         }
       }
@@ -122,7 +122,6 @@ class _MainNavigationState extends State<MainNavigation> {
 
     String locationStr = "좌표 확인 불가";
     try {
-      // [수정] 정밀도를 Medium으로 하향하여 실내 응답 속도 개선
       Position pos = await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.medium, 
         timeLimit: const Duration(seconds: 5),
@@ -187,13 +186,17 @@ class _MainNavigationState extends State<MainNavigation> {
   void _initForegroundTask() {
     FlutterForegroundTask.init(
       androidNotificationOptions: AndroidNotificationOptions(
-        channelId: 'safety_check_v34',
+        channelId: 'safety_check_v35',
         channelName: '안심 지키미 서비스',
         channelImportance: NotificationChannelImportance.MAX,
         priority: NotificationPriority.HIGH,
       ),
       iosNotificationOptions: const IOSNotificationOptions(showNotification: true),
-      foregroundTaskOptions: const ForegroundTaskOptions(interval: 60000, autoRunOnBoot: true, allowWakeLock: true),
+      foregroundTaskOptions: const ForegroundTaskOptions(
+        interval: 30000, // [수정] 검사 주기를 30초로 단축 (지연 방지)
+        autoRunOnBoot: true, 
+        allowWakeLock: true
+      ),
     );
   }
 
@@ -214,8 +217,6 @@ class _MainNavigationState extends State<MainNavigation> {
         ),
       );
 }
-
-// --- UI 코드 (디자인 유지) ---
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -297,7 +298,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 String now = DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now());
                 final p = await SharedPreferences.getInstance();
                 await p.setString('lastCheckIn', now);
-                await p.remove('lastEmergencySent'); // 발송 타이머 초기화
+                await p.remove('lastEmergencySent');
                 
                 List history = json.decode(p.getString('history_logs') ?? "[]");
                 history.insert(0, {'type': '활동 체크', 'time': DateFormat('MM/dd HH:mm').format(DateTime.now()), 'msg': '본인 안부 확인 완료'});
