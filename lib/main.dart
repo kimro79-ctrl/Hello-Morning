@@ -44,7 +44,7 @@ class FirstTaskHandler extends TaskHandler {
 }
 
 // -----------------------------------------------------------------------------
-// [2] 메인 네비게이션 및 로직 (UI 건드리지 않음)
+// [2] 메인 네비게이션 및 로직 (UI 보존)
 // -----------------------------------------------------------------------------
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -80,16 +80,17 @@ class _MainNavigationState extends State<MainNavigation> {
   void initState() {
     super.initState();
     _initForegroundTask();
-    _bindReceivePort(); // [수리] 안정적인 포트 바인딩 시작
+    _bindReceivePort(); // [수리 핵심] await 기반 바인딩 실행
     WidgetsBinding.instance.addPostFrameCallback((_) => _initialSetup());
   }
 
-  // [수리] 서비스 상태를 체크하며 포트를 연결하는 재시도 로직
+  // [수리] Future 기반의 ReceivePort를 안전하게 가져오는 비동기 로직
   void _bindReceivePort() async {
-    ReceivePort? port = FlutterForegroundTask.receivePort;
+    ReceivePort? port = await FlutterForegroundTask.receivePort;
     if (port != null) {
       _initReceivePort(port);
     } else {
+      // 서비스가 늦게 뜰 경우를 대비해 1초 후 재시도
       Future.delayed(const Duration(seconds: 1), _bindReceivePort);
     }
   }
@@ -102,10 +103,11 @@ class _MainNavigationState extends State<MainNavigation> {
     });
   }
 
+  // 실제 문자 발송 엔진
   Future<void> _executeEmergencySms() async {
     final p = await SharedPreferences.getInstance();
     
-    // [수리] 중복 발송 방지 (10분 이내 재발송 금지)
+    // 중복 발송 방지
     String? lastSent = p.getString('lastEmergencySent');
     if (lastSent != null) {
       DateTime lastSentTime = DateTime.parse(lastSent);
@@ -121,12 +123,11 @@ class _MainNavigationState extends State<MainNavigation> {
         desiredAccuracy: LocationAccuracy.medium,
         timeLimit: const Duration(seconds: 8),
       );
-      // [수리] URL 오타 수정 ($ 추가)
-      mapLink = "https://www.google.com/maps?q=${pos.latitude},${pos.longitude}";
+      mapLink = "https://www.google.com/maps?q=$/${pos.latitude},${pos.longitude}";
     } catch (_) {
       Position? lastPos = await Geolocator.getLastKnownPosition();
       if (lastPos != null) {
-        mapLink = "https://www.google.com/maps?q=${lastPos.latitude},${lastPos.longitude} (마지막 위치)";
+        mapLink = "https://www.google.com/maps?q=$/${lastPos.latitude},${lastPos.longitude} (마지막 위치)";
       }
     }
 
@@ -135,9 +136,7 @@ class _MainNavigationState extends State<MainNavigation> {
 
     for (var c in contacts) {
       if (c['number'] != null) {
-        // [수리] 전화번호에서 하이픈 등 특수문자 제거
         String cleanNumber = c['number'].replaceAll(RegExp(r'[^0-9+]'), '');
-        
         try {
           SmsStatus status = await BackgroundSms.sendMessage(
             phoneNumber: cleanNumber,
@@ -156,19 +155,32 @@ class _MainNavigationState extends State<MainNavigation> {
     }
 
     await p.setString('history_logs', json.encode(logs.take(30).toList()));
-    await p.setString('lastEmergencySent', DateTime.now().toIso8601String()); // 발송 시점 기록
+    await p.setString('lastEmergencySent', DateTime.now().toIso8601String());
     await p.setString('lastCheckIn', DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now()));
     if (mounted) setState(() {});
   }
 
   Future<void> _initialSetup() async {
     await [Permission.sms, Permission.location, Permission.locationAlways, Permission.contacts, Permission.notification].request();
+    
+    // [수리] 서비스가 활성화되어야 하는데 꺼져있다면 강제 시작
+    final p = await SharedPreferences.getInstance();
+    if (p.getBool('auto_sms_enabled') ?? false) {
+      bool isRunning = await FlutterForegroundTask.isRunningService;
+      if (!isRunning) {
+        await FlutterForegroundTask.startService(
+          notificationTitle: "안심 지키미 보호 중",
+          notificationText: "백그라운드 감시 활성화",
+          callback: startCallback,
+        );
+      }
+    }
   }
 
   void _initForegroundTask() {
     FlutterForegroundTask.init(
       androidNotificationOptions: AndroidNotificationOptions(
-        channelId: 'safety_check_v15',
+        channelId: 'safety_check_v16',
         channelName: '안심 지키미 보호 가동',
         channelImportance: NotificationChannelImportance.MAX,
         priority: NotificationPriority.HIGH,
@@ -197,7 +209,7 @@ class _MainNavigationState extends State<MainNavigation> {
 }
 
 // -----------------------------------------------------------------------------
-// [3] 홈 화면 (디자인 절대 보존)
+// [3] 홈 화면 (UI 유지)
 // -----------------------------------------------------------------------------
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -301,7 +313,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 }
 
 // -----------------------------------------------------------------------------
-// [4] 기록 및 설정 화면 (디자인 보존)
+// [4] 기록 및 설정 화면 (UI 유지)
 // -----------------------------------------------------------------------------
 class HistoryScreen extends StatefulWidget {
   const HistoryScreen({super.key});
