@@ -44,7 +44,7 @@ class FirstTaskHandler extends TaskHandler {
 }
 
 // -----------------------------------------------------------------------------
-// [2] 메인 네비게이션 및 로직 (UI 보존)
+// [2] 메인 네비게이션 및 로직 (디자인 유지)
 // -----------------------------------------------------------------------------
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -80,17 +80,15 @@ class _MainNavigationState extends State<MainNavigation> {
   void initState() {
     super.initState();
     _initForegroundTask();
-    _bindReceivePort(); // [수리 핵심] await 기반 바인딩 실행
+    _bindReceivePort();
     WidgetsBinding.instance.addPostFrameCallback((_) => _initialSetup());
   }
 
-  // [수리] Future 기반의 ReceivePort를 안전하게 가져오는 비동기 로직
   void _bindReceivePort() async {
     ReceivePort? port = await FlutterForegroundTask.receivePort;
     if (port != null) {
       _initReceivePort(port);
     } else {
-      // 서비스가 늦게 뜰 경우를 대비해 1초 후 재시도
       Future.delayed(const Duration(seconds: 1), _bindReceivePort);
     }
   }
@@ -103,11 +101,9 @@ class _MainNavigationState extends State<MainNavigation> {
     });
   }
 
-  // 실제 문자 발송 엔진
   Future<void> _executeEmergencySms() async {
     final p = await SharedPreferences.getInstance();
     
-    // 중복 발송 방지
     String? lastSent = p.getString('lastEmergencySent');
     if (lastSent != null) {
       DateTime lastSentTime = DateTime.parse(lastSent);
@@ -123,11 +119,12 @@ class _MainNavigationState extends State<MainNavigation> {
         desiredAccuracy: LocationAccuracy.medium,
         timeLimit: const Duration(seconds: 8),
       );
-      mapLink = "https://www.google.com/maps?q=$/${pos.latitude},${pos.longitude}";
+      // [수리 핵심] 문자열 보간법 정정: ${변수명}
+      mapLink = "https://www.google.com/maps?q=${pos.latitude},${pos.longitude}";
     } catch (_) {
       Position? lastPos = await Geolocator.getLastKnownPosition();
       if (lastPos != null) {
-        mapLink = "https://www.google.com/maps?q=$/${lastPos.latitude},${lastPos.longitude} (마지막 위치)";
+        mapLink = "https://www.google.com/maps?q=${lastPos.latitude},${lastPos.longitude} (마지막 위치)";
       }
     }
 
@@ -140,7 +137,7 @@ class _MainNavigationState extends State<MainNavigation> {
         try {
           SmsStatus status = await BackgroundSms.sendMessage(
             phoneNumber: cleanNumber,
-            message: "[안심지키미] 응답 지연 상태입니다. 위급 상황일 수 있으니 확인 바랍니다.\n위치: $mapLink",
+            message: "[안심지키미] 응답 지연 상태입니다. 확인 바랍니다.\n위치: $mapLink",
           );
           
           logs.insert(0, {
@@ -163,7 +160,6 @@ class _MainNavigationState extends State<MainNavigation> {
   Future<void> _initialSetup() async {
     await [Permission.sms, Permission.location, Permission.locationAlways, Permission.contacts, Permission.notification].request();
     
-    // [수리] 서비스가 활성화되어야 하는데 꺼져있다면 강제 시작
     final p = await SharedPreferences.getInstance();
     if (p.getBool('auto_sms_enabled') ?? false) {
       bool isRunning = await FlutterForegroundTask.isRunningService;
@@ -180,7 +176,7 @@ class _MainNavigationState extends State<MainNavigation> {
   void _initForegroundTask() {
     FlutterForegroundTask.init(
       androidNotificationOptions: AndroidNotificationOptions(
-        channelId: 'safety_check_v16',
+        channelId: 'safety_check_v20',
         channelName: '안심 지키미 보호 가동',
         channelImportance: NotificationChannelImportance.MAX,
         priority: NotificationPriority.HIGH,
