@@ -10,11 +10,6 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:isolate';
 
-// Firebase 엔진
-import 'package:firebase_core/firebase_core.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-
 @pragma('vm:entry-point')
 void startCallback() {
   FlutterForegroundTask.setTaskHandler(FirstTaskHandler());
@@ -38,6 +33,7 @@ class FirstTaskHandler extends TaskHandler {
       int limitMin = selectedHours == 0 ? 5 : selectedHours * 60;
 
       if (DateTime.now().difference(lastTime).inMinutes >= limitMin) {
+        // [수정] 백그라운드 발송 명령 전달
         sendPort?.send('SEND_SMS_ACTION');
       }
     } catch (_) {}
@@ -49,17 +45,6 @@ class FirstTaskHandler extends TaskHandler {
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
-  // [수리] Firebase 초기화 및 익명 로그인 (튕김 방어)
-  try {
-    await Firebase.initializeApp();
-    if (FirebaseAuth.instance.currentUser == null) {
-      await FirebaseAuth.instance.signInAnonymously();
-    }
-  } catch (e) {
-    debugPrint("Firebase 연동 실패: $e");
-  }
-  
   runApp(const DailySafetyApp());
 }
 
@@ -116,6 +101,7 @@ class _MainNavigationState extends State<MainNavigation> {
   Future<void> _executeEmergencySms() async {
     final p = await SharedPreferences.getInstance();
     
+    // 중복 발송 방지 (10분)
     String? lastSent = p.getString('lastEmergencySent');
     if (lastSent != null) {
       try {
@@ -124,37 +110,26 @@ class _MainNavigationState extends State<MainNavigation> {
       } catch (_) {}
     }
 
+    // 연락처 확인
     String? contactsJson = p.getString('contacts_list');
     List contacts = [];
     try { contacts = json.decode(contactsJson ?? "[]"); } catch (_) {}
     if (contacts.isEmpty) return;
 
-    String mapLink = "위치 확인 불가";
-    double lat = 0, lng = 0;
+    // [핵심 수정] 실내용 최적화 위치 로직 (정밀도 하향 및 타임아웃)
+    String locationStr = "실내/위치 확인 불가";
     try {
       Position pos = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.medium,
-        timeLimit: const Duration(seconds: 8),
+        desiredAccuracy: LocationAccuracy.balanced, // [수정] 대략적인/균형잡힌 위치(실내용)
+        timeLimit: const Duration(seconds: 5),       // [수정] 5초 이상 걸리면 포기하고 다음 진행
       );
-      lat = pos.latitude; lng = pos.longitude;
-      // [수리] 문자열 보간법 정정 (링크 깨짐 방지)
-      mapLink = "http://maps.google.com/?q=${pos.latitude},${pos.longitude}";
+      locationStr = "위치: ${pos.latitude.toStringAsFixed(4)}, ${pos.longitude.toStringAsFixed(4)}";
     } catch (_) {
+      // 위치를 못 잡으면 마지막 위치 시도
       Position? lastPos = await Geolocator.getLastKnownPosition();
       if (lastPos != null) {
-        lat = lastPos.latitude; lng = lastPos.longitude;
-        mapLink = "http://maps.google.com/?q=${lastPos.latitude},${lastPos.longitude} (마지막 위치)";
+        locationStr = "최근 위치: ${lastPos.latitude.toStringAsFixed(4)}, ${lastPos.longitude.toStringAsFixed(4)}";
       }
-    }
-
-    // [핵심] Firebase에 먼저 기록 (SMS 성공 여부와 무관하게 안정성 95% 확보)
-    final user = FirebaseAuth.instance.currentUser;
-    if (user != null) {
-      FirebaseFirestore.instance.collection('users').doc(user.uid).set({
-        'emergency_alert': true,
-        'last_location': GeoPoint(lat, lng),
-        'last_alert_time': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
     }
 
     List logs = [];
@@ -166,8 +141,9 @@ class _MainNavigationState extends State<MainNavigation> {
         try {
           SmsStatus status = await BackgroundSms.sendMessage(
             phoneNumber: cleanNumber,
-            message: "[안심지키미] 응답 지연 상태입니다. 확인 바랍니다.\n위치: $mapLink",
+            message: "[안심지키미] 실내 응답 지연 상태입니다. 확인 바랍니다.\n$locationStr",
           );
+          
           logs.insert(0, {
             'type': status == SmsStatus.sent ? '비상 알림' : '발송 실패',
             'time': DateFormat('MM/dd HH:mm').format(DateTime.now()),
@@ -181,12 +157,12 @@ class _MainNavigationState extends State<MainNavigation> {
 
     await p.setString('history_logs', json.encode(logs.take(30).toList()));
     await p.setString('lastEmergencySent', DateTime.now().toIso8601String());
+    // 발송 후 체크인 시간 자동 갱신 (반복 발송 방지)
     await p.setString('lastCheckIn', DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now()));
     if (mounted) setState(() {});
   }
 
   Future<void> _initialSetup() async {
-    // [수리] 배터리 최적화 제외 요청 추가 (백그라운드 생존율 상승)
     await [Permission.sms, Permission.location, Permission.locationAlways, Permission.contacts, Permission.notification].request();
     await FlutterForegroundTask.requestIgnoreBatteryOptimization();
     
@@ -195,7 +171,7 @@ class _MainNavigationState extends State<MainNavigation> {
       if (!await FlutterForegroundTask.isRunningService) {
         await FlutterForegroundTask.startService(
           notificationTitle: "안심 지키미 보호 중",
-          notificationText: "백그라운드 감시 활성화",
+          notificationText: "1인가구 실내 감시 활성화",
           callback: startCallback,
         );
       }
@@ -205,8 +181,8 @@ class _MainNavigationState extends State<MainNavigation> {
   void _initForegroundTask() {
     FlutterForegroundTask.init(
       androidNotificationOptions: AndroidNotificationOptions(
-        channelId: 'safety_check_v24',
-        channelName: '안심 지키미 보호 가동',
+        channelId: 'safety_check_v25',
+        channelName: '안심 지키미 실내 보호',
         channelImportance: NotificationChannelImportance.MAX,
         priority: NotificationPriority.HIGH,
       ),
@@ -233,10 +209,6 @@ class _MainNavigationState extends State<MainNavigation> {
       );
 }
 
-// [HomeScreen], [HistoryScreen], [SettingScreen] 등 UI 위젯은 이전 코드와 동일하게 유지
-// (데이터 처리 부분만 위와 같이 Firebase 동기화 로직으로 내부 교체됨)
-// ... 이하 UI 코드는 사용자님의 기존 디자인을 100% 따릅니다 ...
-
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
   @override
@@ -245,7 +217,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   String _lastCheckIn = "기록 없음";
-  String _locationInfo = "위치 확인 중...";
+  String _locationInfo = "위치 정보 대기 중";
   int _selectedHours = 1;
   bool _isPressed = false;
   late AnimationController _controller;
@@ -270,8 +242,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   Future<void> _updateLocation() async {
     try {
-      Position pos = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.medium);
-      if (mounted) setState(() => _locationInfo = "현재: ${pos.latitude.toStringAsFixed(4)}, ${pos.longitude.toStringAsFixed(4)}");
+      Position pos = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.balanced);
+      if (mounted) setState(() => _locationInfo = "실내 위치 확인됨");
     } catch (_) {}
   }
 
@@ -299,10 +271,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   onSelected: (v) async {
                     setState(() => _selectedHours = h);
                     (await SharedPreferences.getInstance()).setInt('selectedHours', h);
-                    final user = FirebaseAuth.instance.currentUser;
-                    if (user != null) {
-                      FirebaseFirestore.instance.collection('users').doc(user.uid).set({'selectedHours': h}, SetOptions(merge: true));
-                    }
                   },
                 ),
               )).toList(),
@@ -322,17 +290,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 try { logs = json.decode(p.getString('history_logs') ?? "[]"); } catch (_) {}
                 logs.insert(0, {'type': '활동 체크', 'time': DateFormat('MM/dd HH:mm').format(DateTime.now()), 'msg': '본인 안부 확인 완료'});
                 await p.setString('history_logs', json.encode(logs.take(30).toList()));
-                
-                final user = FirebaseAuth.instance.currentUser;
-                if (user != null) {
-                  FirebaseFirestore.instance.collection('users').doc(user.uid).set({
-                    'lastCheckIn': now,
-                    'emergency_alert': false,
-                  }, SetOptions(merge: true));
-                }
 
                 setState(() => _lastCheckIn = now);
-                if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("확인되었습니다.")));
+                if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("체크인 되었습니다.")));
               },
               child: ScaleTransition(
                 scale: _scaleAnimation,
@@ -344,7 +304,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               ),
             ),
             const Spacer(flex: 3),
-            const Text("미응답 시 설정된 연락처로 알림이 전송됩니다.", style: TextStyle(color: Colors.grey, fontSize: 11)),
+            const Text("1인가구 실내 전용 보호 모드 작동 중", style: TextStyle(color: Colors.grey, fontSize: 11)),
             const SizedBox(height: 30),
           ],
         ),
@@ -353,5 +313,129 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 }
 
-// HistoryScreen 및 SettingScreen 생략 (이전 코드와 UI 동일하며 파싱 방어 로직만 위 패턴대로 적용됨)
-// ... 나머지 부분도 사용자님의 UI를 절대 유지하며 코드 안정성만 강화되었습니다.
+class HistoryScreen extends StatefulWidget {
+  const HistoryScreen({super.key});
+  @override
+  State<HistoryScreen> createState() => _HistoryScreenState();
+}
+
+class _HistoryScreenState extends State<HistoryScreen> {
+  List _logs = [];
+  @override
+  void initState() { super.initState(); _load(); }
+  void _load() async {
+    final p = await SharedPreferences.getInstance();
+    try { setState(() => _logs = json.decode(p.getString('history_logs') ?? "[]")); } catch (_) {}
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: const Text("보호 및 발송 기록"), backgroundColor: Colors.transparent),
+    body: _logs.isEmpty ? const Center(child: Text("기록이 없습니다.")) : ListView.builder(
+      itemCount: _logs.length,
+      itemBuilder: (context, i) => ListTile(
+        leading: Icon(_logs[i]['type'] == '비상 알림' ? Icons.warning_amber_rounded : Icons.check_circle_outline, color: _logs[i]['type'] == '비상 알림' ? Colors.red : Colors.green),
+        title: Text(_logs[i]['type'] ?? '기록', style: const TextStyle(fontWeight: FontWeight.bold)),
+        subtitle: Text(_logs[i]['msg'] ?? ''),
+        trailing: Text(_logs[i]['time'] ?? '', style: const TextStyle(fontSize: 12, color: Colors.grey)),
+      ),
+    ),
+  );
+}
+
+class SettingScreen extends StatefulWidget {
+  const SettingScreen({super.key});
+  @override
+  State<SettingScreen> createState() => _SettingScreenState();
+}
+
+class _SettingScreenState extends State<SettingScreen> {
+  List _contacts = [];
+  bool _autoOn = false;
+
+  @override
+  void initState() { super.initState(); _load(); }
+  void _load() async {
+    final p = await SharedPreferences.getInstance();
+    setState(() {
+      try { _contacts = json.decode(p.getString('contacts_list') ?? "[]"); } catch (_) {}
+      _autoOn = p.getBool('auto_sms_enabled') ?? false;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text("설정"), backgroundColor: Colors.transparent),
+      body: SingleChildScrollView(
+        child: Column(
+          children: [
+            Container(
+              margin: const EdgeInsets.all(16), padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 15)]),
+              child: Column(
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text("실시간 보호 모드", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)), Text("백그라운드 감시 활성화", style: TextStyle(fontSize: 11, color: Colors.grey))]),
+                      Switch(
+                        value: _autoOn, activeColor: const Color(0xFFFF8A65),
+                        onChanged: (v) async {
+                          final p = await SharedPreferences.getInstance();
+                          await p.setBool('auto_sms_enabled', v);
+                          setState(() => _autoOn = v);
+                          if (v) {
+                            if (!await FlutterForegroundTask.isRunningService) {
+                              await FlutterForegroundTask.startService(notificationTitle: "안심 지키미 보호 중", notificationText: "보호 모드가 활성화되었습니다.", callback: startCallback);
+                            }
+                          } else { await FlutterForegroundTask.stopService(); }
+                        },
+                      ),
+                    ],
+                  ),
+                  const Divider(height: 30),
+                  Row(
+                    children: [
+                      Expanded(child: ElevatedButton(onPressed: () async => await [Permission.sms, Permission.location, Permission.locationAlways, Permission.contacts, Permission.notification].request(), style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF5C6BC0), foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))), child: const Text("자동 권한 설정"))),
+                      const SizedBox(width: 8),
+                      Expanded(child: OutlinedButton(onPressed: () => openAppSettings(), style: OutlinedButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))), child: const Text("시스템 설정"))),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const Padding(padding: EdgeInsets.symmetric(horizontal: 20), child: Align(alignment: Alignment.centerLeft, child: Text("비상 연락처 관리", style: TextStyle(fontWeight: FontWeight.bold)))),
+            ..._contacts.asMap().entries.map((entry) => ListTile(
+              leading: const CircleAvatar(backgroundColor: Color(0xFFFFE0B2), child: Icon(Icons.person, color: Colors.orange)),
+              title: Text(entry.value['name'] ?? '이름 없음'),
+              subtitle: Text(entry.value['number'] ?? ''),
+              trailing: IconButton(icon: const Icon(Icons.remove_circle_outline, color: Colors.redAccent), onPressed: () async {
+                setState(() => _contacts.removeAt(entry.key));
+                final p = await SharedPreferences.getInstance();
+                await p.setString('contacts_list', json.encode(_contacts));
+              }),
+            )),
+            Padding(
+              padding: const EdgeInsets.all(20),
+              child: ElevatedButton.icon(
+                icon: const Icon(Icons.person_add_alt_1), label: const Text("연락처 추가"),
+                style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 52), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))),
+                onPressed: () async {
+                  if (await Permission.contacts.request().isGranted) {
+                    final c = await ContactsService.openDeviceContactPicker();
+                    if (c != null && c.phones != null && c.phones!.isNotEmpty) {
+                      setState(() => _contacts.add({'name': c.displayName, 'number': c.phones?.first.value}));
+                      final p = await SharedPreferences.getInstance();
+                      await p.setString('contacts_list', json.encode(_contacts));
+                    }
+                  }
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
