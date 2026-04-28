@@ -7,11 +7,10 @@ import 'package:intl/intl.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
-import 'package:background_sms/background_sms.dart'; // ✅ 문자 발송 패키지
+import 'package:background_sms/background_sms.dart';
 import 'dart:async';
 import 'dart:io';
 
-// ✅ 백그라운드 작업 수행 핸들러
 @pragma('vm:entry-point')
 void startCallback() {
   FlutterForegroundTask.setTaskHandler(FirstTaskHandler());
@@ -19,16 +18,15 @@ void startCallback() {
 
 class FirstTaskHandler extends TaskHandler {
   @override
-  Future<void> onStart(DateTime timestamp, TaskStarter starter) async {}
+  Future<void> onStart(DateTime timestamp, SendPort? sendPort) async {}
 
   @override
-  Future<void> onRepeatEvent(DateTime timestamp, TaskStarter starter) async {
-    // 여기에 일정 시간(예: 24시간) 체크인이 없을 경우 문자 발송 로직 구현 가능
-    // 현재는 시스템 엔진 유지 및 위치 갱신 역할 수행
+  Future<void> onRepeatEvent(DateTime timestamp, SendPort? sendPort) async {
+    // 백그라운드 반복 작업 로직 위치
   }
 
   @override
-  Future<void> onDestroy(DateTime timestamp, TaskStarter starter) async {}
+  Future<void> onDestroy(DateTime timestamp, SendPort? sendPort) async {}
 }
 
 void main() async {
@@ -83,15 +81,21 @@ class _MainNavigationState extends State<MainNavigation> {
 
   Future<void> _initServiceConfig() async {
     await [Permission.notification, Permission.sms, Permission.locationAlways].request();
+    
     FlutterForegroundTask.init(
-      notificationOptions: const NotificationOptions(
+      androidNotificationOptions: AndroidNotificationOptions(
         channelId: 'safety_check',
         channelName: '안심 지키미',
         channelDescription: '안전 감시 중',
         channelImportance: NotificationImportance.MAX,
         priority: NotificationPriority.HIGH,
-        iconData: NotificationIconData(resType: ResourceType.drawable, resPrefix: ResourcePrefix.android, name: 'btn_star'),
+        iconData: const NotificationIconData(
+          resType: ResourceType.drawable,
+          resPrefix: ResourcePrefix.android,
+          name: 'btn_star',
+        ),
       ),
+      iosNotificationOptions: const IOSNotificationOptions(showNotification: true, playSound: false),
       foregroundTaskOptions: const ForegroundTaskOptions(interval: 5000, isOnceEvent: false, autoRunOnBoot: true, allowWakeLock: true, allowWifiLock: true),
     );
   }
@@ -145,7 +149,6 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
-  // ✅ 안심 체크인 시 문자 발송 테스트 포함
   void _checkIn() async {
     if (_uid.isEmpty) return;
     String now = DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now());
@@ -159,13 +162,10 @@ class _HomeScreenState extends State<HomeScreen> {
       'lastLocation': currentLoc,
     }, SetOptions(merge: true));
 
-    // ✅ 보호자에게 체크인 문자 자동 발송 (선택 사항)
     _sendAutoSms("안심 지키미: 오늘 체크인이 완료되었습니다. 위치: $currentLoc");
-    
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("안심 체크인 완료 및 문자 전송")));
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("안심 체크인 완료")));
   }
 
-  // ✅ 실질적인 문자 발송 함수
   void _sendAutoSms(String message) async {
     final snap = await FirebaseFirestore.instance.collection('users').doc(_uid).get();
     if (snap.exists) {
