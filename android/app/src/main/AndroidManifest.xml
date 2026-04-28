@@ -15,7 +15,7 @@
     <application
         android:label="안심 지키미"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher"
+        android:icon="@android:drawable/btn_star"
         android:allowBackup="true">
 
         <activity
