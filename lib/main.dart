@@ -10,7 +10,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:isolate';
 
-// 백그라운드 서비스 핸들러
+// 1. 백그라운드 작업 핸들러 (Isolate 내에서 실행됨)
 @pragma('vm:entry-point')
 void startCallback() {
   FlutterForegroundTask.setTaskHandler(SafetyTaskHandler());
@@ -33,26 +33,37 @@ class SafetyTaskHandler extends TaskHandler {
     int selectedHours = p.getInt('selectedHours') ?? 1;
     int limitMin = selectedHours == 0 ? 5 : selectedHours * 60;
 
+    // 설정된 시간이 지났는지 확인
     if (DateTime.now().difference(lastTime).inMinutes >= limitMin) {
-      // 1. 현재 좌표 가져오기
-      Position pos = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
-      List contacts = json.decode(contactsJson);
-      
-      // 2. 보호자에게 문자 발송
-      for (var c in contacts) {
-        if (c['number'] != null) {
-          await BackgroundSms.sendMessage(
-            phoneNumber: c['number'],
-            message: "[안심 지키미] 응답 지연 발생! 위급 상황일 수 있습니다.\n좌표: ${pos.latitude},${pos.longitude}",
-          );
+      try {
+        // 위치 정보 획득
+        Position pos = await Geolocator.getCurrentPosition(
+          desiredAccuracy: LocationAccuracy.high,
+          timeLimit: const Duration(seconds: 10),
+        );
+        
+        List contacts = json.decode(contactsJson);
+        for (var c in contacts) {
+          if (c['number'] != null) {
+            // ✅ 백그라운드 문자 발송 실행
+            await BackgroundSms.sendMessage(
+              phoneNumber: c['number'],
+              message: "[안심 지키미] 응답 지연 발생!\n위치: http://maps.google.com/?q=${pos.latitude},${pos.longitude}",
+            );
+          }
         }
+
+        // 중복 발송 방지를 위해 체크인 시간 강제 갱신
+        await p.setString('lastCheckIn', DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now()));
+        
+        // 기록 추가
+        List history = json.decode(p.getString('history_logs') ?? "[]");
+        history.insert(0, {'type': '비상 알림', 'time': DateFormat('MM/dd HH:mm').format(DateTime.now()), 'msg': '백그라운드 문자 발송 완료'});
+        await p.setString('history_logs', json.encode(history.take(30).toList()));
+        
+      } catch (e) {
+        print("백그라운드 작업 에러: $e");
       }
-      
-      // 3. 발송 기록 저장 및 시간 갱신 (중복 발송 방지)
-      await p.setString('lastCheckIn', DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now()));
-      List history = json.decode(p.getString('history_logs') ?? "[]");
-      history.insert(0, {'type': '비상 알림', 'time': DateFormat('MM/dd HH:mm').format(DateTime.now()), 'msg': '보호자 문자 발송 완료'});
-      await p.setString('history_logs', json.encode(history.take(30).toList()));
     }
   }
 
@@ -98,14 +109,18 @@ class _MainNavigationState extends State<MainNavigation> {
   void _initForegroundTask() {
     FlutterForegroundTask.init(
       androidNotificationOptions: AndroidNotificationOptions(
-        channelId: 'safety_service_channel',
-        channelName: '실시간 보호 서비스',
+        channelId: 'safety_service',
+        channelName: '안심 지키미 서비스',
         channelImportance: NotificationChannelImportance.LOW,
         priority: NotificationPriority.LOW,
         iconData: const NotificationIconData(resType: ResourceType.mipmap, resPrefix: ResourcePrefix.ic, name: 'launcher'),
       ),
       iosNotificationOptions: const IOSNotificationOptions(showNotification: true),
-      foregroundTaskOptions: const ForegroundTaskOptions(interval: 60000, isOnceEvent: false, autoRunOnBoot: true),
+      foregroundTaskOptions: const ForegroundTaskOptions(
+        interval: 60000, // 1분마다 체크
+        autoRunOnBoot: true,
+        allowWakeLock: true,
+      ),
     );
   }
 
@@ -133,7 +148,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   String _lastCheckIn = "기록 없음";
-  String _locationInfo = "위치 확인 중...";
+  String _locationInfo = "좌표 확인 중...";
   int _selectedHours = 1;
 
   @override
@@ -146,7 +161,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void _loadData() async {
     final p = await SharedPreferences.getInstance();
     setState(() {
-      _lastCheckIn = p.getString('lastCheckIn') ?? "오늘 안부를 전하세요";
+      _lastCheckIn = p.getString('lastCheckIn') ?? "체크인이 필요합니다";
       _selectedHours = p.getInt('selectedHours') ?? 1;
     });
   }
@@ -157,12 +172,12 @@ class _HomeScreenState extends State<HomeScreen> {
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
       }
-      Position pos = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.medium);
+      Position pos = await Geolocator.getCurrentPosition();
       if (mounted) {
-        setState(() => _locationInfo = "좌표: ${pos.latitude.toStringAsFixed(6)}, ${pos.longitude.toStringAsFixed(6)}");
+        setState(() => _locationInfo = "현재 좌표: ${pos.latitude.toStringAsFixed(5)}, ${pos.longitude.toStringAsFixed(5)}");
       }
     } catch (e) {
-      if (mounted) setState(() => _locationInfo = "위치 정보 권한 필요");
+      if (mounted) setState(() => _locationInfo = "위치 권한을 허용해 주세요");
     }
   }
 
@@ -174,7 +189,7 @@ class _HomeScreenState extends State<HomeScreen> {
           const SizedBox(height: 30),
           const Text("안심 지키미", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFF5C6BC0))),
           Text(_locationInfo, style: const TextStyle(fontSize: 13, color: Colors.grey)),
-          const SizedBox(height: 30),
+          const SizedBox(height: 20),
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [0, 1, 12, 24].map((h) => Padding(
@@ -190,8 +205,8 @@ class _HomeScreenState extends State<HomeScreen> {
             )).toList(),
           ),
           const Spacer(),
-          Text("마지막 체크인: $_lastCheckIn", style: const TextStyle(fontWeight: FontWeight.bold)),
-          const SizedBox(height: 20),
+          Text("마지막 체크인: $_lastCheckIn"),
+          const SizedBox(height: 30),
           GestureDetector(
             onTap: () async {
               String now = DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now());
@@ -205,11 +220,11 @@ class _HomeScreenState extends State<HomeScreen> {
               setState(() => _lastCheckIn = now);
               _updateLocation();
             },
-            child: Image.asset('assets/smile.png', width: 200, errorBuilder: (c,e,s) => const Icon(Icons.face, size: 200, color: Colors.orange)),
+            child: Image.asset('assets/smile.png', width: 220, errorBuilder: (c,e,s) => const Icon(Icons.face, size: 220, color: Colors.orange)),
           ),
           const Spacer(),
-          const Text("미응답 시 보호자에게 위치 정보가 전송됩니다.", style: TextStyle(fontSize: 11, color: Colors.grey)),
-          const SizedBox(height: 30),
+          const Text("미응답 시 보호자에게 비상 문자가 발송됩니다.", style: TextStyle(fontSize: 11, color: Colors.grey)),
+          const SizedBox(height: 40),
         ],
       ),
     );
@@ -233,7 +248,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text("활동 및 알림 기록")),
+    appBar: AppBar(title: const Text("활동 기록")),
     body: _logs.isEmpty ? const Center(child: Text("기록이 없습니다.")) : ListView.builder(
       itemCount: _logs.length,
       itemBuilder: (c, i) => ListTile(
@@ -282,7 +297,7 @@ class _SettingScreenState extends State<SettingScreen> {
               setState(() => _autoOn = v);
               if (v) {
                 await FlutterForegroundTask.startService(
-                  notificationTitle: '안심 지키미 보호 중',
+                  notificationTitle: '안심 지키미 작동 중',
                   notificationText: '미응답 시 문자를 발송합니다.',
                   callback: startCallback,
                 );
