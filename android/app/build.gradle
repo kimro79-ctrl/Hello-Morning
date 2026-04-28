@@ -11,23 +11,12 @@ if (flutterRoot == null) {
     throw new GradleException("Flutter SDK not found. Define location with flutter.sdk in the local.properties file.")
 }
 
-def flutterVersionCode = localProperties.getProperty('flutter.versionCode')
-if (flutterVersionCode == null) {
-    flutterVersionCode = '1'
-}
-
-def flutterVersionName = localProperties.getProperty('flutter.versionName')
-if (flutterVersionName == null) {
-    flutterVersionName = '1.0'
-}
-
 apply plugin: 'com.android.application'
 apply plugin: 'kotlin-android'
 apply from: "$flutterRoot/packages/flutter_tools/gradle/flutter.gradle"
 
 android {
-    // 패키지명 확인: 프로젝트 설정에 맞게 자동 적용됩니다.
-    namespace "com.kimrc.hello_morning" 
+    namespace "com.kimrc.hello_morning"
     compileSdkVersion flutter.compileSdkVersion
     ndkVersion flutter.ndkVersion
 
@@ -40,22 +29,16 @@ android {
         jvmTarget = '1.8'
     }
 
-    sourceSets {
-        main.java.srcDirs += 'src/main/kotlin'
-    }
-
     defaultConfig {
-        // 여기에 개발자님의 실제 애플리케이션 ID를 넣으세요.
-        applicationId "com.kimrc.hello_morning" 
+        applicationId "com.kimrc.hello_morning"
         minSdkVersion 21
         targetSdkVersion flutter.targetSdkVersion
-        versionCode flutterVersionCode.toInteger()
-        versionName flutterVersionName
+        versionCode 1
+        versionName "1.0"
     }
 
     signingConfigs {
         release {
-            // GitHub Actions의 비밀번호 정보를 사용합니다.
             storeFile file("upload-keystore.jks")
             storePassword System.getenv("STORE_PASSWORD")
             keyAlias System.getenv("ALIAS")
@@ -65,7 +48,6 @@ android {
 
     buildTypes {
         release {
-            // 이 설정이 있어야 Play Console의 디버그 서명 에러가 사라집니다.
             signingConfig signingConfigs.release
             minifyEnabled false
             shrinkResources false
