@@ -10,6 +10,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:isolate';
 
+// ✅ 포그라운드 서비스 콜백 (최상단 유지)
 @pragma('vm:entry-point')
 void startCallback() {
   FlutterForegroundTask.setTaskHandler(MyTaskHandler());
@@ -36,12 +37,12 @@ class MyTaskHandler extends TaskHandler {
     if (DateTime.now().difference(lastTime).inMinutes >= limitMin) {
       Position pos = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.medium);
       List contacts = json.decode(contactsJson);
-      String googleMapsUrl = "https://www.google.com/maps?q=${pos.latitude},${pos.longitude}";
+      String mapsUrl = "https://www.google.com/maps/search/?api=1&query=${pos.latitude},${pos.longitude}";
 
       for (var c in contacts) {
         await BackgroundSms.sendMessage(
           phoneNumber: c['number'],
-          message: "[안심 지키미] 응답 지연 발생!\n위치 확인: $googleMapsUrl"
+          message: "[안심 지키미] 응답 지연 발생!\n위치 확인: $mapsUrl"
         );
       }
       await p.setString('lastCheckIn', DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now()));
@@ -84,10 +85,8 @@ class _MainNavigationState extends State<MainNavigation> {
   @override
   void initState() {
     super.initState();
-    _initForegroundTask();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _showNoticeDialog();
-    });
+    _initForegroundTask(); // 서비스 초기화
+    WidgetsBinding.instance.addPostFrameCallback((_) => _showNoticeDialog());
   }
 
   void _initForegroundTask() {
@@ -95,7 +94,7 @@ class _MainNavigationState extends State<MainNavigation> {
       androidNotificationOptions: AndroidNotificationOptions(
         channelId: 'safety_check',
         channelName: '안심 지키미 서비스',
-        channelDescription: '안전 상태 확인 중',
+        channelDescription: '보호 중입니다.',
         channelImportance: NotificationChannelImportance.LOW,
         priority: NotificationPriority.LOW,
         iconData: const NotificationIconData(resType: ResourceType.mipmap, resPrefix: ResourcePrefix.ic, name: 'launcher'),
@@ -116,10 +115,11 @@ class _MainNavigationState extends State<MainNavigation> {
       context: context,
       barrierDismissible: false,
       builder: (context) => AlertDialog(
-        title: const Text("기능 안내"),
-        content: const Text("위치(항상 허용)와 SMS 권한이 필요합니다."),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+        title: const Row(children: [Icon(Icons.security, color: Color(0xFFFF8A65)), SizedBox(width: 10), Text("필수 권한 안내")]),
+        content: const Text("위치 항상 허용 및 SMS 발송 권한이 필요합니다."),
         actions: [
-          TextButton(onPressed: () { Navigator.pop(context); _initPermissions(); }, child: const Text("확인")),
+          TextButton(onPressed: () { Navigator.pop(context); _initPermissions(); }, child: const Text("확인"))
         ],
       ),
     );
@@ -127,9 +127,7 @@ class _MainNavigationState extends State<MainNavigation> {
 
   Future<void> _initPermissions() async {
     await [Permission.sms, Permission.contacts, Permission.location, Permission.notification].request();
-    if (await Permission.location.isGranted) {
-      await Permission.locationAlways.request();
-    }
+    if (await Permission.location.isGranted) await Permission.locationAlways.request();
   }
 
   @override
@@ -182,7 +180,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     try {
       Position pos = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.medium);
       if (mounted) setState(() => _locationInfo = "${pos.latitude.toStringAsFixed(6)}, ${pos.longitude.toStringAsFixed(6)}");
-    } catch (_) {}
+    } catch (_) {
+      if (mounted) setState(() => _locationInfo = "위치 확인 불가");
+    }
   }
 
   void _updateCheckIn() async {
@@ -192,6 +192,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     setState(() => _lastCheckIn = now);
     _updateLocation();
   }
+
+  @override
+  void dispose() { _controller.dispose(); super.dispose(); }
 
   @override
   Widget build(BuildContext context) {
@@ -207,9 +210,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         child: Column(
           children: [
             const SizedBox(height: 40),
-            const Text("1인가구 안심 지키미", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            const Text("1인가구 안심 지키미", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF5C6BC0))),
             const SizedBox(height: 8),
-            Text(_locationInfo, style: const TextStyle(fontSize: 12)),
+            Text(_locationInfo, style: const TextStyle(color: Color(0xFF5C6BC0), fontSize: 12)),
             const SizedBox(height: 25),
             Wrap(
               spacing: 6,
@@ -241,11 +244,19 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                       )
                     ],
                   ),
-                  child: const Icon(Icons.face, size: 100, color: Colors.orange),
+                  child: ClipOval(
+                    child: Image.asset(
+                      'assets/smile.png',
+                      fit: BoxFit.cover,
+                      errorBuilder: (c,e,s) => const Icon(Icons.face, size: 100, color: Colors.orange),
+                    ),
+                  ),
                 ),
               ),
             ),
             const Spacer(flex: 3),
+            const Text("미응답 시 보호자에게 위치가 전송됩니다.", style: TextStyle(color: Colors.grey, fontSize: 11)),
+            const SizedBox(height: 40),
           ],
         ),
       ),
@@ -275,60 +286,70 @@ class _SettingScreenState extends State<SettingScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text("보호자 설정"), backgroundColor: Colors.transparent),
-      body: Column(
-        children: [
-          SwitchListTile(
-            title: const Text("자동 문자 전송 활성화"),
-            value: _autoSmsEnabled,
-            onChanged: (v) async {
-              final p = await SharedPreferences.getInstance();
-              await p.setBool('auto_sms_enabled', v);
-              setState(() => _autoSmsEnabled = v);
-              if (v) {
-                // ✅ 여기가 수정된 포인트입니다 (isRunningService)
-                if (!await FlutterForegroundTask.isRunningService) {
-                  FlutterForegroundTask.startService(
-                    notificationTitle: '안심 지키미 작동 중',
-                    notificationText: '보호 중입니다.',
-                    callback: startCallback,
-                  );
-                }
-              } else {
-                FlutterForegroundTask.stopService();
-              }
-            },
-          ),
-          Expanded(
-            child: ListView.builder(
-              itemCount: _contacts.length,
-              itemBuilder: (c, i) => ListTile(
-                title: Text(_contacts[i]['name'] ?? ''),
-                subtitle: Text(_contacts[i]['number'] ?? ''),
-                trailing: IconButton(icon: const Icon(Icons.delete), onPressed: () async {
-                  setState(() => _contacts.removeAt(i));
-                  (await SharedPreferences.getInstance()).setString('contacts_list', json.encode(_contacts));
-                }),
-              ),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(20),
-            child: ElevatedButton(
-              onPressed: () async {
-                if (await Permission.contacts.request().isGranted) {
-                  final c = await ContactsService.openDeviceContactPicker();
-                  if (c != null) {
-                    setState(() => _contacts.add({'name': c.displayName, 'number': c.phones?.first.value}));
-                    (await SharedPreferences.getInstance()).setString('contacts_list', json.encode(_contacts));
+    return WithForegroundTask( // ✅ 포그라운드 감싸기 필수
+      child: Scaffold(
+        appBar: AppBar(title: const Text("보호자 설정"), centerTitle: true, elevation: 0, backgroundColor: Colors.transparent),
+        body: Column(
+          children: [
+            SwitchListTile(
+              title: const Text("자동 문자 전송 활성화"),
+              value: _autoSmsEnabled,
+              activeColor: const Color(0xFFFF7043),
+              onChanged: (v) async {
+                final p = await SharedPreferences.getInstance();
+                await p.setBool('auto_sms_enabled', v);
+                setState(() => _autoSmsEnabled = v);
+                
+                if (v) {
+                  if (!await FlutterForegroundTask.isRunningService) {
+                    FlutterForegroundTask.startService(
+                      notificationTitle: '안심 지키미 작동 중',
+                      notificationText: '보호 중입니다.',
+                      callback: startCallback,
+                    );
                   }
+                } else {
+                  FlutterForegroundTask.stopService();
                 }
               },
-              child: const Text("보호자 추가"),
             ),
-          ),
-        ],
+            const Divider(),
+            Expanded(
+              child: ListView.builder(
+                itemCount: _contacts.length,
+                itemBuilder: (c, i) => ListTile(
+                  leading: const CircleAvatar(child: Icon(Icons.person, size: 16)),
+                  title: Text(_contacts[i]['name'] ?? ''),
+                  subtitle: Text(_contacts[i]['number'] ?? ''),
+                  trailing: IconButton(icon: const Icon(Icons.delete_outline, color: Colors.redAccent), onPressed: () async {
+                    setState(() => _contacts.removeAt(i));
+                    (await SharedPreferences.getInstance()).setString('contacts_list', json.encode(_contacts));
+                  }),
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(20),
+              child: SizedBox(
+                width: double.infinity, height: 48,
+                child: ElevatedButton.icon(
+                  icon: const Icon(Icons.person_add_alt_1),
+                  label: const Text("보호자 추가"),
+                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF5C6BC0), foregroundColor: Colors.white),
+                  onPressed: () async {
+                    if (await Permission.contacts.request().isGranted) {
+                      final c = await ContactsService.openDeviceContactPicker();
+                      if (c != null) {
+                        setState(() => _contacts.add({'name': c.displayName, 'number': c.phones?.first.value}));
+                        (await SharedPreferences.getInstance()).setString('contacts_list', json.encode(_contacts));
+                      }
+                    }
+                  },
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
