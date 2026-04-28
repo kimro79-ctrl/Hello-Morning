@@ -116,9 +116,10 @@ class _MainNavigationState extends State<MainNavigation> {
 
     String locationStr = "좌표 확인 불가";
     try {
+      // 오류가 났던 balanced 대신 high를 사용하고 타임아웃을 7초로 넉넉히 잡았습니다.
       Position pos = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.balanced,
-        timeLimit: const Duration(seconds: 5),
+        desiredAccuracy: LocationAccuracy.high,
+        timeLimit: const Duration(seconds: 7),
       );
       locationStr = "${pos.latitude.toStringAsFixed(6)}, ${pos.longitude.toStringAsFixed(6)}";
     } catch (_) {
@@ -145,7 +146,7 @@ class _MainNavigationState extends State<MainNavigation> {
             'msg': '보호자(${c['name']}) 전송 결과: $status'
           });
         } catch (e) {
-          history.insert(0, {'type': '에러', 'time': DateFormat('MM/dd HH:mm').format(DateTime.now()), 'msg': 'SMS 엔진 오류'});
+          history.insert(0, {'type': '에러', 'time': DateFormat('MM/dd HH:mm').format(DateTime.now()), 'msg': 'SMS 전송 실패'});
         }
       }
     }
@@ -164,8 +165,8 @@ class _MainNavigationState extends State<MainNavigation> {
   void _initForegroundTask() {
     FlutterForegroundTask.init(
       androidNotificationOptions: AndroidNotificationOptions(
-        channelId: 'safety_check_v31',
-        channelName: '안심 지키미 감시 서비스',
+        channelId: 'safety_check_v32',
+        channelName: '안심 지키미 보호 서비스',
         channelImportance: NotificationChannelImportance.MAX,
         priority: NotificationPriority.HIGH,
       ),
@@ -193,7 +194,7 @@ class _MainNavigationState extends State<MainNavigation> {
 }
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key}); // const 유지 가능 (필드 없음)
+  const HomeScreen({super.key});
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
