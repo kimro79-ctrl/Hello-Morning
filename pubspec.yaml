@@ -1,7 +1,6 @@
 name: hello_morning
 description: "A new Flutter project."
 publish_to: 'none'
-
 version: 1.0.0+1
 
 environment:
@@ -11,13 +10,18 @@ dependencies:
   flutter:
     sdk: flutter
   cupertino_icons: ^1.0.6
+  
+  # ✅ Firebase 및 필수 패키지 추가
+  firebase_core: ^2.27.0
+  cloud_firestore: ^4.15.8
+  device_info_plus: ^10.1.0
+  
+  # 기존 유지 패키지
   shared_preferences: ^2.2.2
   contacts_service: ^0.6.3
   permission_handler: ^11.3.0
   intl: ^0.19.0
-  background_sms: ^0.0.4
   geolocator: ^11.0.0
-  # ✅ 최신 버전으로 고정 (isRunningService 함수 포함 버전)
   flutter_foreground_task: ^6.5.0
 
 dev_dependencies:
@@ -29,4 +33,4 @@ flutter:
   uses-material-design: true
   assets:
     - assets/icon/ic_launcher.png
-    - assets/smile.png # 미소 이미지 포함
+    - assets/smile.png
