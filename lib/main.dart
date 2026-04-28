@@ -10,6 +10,7 @@ import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:background_sms/background_sms.dart';
 import 'dart:async';
 import 'dart:io';
+import 'dart:isolate'; // ✅ 핵심: SendPort 에러 해결을 위해 반드시 필요
 
 @pragma('vm:entry-point')
 void startCallback() {
@@ -22,7 +23,7 @@ class FirstTaskHandler extends TaskHandler {
 
   @override
   Future<void> onRepeatEvent(DateTime timestamp, SendPort? sendPort) async {
-    // 백그라운드 반복 작업 로직 위치
+    // 백그라운드 엔진 유지
   }
 
   @override
@@ -91,7 +92,7 @@ class _MainNavigationState extends State<MainNavigation> {
         priority: NotificationPriority.HIGH,
         iconData: const NotificationIconData(
           resType: ResourceType.drawable,
-          resPrefix: ResourcePrefix.android,
+          resPrefix: ResourcePrefix.IC_LAUNCHER, // ✅ 수정: 에러 방지를 위해 호환되는 상수로 변경
           name: 'btn_star',
         ),
       ),
