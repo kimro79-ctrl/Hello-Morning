@@ -31,8 +31,6 @@ class FirstTaskHandler extends TaskHandler {
     try {
       DateTime lastTime = DateFormat('yyyy-MM-dd HH:mm').parse(last);
       int selectedHours = p.getInt('selectedHours') ?? 1;
-      
-      // [수정] 시스템 지연을 고려하여 기준 시간을 30초 앞당김 (5분 -> 4분 30초)
       int limitMin = selectedHours == 0 ? 5 : selectedHours * 60;
       double diffSeconds = DateTime.now().difference(lastTime).inSeconds.toDouble();
       double limitSeconds = (limitMin * 60) - 30; 
@@ -41,7 +39,6 @@ class FirstTaskHandler extends TaskHandler {
         String? lastSentStr = p.getString('lastEmergencySent');
         if (lastSentStr != null) {
           DateTime lastSentTime = DateTime.parse(lastSentStr);
-          // 재발송 주기도 5분(300초)에서 지연분 30초를 뺀 270초로 설정
           if (DateTime.now().difference(lastSentTime).inSeconds >= 270) {
             sendPort?.send('SEND_SMS_ACTION');
           }
@@ -83,12 +80,15 @@ class MainNavigation extends StatefulWidget {
 
 class _MainNavigationState extends State<MainNavigation> {
   int _currentIndex = 0;
-  final List<Widget> _screens = [const HomeScreen(), const HistoryScreen(), const SettingScreen()];
+  // 각 화면에 GlobalKey를 부여하여 외부에서 함수를 호출할 수 있게 합니다.
+  final GlobalKey<HistoryScreenState> _historyKey = GlobalKey();
+  late List<Widget> _screens;
   ReceivePort? _receivePort;
 
   @override
   void initState() {
     super.initState();
+    _screens = [const HomeScreen(), HistoryScreen(key: _historyKey), const SettingScreen()];
     _initForegroundTask();
     _bindReceivePort();
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -135,21 +135,12 @@ class _MainNavigationState extends State<MainNavigation> {
     }
 
     List history = json.decode(p.getString('history_logs') ?? "[]");
-
     for (var c in contacts) {
       if (c['number'] != null) {
         String cleanNumber = c['number'].replaceAll(RegExp(r'[^0-9]'), '');
         try {
-          await BackgroundSms.sendMessage(
-            phoneNumber: cleanNumber,
-            message: "[안심지키미] 응답이 없어 연락드립니다.\n좌표: $locationStr\n구글맵에서 좌표확인 부탁합니다.",
-          );
-          
-          history.insert(0, {
-            'type': '비상 알림',
-            'time': DateFormat('MM/dd HH:mm').format(DateTime.now()),
-            'msg': '보호자(${c['name']})에게 안심 문자 재발송 완료'
-          });
+          await BackgroundSms.sendMessage(phoneNumber: cleanNumber, message: "[안심지키미] 응답이 없어 연락드립니다.\n좌표: $locationStr\n구글맵에서 좌표확인 부탁합니다.");
+          history.insert(0, {'type': '비상 알림', 'time': DateFormat('MM/dd HH:mm').format(DateTime.now()), 'msg': '보호자(${c['name']})에게 안심 문자 재발송 완료'});
         } catch (e) {
           history.insert(0, {'type': '에러', 'time': DateFormat('MM/dd HH:mm').format(DateTime.now()), 'msg': 'SMS 전송 실패'});
         }
@@ -158,6 +149,8 @@ class _MainNavigationState extends State<MainNavigation> {
 
     await p.setString('history_logs', json.encode(history.take(30).toList()));
     await p.setString('lastEmergencySent', DateTime.now().toIso8601String());
+    // 기록 탭이 열려있다면 즉시 갱신 호출
+    _historyKey.currentState?.loadLogs();
     if (mounted) setState(() {});
   }
 
@@ -171,13 +164,7 @@ class _MainNavigationState extends State<MainNavigation> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text("⚠️ 필수 설정 안내", style: TextStyle(fontWeight: FontWeight.bold)),
-        content: const Text(
-          "1. 위치 권한: '항상 허용'\n"
-          "2. 위치 정확도: '대략적인 위치' 확인\n"
-          "3. SMS: '자동권한설정' 클릭\n"
-          "4. 배터리: '제한 없음' 설정\n\n"
-          "미응답 시 5분마다 문자가 재발송됩니다.",
-        ),
+        content: const Text("1. 위치 권한: '항상 허용'\n2. 위치 정확도: '대략적인 위치' 확인\n3. SMS: '자동권한설정' 클릭\n4. 배터리: '제한 없음' 설정\n\n미응답 시 5분마다 문자가 재발송됩니다."),
         actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text("확인"))],
       ),
     );
@@ -185,18 +172,9 @@ class _MainNavigationState extends State<MainNavigation> {
 
   void _initForegroundTask() {
     FlutterForegroundTask.init(
-      androidNotificationOptions: AndroidNotificationOptions(
-        channelId: 'safety_check_v35',
-        channelName: '안심 지키미 서비스',
-        channelImportance: NotificationChannelImportance.MAX,
-        priority: NotificationPriority.HIGH,
-      ),
+      androidNotificationOptions: AndroidNotificationOptions(channelId: 'safety_check_v36', channelName: '안심 지키미 서비스', channelImportance: NotificationChannelImportance.MAX, priority: NotificationPriority.HIGH),
       iosNotificationOptions: const IOSNotificationOptions(showNotification: true),
-      foregroundTaskOptions: const ForegroundTaskOptions(
-        interval: 30000, // [수정] 검사 주기를 30초로 단축 (지연 방지)
-        autoRunOnBoot: true, 
-        allowWakeLock: true
-      ),
+      foregroundTaskOptions: const ForegroundTaskOptions(interval: 30000, autoRunOnBoot: true, allowWakeLock: true),
     );
   }
 
@@ -207,7 +185,13 @@ class _MainNavigationState extends State<MainNavigation> {
           bottomNavigationBar: BottomNavigationBar(
             currentIndex: _currentIndex,
             selectedItemColor: const Color(0xFFFF8A65),
-            onTap: (index) => setState(() => _currentIndex = index),
+            onTap: (index) {
+              setState(() => _currentIndex = index);
+              // [핵심 수정] 기록 탭(index 1)을 누를 때마다 데이터를 강제로 새로 읽어옵니다.
+              if (index == 1) {
+                _historyKey.currentState?.loadLogs();
+              }
+            },
             items: const [
               BottomNavigationBarItem(icon: Icon(Icons.home_filled), label: '홈'),
               BottomNavigationBarItem(icon: Icon(Icons.history_edu), label: '기록'),
@@ -217,6 +201,8 @@ class _MainNavigationState extends State<MainNavigation> {
         ),
       );
 }
+
+// --- UI 섹션 (기능 보강) ---
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -260,11 +246,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   Widget build(BuildContext context) {
     return Container(
       decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter, end: Alignment.bottomCenter,
-          colors: [Color(0xFFE3F2FD), Color(0xFFF5F5DC)],
-          stops: [0.0, 0.45],
-        ),
+        gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Color(0xFFE3F2FD), Color(0xFFF5F5DC)], stops: [0.0, 0.45]),
       ),
       child: SafeArea(
         child: Column(
@@ -311,14 +293,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 scale: _scaleAnimation,
                 child: Container(
                   width: 210, height: 210,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle, color: Colors.white,
-                    boxShadow: [BoxShadow(color: _isPressed ? Colors.orangeAccent.withOpacity(0.5) : Colors.black12, blurRadius: 25)],
-                  ),
-                  child: ClipOval(
-                    child: Image.asset('assets/smile.png', fit: BoxFit.cover, 
-                      errorBuilder: (c, e, s) => const Icon(Icons.face, size: 120, color: Colors.orange)),
-                  ),
+                  decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.white, boxShadow: [BoxShadow(color: _isPressed ? Colors.orangeAccent.withOpacity(0.5) : Colors.black12, blurRadius: 25)]),
+                  child: ClipOval(child: Image.asset('assets/smile.png', fit: BoxFit.cover, errorBuilder: (c, e, s) => const Icon(Icons.face, size: 120, color: Colors.orange))),
                 ),
               ),
             ),
@@ -335,16 +311,23 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 class HistoryScreen extends StatefulWidget {
   const HistoryScreen({super.key});
   @override
-  State<HistoryScreen> createState() => _HistoryScreenState();
+  State<HistoryScreen> createState() => HistoryScreenState();
 }
 
-class _HistoryScreenState extends State<HistoryScreen> {
+class HistoryScreenState extends State<HistoryScreen> {
   List _logs = [];
+  
   @override
-  void initState() { super.initState(); _load(); }
-  void _load() async {
+  void initState() { super.initState(); loadLogs(); }
+
+  // [핵심] 외부(탭 클릭 시)에서 호출할 수 있도록 public으로 선언
+  Future<void> loadLogs() async {
     final p = await SharedPreferences.getInstance();
-    setState(() => _logs = json.decode(p.getString('history_logs') ?? "[]"));
+    if (mounted) {
+      setState(() {
+        _logs = json.decode(p.getString('history_logs') ?? "[]");
+      });
+    }
   }
 
   @override
@@ -355,8 +338,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
       : ListView.builder(
           itemCount: _logs.length,
           itemBuilder: (context, i) => ListTile(
-            leading: Icon(_logs[i]['type'] == '비상 알림' ? Icons.warning_amber_rounded : Icons.check_circle_outline, 
-                    color: _logs[i]['type'] == '비상 알림' ? Colors.red : Colors.green),
+            leading: Icon(_logs[i]['type'] == '비상 알림' ? Icons.warning_amber_rounded : Icons.check_circle_outline, color: _logs[i]['type'] == '비상 알림' ? Colors.red : Colors.green),
             title: Text(_logs[i]['type'], style: const TextStyle(fontWeight: FontWeight.bold)),
             subtitle: Text(_logs[i]['msg']),
             trailing: Text(_logs[i]['time'], style: const TextStyle(fontSize: 12, color: Colors.grey)),
@@ -394,20 +376,13 @@ class _SettingScreenState extends State<SettingScreen> {
             Container(
               margin: const EdgeInsets.all(16),
               padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), 
-                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 15)]),
+              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 15)]),
               child: Column(
                 children: [
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text("실시간 감시 모드", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                          Text("백그라운드에서 상시 감시", style: TextStyle(fontSize: 11, color: Colors.grey)),
-                        ],
-                      ),
+                      const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text("실시간 감시 모드", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)), Text("백그라운드에서 상시 감시", style: TextStyle(fontSize: 11, color: Colors.grey))]),
                       Switch(
                         value: _autoOn,
                         activeColor: const Color(0xFFFF8A65),
@@ -427,13 +402,9 @@ class _SettingScreenState extends State<SettingScreen> {
                   const Divider(height: 30),
                   Row(
                     children: [
-                      Expanded(child: ElevatedButton(onPressed: () async => await [Permission.sms, Permission.location, Permission.locationAlways, Permission.contacts].request(), 
-                        style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF5C6BC0), foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))), 
-                        child: const Text("자동 권한 설정"))),
+                      Expanded(child: ElevatedButton(onPressed: () async => await [Permission.sms, Permission.location, Permission.locationAlways, Permission.contacts].request(), style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF5C6BC0), foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))), child: const Text("자동 권한 설정"))),
                       const SizedBox(width: 8),
-                      Expanded(child: OutlinedButton(onPressed: () => openAppSettings(), 
-                        style: OutlinedButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
-                        child: const Text("수동 설정"))),
+                      Expanded(child: OutlinedButton(onPressed: () => openAppSettings(), style: OutlinedButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))), child: const Text("수동 설정"))),
                     ],
                   ),
                 ],
