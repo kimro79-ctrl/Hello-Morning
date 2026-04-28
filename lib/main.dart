@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:contacts_service/contacts_service.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:intl/intl.dart';
 import 'package:geolocator/geolocator.dart';
@@ -55,21 +54,7 @@ class _MainNavigationState extends State<MainNavigation> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _showNoticeDialog());
-  }
-
-  Future<void> _showNoticeDialog() async {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-        title: const Text("📢 알림", style: TextStyle(fontWeight: FontWeight.bold)),
-        content: const Text("안심 지키미의 정상 작동을 위해\n모든 권한 허용이 필요합니다."),
-        actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text("확인"))],
-      ),
-    );
-    _initServiceConfig();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _initServiceConfig());
   }
 
   Future<void> _initServiceConfig() async {
@@ -80,14 +65,12 @@ class _MainNavigationState extends State<MainNavigation> {
         channelId: 'safety_check',
         channelName: '안심 지키미',
         channelDescription: '안전 감시 중',
-        // ✅ 수정: NotificationImportance.MAX -> NotificationImportance.MAXIMUM
-        channelImportance: NotificationImportance.MAXIMUM,
+        channelImportance: NotificationImportance.MAX, // 최신 버전 표준 상수
         priority: NotificationPriority.HIGH,
         iconData: const NotificationIconData(
-          resType: ResourceType.drawable,
-          // ✅ 수정: ResourcePrefix.android -> 'resource/drawable' 직접 지정으로 에러 방지
-          resPrefix: ResourcePrefix.drawable,
-          name: 'btn_star',
+          resType: ResourceType.mipmap,
+          resPrefix: ResourcePrefix.mipmap,
+          name: 'ic_launcher',
         ),
       ),
       iosNotificationOptions: const IOSNotificationOptions(showNotification: true, playSound: false),
@@ -169,9 +152,8 @@ class _HomeScreenState extends State<HomeScreen> {
         String number = contact['number'].toString().replaceAll('-', '');
         SmsStatus status = await BackgroundSms.sendMessage(phoneNumber: number, message: message);
         
-        // ✅ 발송 기록 저장 로직 추가
         await FirebaseFirestore.instance.collection('users').doc(_uid).collection('history').add({
-          'receiver': contact['name'],
+          'receiver': contact['name'] ?? '보호자',
           'number': number,
           'message': message,
           'time': DateFormat('MM-dd HH:mm').format(DateTime.now()),
@@ -220,7 +202,6 @@ class _HomeScreenState extends State<HomeScreen> {
   );
 }
 
-// ✅ 문자 발송 기록 화면 구현
 class HistoryScreen extends StatefulWidget {
   const HistoryScreen({super.key});
   @override
@@ -258,7 +239,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
                   leading: const Icon(Icons.sms, color: Colors.indigo),
                   title: Text("${docs[i]['receiver']} (${docs[i]['status']})"),
                   subtitle: Text("${docs[i]['time']}\n${docs[i]['message']}"),
-                  isThreeLine: true,
                 ),
               ),
             );
