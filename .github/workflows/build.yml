@@ -1,4 +1,4 @@
-name: Build AAB (Auto Versioning)
+name: Build AAB
 
 on:
   push:
@@ -10,7 +10,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # 버전 계산을 위해 히스토리 전체를 가져옵니다.
+          fetch-depth: 0
       
       - name: Set up Java
         uses: actions/setup-java@v3
@@ -26,8 +26,12 @@ jobs:
       - name: Get dependencies
         run: flutter pub get
 
-      # ✅ 빌드 번호를 현재 시간 기반이나 커밋 횟수로 자동 생성합니다.
+      # ✅ 빌드 서버에서 아이콘을 자동으로 만들어줍니다.
+      - name: Generate Launcher Icons
+        run: flutter pub run flutter_launcher_icons
+
       - name: Build AAB
+        # ✅ 버전 코드가 중복되지 않게 자동으로 1씩 올려 빌드합니다.
         run: |
           flutter build appbundle --release \
             --build-number=$(git rev-list --count HEAD) \
