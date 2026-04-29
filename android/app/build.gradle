@@ -34,13 +34,13 @@ android {
 
     defaultConfig {
         applicationId "com.kimrc.hello_morning"
-        [span_0](start_span)minSdkVersion 23[span_0](end_span)
+        minSdkVersion 23
         targetSdkVersion 34
         versionCode flutterVersionCode.toInteger()
         versionName flutterVersionName
     }
 
-    // ✅ 등록하신 GitHub Secrets 열쇠를 여기서 연결합니다.
+    // ✅ 이미지에 적어주신 Secrets 정보(safety1234, upload)를 여기서 연결합니다.
     signingConfigs {
         release {
             storeFile file("upload-keystore.jks")
@@ -52,10 +52,10 @@ android {
 
     buildTypes {
         release {
-            // ✅ debug 대신 우리가 설정한 release 서명을 사용하게 합니다.
-            signingConfig signingConfigs.release 
+            // ✅ 이제 debug 서명이 아닌 release 서명을 사용하여 정식 빌드합니다.
+            signingConfig signingConfigs.release
             shrinkResources false
-            [span_1](start_span)minifyEnabled false[span_1](end_span)
+            minifyEnabled false
         }
     }
 }
