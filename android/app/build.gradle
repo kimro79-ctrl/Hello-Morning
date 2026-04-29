@@ -26,15 +26,14 @@ apply plugin: 'kotlin-android'
 apply from: "$flutterRoot/packages/flutter_tools/gradle/flutter.gradle"
 
 android {
-    [span_2](start_span)// 빌드 스크립트와 일치하도록 네임스페이스 명시[span_2](end_span)
+    // 네임스페이스 설정
     namespace "com.sodoma.daily_safety" 
     
-    // 구글 플레이 정책 대응: API 35 (Android 15)
+    // 구글 플레이 정책 대응: API 35 (Android 15) 설정
     compileSdkVersion 35
     ndkVersion flutter.ndkVersion
 
     compileOptions {
-        [span_3](start_span)[span_4](start_span)// 최신 빌드 환경을 위해 Java 17 사용[span_3](end_span)[span_4](end_span)
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
     }
@@ -51,17 +50,17 @@ android {
         applicationId "com.sodoma.daily_safety"
         minSdkVersion 21
         
-        // 🚨 핵심 수정 사항: 타겟 SDK를 35로 설정
+        // 🚨 핵심: 타겟 SDK를 35로 설정하여 정책 준수
         targetSdkVersion 35 
         
-        [span_5](start_span)[span_6](start_span)// GitHub Actions에서 자동 생성되는 버전값 적용[span_5](end_span)[span_6](end_span)
+        // GitHub Actions 워크플로우에서 자동으로 버전이 관리됩니다.
         versionCode flutterVersionCode.toInteger()
         versionName flutterVersionName
     }
 
     signingConfigs {
         release {
-            [span_7](start_span)[span_8](start_span)// 보안을 위해 환경 변수 사용[span_7](end_span)[span_8](end_span)
+            // 보안을 위해 GitHub Secrets 환경 변수 참조
             storeFile file('key.jks')
             storePassword System.getenv("STORE_PASSWORD")
             keyAlias System.getenv("ALIAS")
@@ -73,7 +72,7 @@ android {
         release {
             signingConfig signingConfigs.release
             
-            // 코드 최적화 및 리소스 축소 활성화
+            // 코드 최적화 활성화
             minifyEnabled true
             shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
@@ -86,6 +85,5 @@ flutter {
 }
 
 dependencies {
-    [span_9](start_span)// buildscript에 선언된 kotlin_version 참조[span_9](end_span)
     implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
 }
