@@ -16,8 +16,7 @@ if (flutterRoot == null) {
 
 apply plugin: 'com.android.application'
 apply plugin: 'kotlin-android'
-// apply plugin: 'com.google.gms.google-services' // 파이어베이스 미사용 시 주석 유지
-
+apply plugin: 'com.google.gms.google-services'
 apply from: "$flutterRoot/packages/flutter_tools/gradle/flutter.gradle"
 
 android {
@@ -35,13 +34,13 @@ android {
 
     defaultConfig {
         applicationId "com.kimrc.hello_morning"
-        minSdkVersion 23 
+        [span_0](start_span)minSdkVersion 23[span_0](end_span)
         targetSdkVersion 34
         versionCode flutterVersionCode.toInteger()
         versionName flutterVersionName
     }
 
-    // ✅ 서명 설정 추가 (구글 콘솔 에러 해결 핵심)
+    // ✅ 등록하신 GitHub Secrets 열쇠를 여기서 연결합니다.
     signingConfigs {
         release {
             storeFile file("upload-keystore.jks")
@@ -53,10 +52,10 @@ android {
 
     buildTypes {
         release {
-            // ✅ debug 대신 release 서명을 사용하도록 수정
-            signingConfig signingConfigs.release
+            // ✅ debug 대신 우리가 설정한 release 서명을 사용하게 합니다.
+            signingConfig signingConfigs.release 
             shrinkResources false
-            minifyEnabled false
+            [span_1](start_span)minifyEnabled false[span_1](end_span)
         }
     }
 }
@@ -66,8 +65,8 @@ flutter {
 }
 
 dependencies {
-    // implementation platform('com.google.firebase:firebase-bom:32.7.2')
-    // implementation 'com.google.firebase:firebase-analytics'
-    // implementation 'com.google.firebase:firebase-messaging'
+    implementation platform('com.google.firebase:firebase-bom:32.7.2')
+    implementation 'com.google.firebase:firebase-analytics'
+    implementation 'com.google.firebase:firebase-messaging'
     implementation "org.jetbrains.kotlin:kotlin-stdlib"
 }
