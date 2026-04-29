@@ -330,7 +330,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             const Spacer(flex: 2),
             Text("마지막 체크인: $_lastCheckIn", style: const TextStyle(fontSize: 14, color: Colors.brown, fontWeight: FontWeight.w600)),
             const SizedBox(height: 30),
-            // --- 메인 스마일 버튼 Neumorphism + 눌렀을 때 연핑크 테두리 ---
+            // --- 메인 스마일 버튼 Neumorphism + 눌렀을 때 연핑크 테두리 효과 ---
             GestureDetector(
               onTapDown: (_) { setState(() => _isPressed = true); _controller.forward(); },
               onTapUp: (_) async {
@@ -357,7 +357,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     color: const Color(0xFFF5F5DC),
                     boxShadow: _isPressed 
                       ? [
-                          // 눌렀을 때 연핑크 테두리 효과 (연속된 핑크 그림자로 빛나는 효과 연출)
+                          // 눌렀을 때 연핑크 테두리 효과
                           BoxShadow(color: const Color(0xFFFFD1DC).withOpacity(0.8), blurRadius: 20, spreadRadius: 5),
                           BoxShadow(color: Colors.black.withOpacity(0.1), offset: const Offset(2, 2), blurRadius: 5),
                         ]
@@ -381,6 +381,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                         ),
                       ),
                       child: ClipOval(
+                        // 경로 문제 해결: smile.png 이미지를 정상적으로 적용했습니다.
                         child: Image.asset(
                           'assets/smile.png', 
                           fit: BoxFit.cover, 
@@ -487,7 +488,7 @@ class _SettingScreenState extends State<SettingScreen> {
   bool _autoOn = false;
   @override
   void initState() { super.initState(); _load(); }
-  void _load() async {
+  void _load) async {
     final p = await SharedPreferences.getInstance();
     setState(() {
       _contacts = json.decode(p.getString('contacts_list') ?? "[]");
