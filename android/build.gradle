@@ -5,7 +5,7 @@ buildscript {
         mavenCentral()
     }
     dependencies {
-        // API 35 대응을 위해 빌드 도구 상향
+        // API 35를 완벽히 지원하는 Gradle 플러그인 버전
         classpath 'com.android.tools.build:gradle:8.2.1'
         classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
         classpath 'com.google.gms:google-services:4.4.0'
