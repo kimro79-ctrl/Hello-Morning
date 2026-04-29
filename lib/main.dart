@@ -67,6 +67,10 @@ class DailySafetyApp extends StatelessWidget {
           scaffoldBackgroundColor: const Color(0xFFF5F5DC),
           useMaterial3: true,
           colorSchemeSeed: const Color(0xFFFF8A65),
+          textTheme: const TextTheme(
+            bodyLarge: TextStyle(fontSize: 14),
+            bodyMedium: TextStyle(fontSize: 13),
+          ),
         ),
         home: const MainNavigation(),
       );
@@ -91,8 +95,19 @@ class _MainNavigationState extends State<MainNavigation> {
     _initForegroundTask();
     _bindReceivePort();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _showGuideDialog(); 
+      _initialSetup();
+      _checkAndShowNotice();
     });
+  }
+
+  Future<void> _checkAndShowNotice() async {
+    final p = await SharedPreferences.getInstance();
+    String? lastHideDate = p.getString('hide_notice_date');
+    String today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+
+    if (lastHideDate != today) {
+      _showNoticeDialog();
+    }
   }
 
   void _bindReceivePort() async {
@@ -120,11 +135,16 @@ class _MainNavigationState extends State<MainNavigation> {
 
     String locationStr = "좌표 확인 불가";
     try {
-      Position pos = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.medium, timeLimit: const Duration(seconds: 5));
+      Position pos = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.medium, 
+        timeLimit: const Duration(seconds: 5),
+      );
       locationStr = "${pos.latitude.toStringAsFixed(6)}, ${pos.longitude.toStringAsFixed(6)}";
     } catch (_) {
       Position? lastPos = await Geolocator.getLastKnownPosition();
-      if (lastPos != null) locationStr = "${lastPos.latitude.toStringAsFixed(6)}, ${lastPos.longitude.toStringAsFixed(6)} (최근)";
+      if (lastPos != null) {
+        locationStr = "${lastPos.latitude.toStringAsFixed(6)}, ${lastPos.longitude.toStringAsFixed(6)} (최근)";
+      }
     }
 
     List history = json.decode(p.getString('history_logs') ?? "[]");
@@ -132,45 +152,43 @@ class _MainNavigationState extends State<MainNavigation> {
       if (c['number'] != null) {
         String cleanNumber = c['number'].replaceAll(RegExp(r'[^0-9]'), '');
         try {
-          await BackgroundSms.sendMessage(phoneNumber: cleanNumber, message: "[1인가구 안심 지키미] 응답이 없어 연락드립니다.\n좌표: $locationStr\n확인 부탁드립니다.");
-          history.insert(0, {'type': '비상 알림', 'time': DateFormat('MM/dd HH:mm').format(DateTime.now()), 'msg': '보호자(${c['name']})에게 안심 문자 발송 완료'});
+          await BackgroundSms.sendMessage(phoneNumber: cleanNumber, message: "[안심지키미] 응답이 없어 연락드립니다.\n좌표: $locationStr\n구글맵에서 좌표확인 부탁합니다.");
+          history.insert(0, {'type': '비상 알림', 'time': DateFormat('MM/dd HH:mm').format(DateTime.now()), 'msg': '보호자(${c['name']})에게 안심 문자 재발송 완료'});
         } catch (e) {
           history.insert(0, {'type': '에러', 'time': DateFormat('MM/dd HH:mm').format(DateTime.now()), 'msg': 'SMS 전송 실패'});
         }
       }
     }
+
     await p.setString('history_logs', json.encode(history.take(30).toList()));
     await p.setString('lastEmergencySent', DateTime.now().toIso8601String());
     _historyKey.currentState?.loadLogs();
     if (mounted) setState(() {});
   }
 
-  void _showGuideDialog() {
+  Future<void> _initialSetup() async {
+    await [Permission.sms, Permission.location, Permission.locationAlways, Permission.contacts, Permission.notification].request();
+    await FlutterForegroundTask.requestIgnoreBatteryOptimization();
+  }
+
+  void _showNoticeDialog() {
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (context) => AlertDialog(
-        title: const Text("🏠 1인가구 안심 지키미 가이드", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-        content: const SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text("안전한 이용을 위해 아래 설정을 꼭 완료해 주세요.\n", style: TextStyle(fontSize: 13, color: Colors.brown)),
-              Text("📍 위치 권한", style: TextStyle(fontWeight: FontWeight.bold)),
-              Text("- 반드시 '항상 허용' 선택\n- [정확한 위치] OFF, [대략적인 위치] 허용\n", style: TextStyle(fontSize: 12)),
-              Text("💬 SMS 권한", style: TextStyle(fontWeight: FontWeight.bold)),
-              Text("- [자동 권한설정] 버튼으로 승인\n", style: TextStyle(fontSize: 12)),
-              Text("👥 연락처 권한", style: TextStyle(fontWeight: FontWeight.bold)),
-              Text("- [보호자 연락처 추가] 시 허용\n", style: TextStyle(fontSize: 12)),
-              Text("🔔 알림 권한", style: TextStyle(fontWeight: FontWeight.bold)),
-              Text("- 실시간 감시 상태 표시를 위해 허용\n", style: TextStyle(fontSize: 12)),
-              Text("🔋 배터리 최적화", style: TextStyle(fontWeight: FontWeight.bold)),
-              Text("- 반드시 '제한 없음'으로 변경", style: TextStyle(fontSize: 12)),
-            ],
-          ),
-        ),
+        title: const Text("⚠️ 필수 설정 안내", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+        content: const Text("1. 위치 권한: '항상 허용'\n2. 위치 정확도: '대략적인 위치' 확인\n3. SMS: '자동권한설정' 클릭\n4. 배터리: '제한 없음' 설정\n\n미응답 시 5분마다 문자가 재발송됩니다.", style: TextStyle(fontSize: 13)),
         actions: [
-          TextButton(onPressed: () { Navigator.pop(context); Permission.sms.request(); }, child: const Text("확인 및 설정 시작")),
+          TextButton(
+            onPressed: () async {
+              final p = await SharedPreferences.getInstance();
+              String today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+              await p.setString('hide_notice_date', today);
+              Navigator.pop(context);
+            },
+            child: const Text("오늘 하루 보지 않기", style: TextStyle(fontSize: 12)),
+          ),
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text("확인", style: TextStyle(fontSize: 12)))
         ],
       ),
     );
@@ -178,9 +196,18 @@ class _MainNavigationState extends State<MainNavigation> {
 
   void _initForegroundTask() {
     FlutterForegroundTask.init(
-      androidNotificationOptions: AndroidNotificationOptions(channelId: 'safety_check_v38', channelName: '1인가구 안심 지키미', channelImportance: NotificationChannelImportance.MAX, priority: NotificationPriority.HIGH),
+      androidNotificationOptions: AndroidNotificationOptions(
+        channelId: 'safety_check_v36', 
+        channelName: '안심 지키미 서비스', 
+        channelImportance: NotificationChannelImportance.MAX, 
+        priority: NotificationPriority.HIGH
+      ),
       iosNotificationOptions: const IOSNotificationOptions(showNotification: true),
-      foregroundTaskOptions: const ForegroundTaskOptions(interval: 30000, autoRunOnBoot: true, allowWakeLock: true),
+      foregroundTaskOptions: const ForegroundTaskOptions(
+        interval: 30000, 
+        autoRunOnBoot: true, 
+        allowWakeLock: true 
+      ),
     );
   }
 
@@ -191,14 +218,18 @@ class _MainNavigationState extends State<MainNavigation> {
           bottomNavigationBar: BottomNavigationBar(
             currentIndex: _currentIndex,
             selectedItemColor: const Color(0xFFFF8A65),
+            selectedFontSize: 11,
+            unselectedFontSize: 11,
             onTap: (index) {
               setState(() => _currentIndex = index);
-              if (index == 1) _historyKey.currentState?.loadLogs();
+              if (index == 1) {
+                _historyKey.currentState?.loadLogs();
+              }
             },
             items: const [
-              BottomNavigationBarItem(icon: Icon(Icons.home_filled), label: '홈'),
-              BottomNavigationBarItem(icon: Icon(Icons.history_edu), label: '기록'),
-              BottomNavigationBarItem(icon: Icon(Icons.settings_outlined), label: '설정'),
+              BottomNavigationBarItem(icon: Icon(Icons.home_filled, size: 22), label: '홈'),
+              BottomNavigationBarItem(icon: Icon(Icons.history_edu, size: 22), label: '기록'),
+              BottomNavigationBarItem(icon: Icon(Icons.settings_outlined, size: 22), label: '설정'),
             ],
           ),
         ),
@@ -212,7 +243,7 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
-  String _lastCheckIn = "기록 없음";
+  String _lastCheckIn = "오늘 하루 안부를 전해주세요"; 
   String _locationInfo = "위치 확인 중...";
   int _selectedHours = 1;
   bool _isPressed = false;
@@ -230,7 +261,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   void _loadData() async {
     final p = await SharedPreferences.getInstance();
     setState(() {
-      _lastCheckIn = p.getString('lastCheckIn') ?? "안부를 전해주세요";
+      _lastCheckIn = p.getString('lastCheckIn') ?? "오늘 하루 안부를 전해주세요"; 
       _selectedHours = p.getInt('selectedHours') ?? 1;
     });
     _updateLocation();
@@ -239,7 +270,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   Future<void> _updateLocation() async {
     try {
       Position pos = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.medium);
-      if (mounted) setState(() => _locationInfo = "현재 위치: ${pos.latitude.toStringAsFixed(4)}, ${pos.longitude.toStringAsFixed(4)}");
+      if (mounted) setState(() => _locationInfo = "현재: ${pos.latitude.toStringAsFixed(4)}, ${pos.longitude.toStringAsFixed(4)}");
     } catch (_) {}
   }
 
@@ -253,16 +284,16 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         child: Column(
           children: [
             const SizedBox(height: 30),
-            const Text("1인가구 안심 지키미", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFF5C6BC0))),
+            const Text("1인가구 안심 지키미", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF5C6BC0))),
             const SizedBox(height: 5),
-            Text(_locationInfo, style: const TextStyle(color: Color(0xFF78909C), fontSize: 12)),
+            Text(_locationInfo, style: const TextStyle(color: Color(0xFF78909C), fontSize: 11)),
             const SizedBox(height: 35),
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [0, 1, 12, 24].map((h) => Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 4),
                 child: ChoiceChip(
-                  label: Text(h == 0 ? "5분" : "$h시간"),
+                  label: Text(h == 0 ? "5분" : "$h시간", style: const TextStyle(fontSize: 11)),
                   selected: _selectedHours == h,
                   onSelected: (v) async {
                     setState(() => _selectedHours = h);
@@ -272,7 +303,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               )).toList(),
             ),
             const Spacer(flex: 2),
-            Text("마지막 체크인: $_lastCheckIn", style: const TextStyle(fontSize: 15, color: Colors.brown, fontWeight: FontWeight.w600)),
+            Text("마지막 체크인: $_lastCheckIn", style: const TextStyle(fontSize: 14, color: Colors.brown, fontWeight: FontWeight.w600)),
             const SizedBox(height: 30),
             GestureDetector(
               onTapDown: (_) { setState(() => _isPressed = true); _controller.forward(); },
@@ -282,23 +313,30 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 final p = await SharedPreferences.getInstance();
                 await p.setString('lastCheckIn', now);
                 await p.remove('lastEmergencySent');
+                
                 List history = json.decode(p.getString('history_logs') ?? "[]");
                 history.insert(0, {'type': '활동 체크', 'time': DateFormat('MM/dd HH:mm').format(DateTime.now()), 'msg': '본인 안부 확인 완료'});
                 await p.setString('history_logs', json.encode(history.take(30).toList()));
                 setState(() => _lastCheckIn = now);
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("안심 체크 완료!")));
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("체크 완료! 좋은 하루 되세요.", style: TextStyle(fontSize: 12))));
               },
               child: ScaleTransition(
                 scale: _scaleAnimation,
                 child: Container(
                   width: 210, height: 210,
-                  decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.white, boxShadow: [BoxShadow(color: _isPressed ? Colors.orangeAccent.withOpacity(0.5) : Colors.black12, blurRadius: 25)]),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle, 
+                    color: Colors.white, 
+                    // 연핑크 테두리 추가
+                    border: Border.all(color: const Color(0xFFFFD1DC), width: 4),
+                    boxShadow: [BoxShadow(color: _isPressed ? Colors.orangeAccent.withOpacity(0.5) : Colors.black12, blurRadius: 25)]
+                  ),
                   child: ClipOval(child: Image.asset('assets/smile.png', fit: BoxFit.cover, errorBuilder: (c, e, s) => const Icon(Icons.face, size: 120, color: Colors.orange))),
                 ),
               ),
             ),
             const Spacer(flex: 3),
-            const Text("미응답 시 설정된 연락처로 위치 정보가 전송됩니다.", style: TextStyle(color: Colors.grey, fontSize: 11)),
+            const Text("미응답 시 설정된 연락처로 위치 정보가 전송됩니다.", style: TextStyle(color: Colors.grey, fontSize: 10)),
             const SizedBox(height: 30),
           ],
         ),
@@ -308,7 +346,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 }
 
 class HistoryScreen extends StatefulWidget {
-  const HistoryScreen({super.key}); // [수정 완료] 중복 파라미터 제거
+  const HistoryScreen({super.key});
   @override
   State<HistoryScreen> createState() => HistoryScreenState();
 }
@@ -317,23 +355,28 @@ class HistoryScreenState extends State<HistoryScreen> {
   List _logs = [];
   @override
   void initState() { super.initState(); loadLogs(); }
+
   Future<void> loadLogs() async {
     final p = await SharedPreferences.getInstance();
-    if (mounted) setState(() => _logs = json.decode(p.getString('history_logs') ?? "[]"));
+    if (mounted) {
+      setState(() {
+        _logs = json.decode(p.getString('history_logs') ?? "[]");
+      });
+    }
   }
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text("안심 활동 기록"), backgroundColor: Colors.transparent),
+    appBar: AppBar(title: const Text("활동 및 알림 기록", style: TextStyle(fontSize: 18)), backgroundColor: Colors.transparent),
     body: _logs.isEmpty 
-      ? const Center(child: Text("기록이 없습니다."))
+      ? const Center(child: Text("기록이 없습니다.", style: TextStyle(fontSize: 13)))
       : ListView.builder(
           itemCount: _logs.length,
           itemBuilder: (context, i) => ListTile(
-            leading: Icon(_logs[i]['type'] == '비상 알림' ? Icons.warning_amber_rounded : Icons.check_circle_outline, color: _logs[i]['type'] == '비상 알림' ? Colors.red : Colors.green),
-            title: Text(_logs[i]['type'], style: const TextStyle(fontWeight: FontWeight.bold)),
-            subtitle: Text(_logs[i]['msg']),
-            trailing: Text(_logs[i]['time'], style: const TextStyle(fontSize: 12, color: Colors.grey)),
+            leading: Icon(_logs[i]['type'] == '비상 알림' ? Icons.warning_amber_rounded : Icons.check_circle_outline, color: _logs[i]['type'] == '비상 알림' ? Colors.red : Colors.green, size: 20),
+            title: Text(_logs[i]['type'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+            subtitle: Text(_logs[i]['msg'], style: const TextStyle(fontSize: 11)),
+            trailing: Text(_logs[i]['time'], style: const TextStyle(fontSize: 10, color: Colors.grey)),
           ),
         ),
   );
@@ -361,20 +404,26 @@ class _SettingScreenState extends State<SettingScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("설정 및 가이드"), backgroundColor: Colors.transparent),
+      appBar: AppBar(title: const Text("설정", style: TextStyle(fontSize: 18)), backgroundColor: Colors.transparent),
       body: SingleChildScrollView(
         child: Column(
           children: [
             Container(
               margin: const EdgeInsets.all(16),
               padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 15)]),
+              decoration: BoxDecoration(
+                color: Colors.white, 
+                borderRadius: BorderRadius.circular(20), 
+                // 연핑크 테두리 추가
+                border: Border.all(color: const Color(0xFFFFD1DC), width: 1.5),
+                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 15)]
+              ),
               child: Column(
                 children: [
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text("안심 감시 모드", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)), Text("백그라운드에서 상시 작동", style: TextStyle(fontSize: 11, color: Colors.grey))]),
+                      const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text("실시간 감시 모드", style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)), Text("백그라운드에서 상시 감시", style: TextStyle(fontSize: 10, color: Colors.grey))]),
                       Switch(
                         value: _autoOn,
                         activeColor: const Color(0xFFFF8A65),
@@ -383,7 +432,7 @@ class _SettingScreenState extends State<SettingScreen> {
                           await p.setBool('auto_sms_enabled', v);
                           setState(() => _autoOn = v);
                           if (v) {
-                            await FlutterForegroundTask.startService(notificationTitle: "1인가구 안심 지키미 작동 중", notificationText: "실시간 감시가 활성화되었습니다.", callback: startCallback);
+                            await FlutterForegroundTask.startService(notificationTitle: "1인가구 안심 지키미 실행 중", notificationText: "실시간으로 사용자를 보호하고 있습니다.", callback: startCallback);
                           } else {
                             await FlutterForegroundTask.stopService();
                           }
@@ -394,24 +443,20 @@ class _SettingScreenState extends State<SettingScreen> {
                   const Divider(height: 30),
                   Row(
                     children: [
-                      Expanded(child: ElevatedButton(
-                        onPressed: () async { await Permission.sms.request(); ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("SMS 권한 요청 완료"))); }, 
-                        style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF5C6BC0), foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))), 
-                        child: const Text("자동 권한설정")
-                      )),
+                      Expanded(child: ElevatedButton(onPressed: () async => await [Permission.sms, Permission.location, Permission.locationAlways, Permission.contacts].request(), style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF5C6BC0), foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)), padding: const EdgeInsets.symmetric(vertical: 10)), child: const Text("자동 권한 설정", style: TextStyle(fontSize: 11)))),
                       const SizedBox(width: 8),
-                      Expanded(child: OutlinedButton(onPressed: () => openAppSettings(), style: OutlinedButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))), child: const Text("기타 수동 설정"))),
+                      Expanded(child: OutlinedButton(onPressed: () => openAppSettings(), style: OutlinedButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)), padding: const EdgeInsets.symmetric(vertical: 10)), child: const Text("수동 설정", style: TextStyle(fontSize: 11)))),
                     ],
                   ),
                 ],
               ),
             ),
-            const Padding(padding: EdgeInsets.symmetric(horizontal: 20), child: Align(alignment: Alignment.centerLeft, child: Text("비상 연락처 관리", style: TextStyle(fontWeight: FontWeight.bold)))),
+            const Padding(padding: EdgeInsets.symmetric(horizontal: 20), child: Align(alignment: Alignment.centerLeft, child: Text("비상 연락처 관리", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)))),
             ..._contacts.asMap().entries.map((entry) => ListTile(
-              leading: const CircleAvatar(backgroundColor: Color(0xFFFFE0B2), child: Icon(Icons.person, color: Colors.orange)),
-              title: Text(entry.value['name']),
-              subtitle: Text(entry.value['number']),
-              trailing: IconButton(icon: const Icon(Icons.remove_circle_outline, color: Colors.redAccent), onPressed: () async {
+              leading: const CircleAvatar(radius: 18, backgroundColor: Color(0xFFFFE0B2), child: Icon(Icons.person, color: Colors.orange, size: 18)),
+              title: Text(entry.value['name'], style: const TextStyle(fontSize: 13)),
+              subtitle: Text(entry.value['number'], style: const TextStyle(fontSize: 11)),
+              trailing: IconButton(icon: const Icon(Icons.remove_circle_outline, color: Colors.redAccent, size: 20), onPressed: () async {
                 setState(() => _contacts.removeAt(entry.key));
                 (await SharedPreferences.getInstance()).setString('contacts_list', json.encode(_contacts));
               }),
@@ -419,9 +464,13 @@ class _SettingScreenState extends State<SettingScreen> {
             Padding(
               padding: const EdgeInsets.all(20),
               child: ElevatedButton.icon(
-                icon: const Icon(Icons.person_add_alt_1),
-                label: const Text("보호자 연락처 추가"),
-                style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 52), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))),
+                icon: const Icon(Icons.person_add_alt_1, size: 16),
+                label: const Text("연락처 추가", style: TextStyle(fontSize: 12)),
+                style: ElevatedButton.styleFrom(
+                  minimumSize: const Size(double.infinity, 45), 
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                  side: const BorderSide(color: Color(0xFFFFD1DC), width: 1), // 버튼에도 살짝 테두리
+                ),
                 onPressed: () async {
                   if (await Permission.contacts.request().isGranted) {
                     final c = await ContactsService.openDeviceContactPicker();
