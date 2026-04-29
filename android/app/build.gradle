@@ -6,7 +6,6 @@ plugins {
 }
 
 android {
-    // ✅ 패키지 이름을 google-services.json과 일치하도록 수정
     namespace "com.hello_morning"
     compileSdk 35
 
@@ -20,19 +19,17 @@ android {
     }
 
     defaultConfig {
-        // ✅ 패키지 이름을 google-services.json과 일치하도록 수정
         applicationId "com.hello_morning"
         minSdk 23 
         targetSdk 35
-        
-        // 빌드 번호 관리 (오류 방지를 위해 직접 지정 방식으로 유지)
-        versionCode 5
-        versionName "1.0.5"
+        versionCode 7
+        versionName "1.0.7"
     }
 
     signingConfigs {
         release {
-            storeFile file('key.jks')
+            // ✅ 수정: 파일 이름을 실제 업로드하신 이름으로 변경했습니다.
+            storeFile file('upload-keystore.jks')
             storePassword System.getenv("STORE_PASSWORD")
             keyAlias System.getenv("ALIAS")
             keyPassword System.getenv("KEY_PASSWORD")
@@ -41,7 +38,7 @@ android {
 
     buildTypes {
         release {
-            signingConfig signingConfigs.release
+            signingConfig signingConfigs.release 
             minifyEnabled true
             shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
