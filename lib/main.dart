@@ -67,10 +67,6 @@ class DailySafetyApp extends StatelessWidget {
           scaffoldBackgroundColor: const Color(0xFFF5F5DC),
           useMaterial3: true,
           colorSchemeSeed: const Color(0xFFFF8A65),
-          textTheme: const TextTheme(
-            bodyLarge: TextStyle(fontSize: 13), 
-            bodyMedium: TextStyle(fontSize: 12),
-          ),
         ),
         home: const MainNavigation(),
       );
@@ -95,10 +91,12 @@ class _MainNavigationState extends State<MainNavigation> {
     _initForegroundTask();
     _bindReceivePort();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _showDetailedGuide(); 
+      _initialSetup(); // [복구 완료] 앱 시작 시 필수 권한 및 배터리 설정 요청
+      _showGuideDialog(); // [복구 완료] 가이드 다이얼로그 표시
     });
   }
 
+  // [복구 완료] 백그라운드 태스크와 통신하기 위한 ReceivePort 설정
   void _bindReceivePort() async {
     ReceivePort? port = await FlutterForegroundTask.receivePort;
     if (port != null) {
@@ -136,45 +134,53 @@ class _MainNavigationState extends State<MainNavigation> {
       if (c['number'] != null) {
         String cleanNumber = c['number'].replaceAll(RegExp(r'[^0-9]'), '');
         try {
-          await BackgroundSms.sendMessage(phoneNumber: cleanNumber, message: "[안심지키미] 응답이 없어 연락드립니다.\n좌표: $locationStr\n구글맵에서 확인 바랍니다.");
-          history.insert(0, {'type': '비상 알림', 'time': DateFormat('MM/dd HH:mm').format(DateTime.now()), 'msg': '${c['name']}님에게 문자 발송'});
-        } catch (_) {}
+          // [소스 31 복구] SMS 메시지 내용 원본 유지
+          await BackgroundSms.sendMessage(phoneNumber: cleanNumber, message: "[1인가구 안심 지키미] 응답이 없어 연락드립니다.\n좌표: $locationStr\n확인 부탁드립니다.");
+          history.insert(0, {'type': '비상 알림', 'time': DateFormat('MM/dd HH:mm').format(DateTime.now()), 'msg': '보호자(${c['name']})에게 안심 문자 발송 완료'});
+        } catch (e) {
+          history.insert(0, {'type': '에러', 'time': DateFormat('MM/dd HH:mm').format(DateTime.now()), 'msg': 'SMS 전송 실패'});
+        }
       }
     }
     await p.setString('history_logs', json.encode(history.take(30).toList()));
     await p.setString('lastEmergencySent', DateTime.now().toIso8601String());
     _historyKey.currentState?.loadLogs();
+    if (mounted) setState(() {});
   }
 
-  void _showDetailedGuide() {
+  // [복구 완료] 앱 시작 시 필요한 필수 권한 및 배터리 최적화 제외 요청 코드 원본 복구
+  Future<void> _initialSetup() async {
+    await [Permission.sms, Permission.location, Permission.locationAlways, Permission.contacts, Permission.notification].request();
+    await FlutterForegroundTask.requestIgnoreBatteryOptimization();
+  }
+
+  // [복구 완료] 가이드 다이얼로그 원본 유지
+  void _showGuideDialog() {
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text("⚠️ 필수 안내 사항", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+        title: const Text("🏠 1인가구 안심 지키미 가이드", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
         content: const SingleChildScrollView(
-          child: ListBody(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text("앱 종료 시 주의사항", style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold, fontSize: 13)),
-              SizedBox(height: 8),
-              Text("최근 앱 목록에서 앱을 완전히 종료(스와이프)하면 백그라운드 서비스가 차단되어 비상 문자가 발송되지 않습니다. 반드시 앱을 종료하지 말고 백그라운드 상태로 유지해 주세요.", 
-                style: TextStyle(fontSize: 11, color: Colors.black87, height: 1.5)),
-              Divider(height: 20),
-              Text("1. 위치 권한: [항상 허용]", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-              Text("2. 배터리 설정: [제한 없음]", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-              Text("3. SMS 권한: [허용]", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+              Text("안전한 이용을 위해 아래 설정을 꼭 완료해 주세요.\n", style: TextStyle(fontSize: 13, color: Colors.brown)),
+              Text("📍 위치 권한", style: TextStyle(fontWeight: FontWeight.bold)),
+              Text("- 반드시 '항상 허용' 선택\n- [정확한 위치] OFF, [대략적인 위치] 허용\n", style: TextStyle(fontSize: 12)),
+              Text("💬 SMS 권한", style: TextStyle(fontWeight: FontWeight.bold)),
+              Text("- [자동 권한설정] 버튼으로 승인\n", style: TextStyle(fontSize: 12)),
+              Text("👥 연락처 권한", style: TextStyle(fontWeight: FontWeight.bold)),
+              Text("- [보호자 연락처 추가] 시 허용\n", style: TextStyle(fontSize: 12)),
+              Text("🔔 알림 권한", style: TextStyle(fontWeight: FontWeight.bold)),
+              Text("- 실시간 감시 상태 표시를 위해 허용\n", style: TextStyle(fontSize: 12)),
+              Text("🔋 배터리 최적화", style: TextStyle(fontWeight: FontWeight.bold)),
+              Text("- 반드시 '제한 없음'으로 변경", style: TextStyle(fontSize: 12)),
             ],
           ),
         ),
         actions: [
-          TextButton(
-            onPressed: () { 
-              Navigator.pop(context); 
-              [Permission.sms, Permission.location, Permission.locationAlways, Permission.contacts, Permission.notification].request();
-            }, 
-            child: const Text("확인했습니다", style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold))
-          ),
+          TextButton(onPressed: () { Navigator.pop(context); Permission.sms.request(); }, child: const Text("확인 및 설정 시작")),
         ],
       ),
     );
@@ -182,7 +188,7 @@ class _MainNavigationState extends State<MainNavigation> {
 
   void _initForegroundTask() {
     FlutterForegroundTask.init(
-      androidNotificationOptions: AndroidNotificationOptions(channelId: 'safety_service', channelName: '안심 지키미', channelImportance: NotificationChannelImportance.MAX, priority: NotificationPriority.HIGH),
+      androidNotificationOptions: AndroidNotificationOptions(channelId: 'safety_check_v38', channelName: '1인가구 안심 지키미', channelImportance: NotificationChannelImportance.MAX, priority: NotificationPriority.HIGH),
       iosNotificationOptions: const IOSNotificationOptions(showNotification: true),
       foregroundTaskOptions: const ForegroundTaskOptions(interval: 30000, autoRunOnBoot: true, allowWakeLock: true),
     );
@@ -195,16 +201,14 @@ class _MainNavigationState extends State<MainNavigation> {
           bottomNavigationBar: BottomNavigationBar(
             currentIndex: _currentIndex,
             selectedItemColor: const Color(0xFFFF8A65),
-            selectedFontSize: 11,
-            unselectedFontSize: 11,
             onTap: (index) {
               setState(() => _currentIndex = index);
               if (index == 1) _historyKey.currentState?.loadLogs();
             },
             items: const [
-              BottomNavigationBarItem(icon: Icon(Icons.home_filled, size: 22), label: '홈'),
-              BottomNavigationBarItem(icon: Icon(Icons.history, size: 22), label: '기록'),
-              BottomNavigationBarItem(icon: Icon(Icons.settings, size: 22), label: '설정'),
+              BottomNavigationBarItem(icon: Icon(Icons.home_filled), label: '홈'),
+              BottomNavigationBarItem(icon: Icon(Icons.history_edu), label: '기록'),
+              BottomNavigationBarItem(icon: Icon(Icons.settings_outlined), label: '설정'),
             ],
           ),
         ),
@@ -217,14 +221,19 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   String _lastCheckIn = "안부를 전해주세요";
+  String _locationInfo = "위치 확인 중...";
   int _selectedHours = 1;
   bool _isPressed = false;
+  late AnimationController _controller;
+  late Animation<double> _scaleAnimation;
 
   @override
   void initState() {
     super.initState();
+    _controller = AnimationController(vsync: this, duration: const Duration(milliseconds: 150));
+    _scaleAnimation = Tween<double>(begin: 1.0, end: 0.92).animate(_controller);
     _loadData();
   }
 
@@ -234,61 +243,96 @@ class _HomeScreenState extends State<HomeScreen> {
       _lastCheckIn = p.getString('lastCheckIn') ?? "안부를 전해주세요";
       _selectedHours = p.getInt('selectedHours') ?? 1;
     });
+    _updateLocation();
+  }
+
+  Future<void> _updateLocation() async {
+    try {
+      Position pos = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.medium);
+      if (mounted) setState(() => _locationInfo = "현재 위치: ${pos.latitude.toStringAsFixed(4)}, ${pos.longitude.toStringAsFixed(4)}");
+    } catch (_) {}
   }
 
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      child: Column(
-        children: [
-          const SizedBox(height: 30),
-          const Text("1인가구 안심 지키미", style: TextStyle(fontSize: 19, fontWeight: FontWeight.bold, color: Color(0xFF5C6BC0))),
-          const SizedBox(height: 30),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [0, 1, 12, 24].map((h) => Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              child: ChoiceChip(
-                label: Text(h == 0 ? "5분" : "$h시간", style: const TextStyle(fontSize: 11)),
-                selected: _selectedHours == h,
-                onSelected: (v) async {
-                  setState(() => _selectedHours = h);
-                  (await SharedPreferences.getInstance()).setInt('selectedHours', h);
-                },
-              ),
-            )).toList(),
-          ),
-          const Spacer(),
-          Text("마지막 체크인: $_lastCheckIn", style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-          const SizedBox(height: 25),
-          GestureDetector(
-            onTapDown: (_) => setState(() => _isPressed = true),
-            onTapUp: (_) async {
-              setState(() => _isPressed = false);
-              String now = DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now());
-              final p = await SharedPreferences.getInstance();
-              await p.setString('lastCheckIn', now);
-              await p.remove('lastEmergencySent');
-              List history = json.decode(p.getString('history_logs') ?? "[]");
-              history.insert(0, {'type': '체크인', 'time': DateFormat('MM/dd HH:mm').format(DateTime.now()), 'msg': '본인 확인 완료'});
-              await p.setString('history_logs', json.encode(history.take(30).toList()));
-              setState(() => _lastCheckIn = now);
-            },
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 100),
-              width: 200, height: 200,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle, color: Colors.white,
-                border: Border.all(color: const Color(0xFFFFD1DC), width: 4),
-                boxShadow: _isPressed ? [] : [const BoxShadow(color: Colors.black12, blurRadius: 15, offset: Offset(5, 5))],
-              ),
-              child: ClipOval(child: Image.asset('assets/smile.png', fit: BoxFit.cover, errorBuilder: (c,e,s) => const Icon(Icons.face, size: 100, color: Colors.orange))),
+    return Container(
+      // [수정 완료] 상단에 경계 없이 자연스럽게 녹아드는 연한 파스텔 블루 그라데이션 적용
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            Color(0xFFE3F2FD), // 매우 연한 파스텔 블루
+            Color(0xFFF5F5DC), // 원래 배경색
+          ],
+          stops: [0.0, 0.45], // 상단에서 서서히 바뀌도록 조정
+        ),
+      ),
+      child: SafeArea(
+        child: Column(
+          children: [
+            const SizedBox(height: 30),
+            const Text("1인가구 안심 지키미", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFF5C6BC0))),
+            const SizedBox(height: 5),
+            Text(_locationInfo, style: const TextStyle(color: Color(0xFF78909C), fontSize: 12)),
+            const SizedBox(height: 35),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [0, 1, 12, 24].map((h) => Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                child: ChoiceChip(
+                  label: Text(h == 0 ? "5분" : "$h시간"),
+                  selected: _selectedHours == h,
+                  onSelected: (v) async {
+                    setState(() => _selectedHours = h);
+                    (await SharedPreferences.getInstance()).setInt('selectedHours', h);
+                  },
+                ),
+              )).toList(),
             ),
-          ),
-          const Spacer(flex: 2),
-          const Text("앱 종료 시 안심 서비스가 작동하지 않습니다.", style: TextStyle(color: Colors.redAccent, fontSize: 10)),
-          const SizedBox(height: 20),
-        ],
+            const Spacer(flex: 2),
+            Text("마지막 체크인: $_lastCheckIn", style: const TextStyle(fontSize: 15, color: Colors.brown, fontWeight: FontWeight.w600)),
+            const SizedBox(height: 30),
+            GestureDetector(
+              onTapDown: (_) { setState(() => _isPressed = true); _controller.forward(); },
+              onTapUp: (_) async {
+                setState(() => _isPressed = false); _controller.reverse();
+                String now = DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now());
+                final p = await SharedPreferences.getInstance();
+                await p.setString('lastCheckIn', now);
+                await p.remove('lastEmergencySent');
+                List history = json.decode(p.getString('history_logs') ?? "[]");
+                history.insert(0, {'type': '활동 체크', 'time': DateFormat('MM/dd HH:mm').format(DateTime.now()), 'msg': '본인 안부 확인 완료'});
+                await p.setString('history_logs', json.encode(history.take(30).toList()));
+                setState(() => _lastCheckIn = now);
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("안심 체크 완료!")));
+              },
+              onTapCancel: () { setState(() => _isPressed = false); _controller.reverse(); },
+              child: ScaleTransition(
+                scale: _scaleAnimation,
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 150),
+                  width: 210, height: 210,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle, 
+                    color: Colors.white, 
+                    border: Border.all(color: const Color(0xFFFFD1DC), width: 5), // 연핑크 테두리 원본 유지
+                    boxShadow: [
+                      // [수정 완료] 누를 때 부드러운 연핑크색 피드백 효과 적용
+                      _isPressed 
+                        ? BoxShadow(color: const Color(0xFFFFD1DC).withOpacity(0.8), blurRadius: 20, spreadRadius: 5)
+                        : const BoxShadow(color: Colors.black12, blurRadius: 25, offset: Offset(5, 5))
+                    ],
+                  ),
+                  child: ClipOval(child: Image.asset('assets/smile.png', fit: BoxFit.cover, errorBuilder: (c, e, s) => const Icon(Icons.face, size: 120, color: Colors.orange))),
+                ),
+              ),
+            ),
+            const Spacer(flex: 3),
+            const Text("미응답 시 설정된 연락처로 위치 정보가 전송됩니다.", style: TextStyle(color: Colors.grey, fontSize: 11)),
+            const SizedBox(height: 30),
+          ],
+        ),
       ),
     );
   }
@@ -302,23 +346,27 @@ class HistoryScreen extends StatefulWidget {
 
 class HistoryScreenState extends State<HistoryScreen> {
   List _logs = [];
+  @override
+  void initState() { super.initState(); loadLogs(); }
   Future<void> loadLogs() async {
     final p = await SharedPreferences.getInstance();
     if (mounted) setState(() => _logs = json.decode(p.getString('history_logs') ?? "[]"));
   }
-  @override
-  void initState() { super.initState(); loadLogs(); }
+
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text("활동 기록", style: TextStyle(fontSize: 16))),
-    body: ListView.builder(
-      itemCount: _logs.length,
-      itemBuilder: (context, i) => ListTile(
-        title: Text(_logs[i]['type'], style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
-        subtitle: Text(_logs[i]['msg'], style: const TextStyle(fontSize: 11)),
-        trailing: Text(_logs[i]['time'], style: const TextStyle(fontSize: 10, color: Colors.grey)),
-      ),
-    ),
+    appBar: AppBar(title: const Text("안심 활동 기록"), backgroundColor: Colors.transparent),
+    body: _logs.isEmpty 
+      ? const Center(child: Text("기록이 없습니다."))
+      : ListView.builder(
+          itemCount: _logs.length,
+          itemBuilder: (context, i) => ListTile(
+            leading: Icon(_logs[i]['type'] == '비상 알림' ? Icons.warning_amber_rounded : Icons.check_circle_outline, color: _logs[i]['type'] == '비상 알림' ? Colors.red : Colors.green),
+            title: Text(_logs[i]['type'], style: const TextStyle(fontWeight: FontWeight.bold)),
+            subtitle: Text(_logs[i]['msg']),
+            trailing: Text(_logs[i]['time'], style: const TextStyle(fontSize: 12, color: Colors.grey)),
+          ),
+        ),
   );
 }
 
@@ -342,57 +390,89 @@ class _SettingScreenState extends State<SettingScreen> {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text("환경 설정", style: TextStyle(fontSize: 16))),
-    body: Column(
-      children: [
-        SwitchListTile(
-          title: const Text("실시간 감시 모드", style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
-          subtitle: const Text("백그라운드에서 안부를 체크합니다.", style: TextStyle(fontSize: 11)),
-          value: _autoOn,
-          // 스위치 크기는 그대로 유지
-          onChanged: (v) async {
-            final p = await SharedPreferences.getInstance();
-            await p.setBool('auto_sms_enabled', v);
-            setState(() => _autoOn = v);
-            if (v) {
-              await FlutterForegroundTask.startService(notificationTitle: "안심 서비스 가동 중", notificationText: "보호 모드가 활성화되었습니다.", callback: startCallback);
-            } else {
-              await FlutterForegroundTask.stopService();
-            }
-          },
-        ),
-        const Divider(),
-        Expanded(
-          child: ListView.builder(
-            itemCount: _contacts.length,
-            itemBuilder: (context, i) => ListTile(
-              title: Text(_contacts[i]['name'], style: const TextStyle(fontSize: 13)),
-              subtitle: Text(_contacts[i]['number'], style: const TextStyle(fontSize: 11)),
-              trailing: IconButton(icon: const Icon(Icons.delete_outline, color: Colors.red, size: 20), onPressed: () async {
-                setState(() => _contacts.removeAt(i));
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text("설정 및 가이드"), backgroundColor: Colors.transparent),
+      body: SingleChildScrollView(
+        child: Column(
+          children: [
+            Container(
+              margin: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(20),
+              // [복구 완료] 카드 UI 원본 유지
+              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 15)]),
+              child: Column(
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      // [복구 완료] 안심 감시 모드 텍스트 원본 유지
+                      const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text("안심 감시 모드", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)), Text("백그라운드에서 상시 작동", style: TextStyle(fontSize: 11, color: Colors.grey))]),
+                      Switch(
+                        value: _autoOn,
+                        activeColor: const Color(0xFFFF8A65),
+                        onChanged: (v) async {
+                          final p = await SharedPreferences.getInstance();
+                          await p.setBool('auto_sms_enabled', v);
+                          setState(() => _autoOn = v);
+                          if (v) {
+                            // [소스 76 복구] 알림 메시지 원본 유지
+                            await FlutterForegroundTask.startService(notificationTitle: "1인가구 안심 지키미 작동 중", notificationText: "실시간 감시가 활성화되었습니다.", callback: startCallback);
+                          } else {
+                            await FlutterForegroundTask.stopService();
+                          }
+                        },
+                      ),
+                    ],
+                  ),
+                  const Divider(height: 30),
+                  Row(
+                    children: [
+                      Expanded(child: ElevatedButton(
+                        // [복구 완료] 자동 권한설정 버튼 기능 및 원본 코드 복구
+                        onPressed: () async { await [Permission.sms, Permission.location, Permission.locationAlways].request(); ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("권한 요청 완료"))); }, 
+                        style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF5C6BC0), foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))), 
+                        child: const Text("자동 권한설정")
+                      )),
+                      const SizedBox(width: 8),
+                      Expanded(child: OutlinedButton(onPressed: () => openAppSettings(), style: OutlinedButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))), child: const Text("기타 수동 설정"))),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const Padding(padding: EdgeInsets.symmetric(horizontal: 20), child: Align(alignment: Alignment.centerLeft, child: Text("비상 연락처 관리", style: TextStyle(fontWeight: FontWeight.bold)))),
+            ..._contacts.asMap().entries.map((entry) => ListTile(
+              leading: const CircleAvatar(backgroundColor: Color(0xFFFFE0B2), child: Icon(Icons.person, color: Colors.orange)),
+              title: Text(entry.value['name']),
+              subtitle: Text(entry.value['number']),
+              trailing: IconButton(icon: const Icon(Icons.remove_circle_outline, color: Colors.redAccent), onPressed: () async {
+                setState(() => _contacts.removeAt(entry.key));
                 (await SharedPreferences.getInstance()).setString('contacts_list', json.encode(_contacts));
               }),
+            )),
+            Padding(
+              padding: const EdgeInsets.all(20),
+              child: ElevatedButton.icon(
+                icon: const Icon(Icons.person_add_alt_1),
+                label: const Text("보호자 연락처 추가"),
+                // [복구 완료] 연락처 추가 버튼 스타일 원본 유지
+                style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 52), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))),
+                // [복구 완료] 보호자 연락처 선택 코드 원본 복구
+                onPressed: () async {
+                  if (await Permission.contacts.request().isGranted) {
+                    final c = await ContactsService.openDeviceContactPicker();
+                    if (c != null && c.phones!.isNotEmpty) {
+                      setState(() => _contacts.add({'name': c.displayName, 'number': c.phones?.first.value}));
+                      (await SharedPreferences.getInstance()).setString('contacts_list', json.encode(_contacts));
+                    }
+                  }
+                },
+              ),
             ),
-          ),
+          ],
         ),
-        Padding(
-          padding: const EdgeInsets.all(20),
-          child: ElevatedButton(
-            onPressed: () async {
-              if (await Permission.contacts.request().isGranted) {
-                final c = await ContactsService.openDeviceContactPicker();
-                if (c != null && c.phones!.isNotEmpty) {
-                  setState(() => _contacts.add({'name': c.displayName, 'number': c.phones?.first.value}));
-                  (await SharedPreferences.getInstance()).setString('contacts_list', json.encode(_contacts));
-                }
-              }
-            },
-            style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 48)),
-            child: const Text("보호자 연락처 추가", style: TextStyle(fontSize: 13)),
-          ),
-        )
-      ],
-    ),
-  );
+      ),
+    );
+  }
 }
