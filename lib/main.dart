@@ -135,10 +135,9 @@ class _MainNavigationState extends State<MainNavigation> {
 
     String locationStr = "좌표 확인 불가";
     try {
-      // 정확도를 low로 조정하여 속도 향상
       Position pos = await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.low, 
-        timeLimit: const Duration(seconds: 5),
+        timeLimit: const Duration(seconds: 4),
       );
       locationStr = "${pos.latitude.toStringAsFixed(6)}, ${pos.longitude.toStringAsFixed(6)}";
     } catch (_) {
@@ -187,13 +186,13 @@ class _MainNavigationState extends State<MainNavigation> {
               Text("정상적인 안심 문자 발송을 위해 필수 확인이 필요합니다.", style: TextStyle(fontSize: 12, color: Colors.blueGrey)),
               Divider(height: 20),
               Text("1. 위치 권한 상시 허용", style: TextStyle(fontWeight: FontWeight.bold)),
-              Text("위치 권한을 '앱 사용 중에만'이 아닌 '항상 허용'으로 설정해야 백그라운드에서 감지가 가능합니다.", style: TextStyle(fontSize: 11)),
+              Text("위치 권한을 '항상 허용'으로 설정해야 백그라운드에서 감지가 가능합니다.", style: TextStyle(fontSize: 11)),
               SizedBox(height: 10),
               Text("2. 배터리 최적화 제외", style: TextStyle(fontWeight: FontWeight.bold)),
-              Text("휴대폰 설정에서 본 앱을 '배터리 제한 없음' 혹은 '최적화 제외 앱'으로 등록해야 서비스가 죽지 않습니다.", style: TextStyle(fontSize: 11)),
+              Text("휴대폰 설정에서 본 앱을 '배터리 제한 없음' 등록해야 서비스가 죽지 않습니다.", style: TextStyle(fontSize: 11)),
               SizedBox(height: 10),
-              Text("3. 앱 종료 금지 (가장 중요)", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red)),
-              Text("최근 사용 앱 목록에서 앱을 위로 밀어서 완전히 종료하면, 시스템이 서비스를 강제 중단시켜 문자가 발송되지 않습니다. 앱은 반드시 홈 버튼으로 내려서 실행 상태를 유지해 주세요.", style: TextStyle(fontSize: 11, color: Colors.redAccent)),
+              Text("3. 앱 종료 금지 (중요)", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red)),
+              Text("최근 앱 목록에서 완전히 종료하면 문자가 발송되지 않습니다. 앱은 홈 버튼으로 실행 상태를 유지해 주세요.", style: TextStyle(fontSize: 11, color: Colors.redAccent)),
             ],
           ),
         ),
@@ -207,7 +206,7 @@ class _MainNavigationState extends State<MainNavigation> {
             },
             child: const Text("오늘 하루 보지 않기", style: TextStyle(fontSize: 11, color: Colors.grey)),
           ),
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text("내용 확인", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)))
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text("확인", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)))
         ],
       ),
     );
@@ -273,7 +272,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   void initState() {
     super.initState();
     _controller = AnimationController(vsync: this, duration: const Duration(milliseconds: 150));
-    _scaleAnimation = Tween<double>(begin: 1.0, end: 0.92).animate(_controller);
+    _scaleAnimation = Tween<double>(begin: 1.0, end: 0.95).animate(_controller);
     _loadData();
   }
 
@@ -287,15 +286,13 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   Future<void> _updateLocation() async {
-    // 마지막 위치를 먼저 표시하여 로딩 지연 최소화
     Position? lastPos = await Geolocator.getLastKnownPosition();
     if (lastPos != null && mounted) {
       setState(() => _locationInfo = "최근 위치: ${lastPos.latitude.toStringAsFixed(4)}, ${lastPos.longitude.toStringAsFixed(4)}");
     }
-
     try {
       Position pos = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.low, // 대략적인 위치로 속도 향상
+        desiredAccuracy: LocationAccuracy.low, 
         timeLimit: const Duration(seconds: 4),
       );
       if (mounted) setState(() => _locationInfo = "현재 위치: ${pos.latitude.toStringAsFixed(4)}, ${pos.longitude.toStringAsFixed(4)}");
@@ -333,6 +330,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             const Spacer(flex: 2),
             Text("마지막 체크인: $_lastCheckIn", style: const TextStyle(fontSize: 14, color: Colors.brown, fontWeight: FontWeight.w600)),
             const SizedBox(height: 30),
+            // --- 메인 스마일 버튼 Neumorphism + 눌렀을 때 연핑크 테두리 ---
             GestureDetector(
               onTapDown: (_) { setState(() => _isPressed = true); _controller.forward(); },
               onTapUp: (_) async {
@@ -348,21 +346,47 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 setState(() => _lastCheckIn = now);
                 ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("체크 완료! 좋은 하루 되세요.", style: TextStyle(fontSize: 12))));
               },
+              onTapCancel: () { setState(() => _isPressed = false); _controller.reverse(); },
               child: ScaleTransition(
                 scale: _scaleAnimation,
-                child: Container(
-                  width: 210, height: 210,
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 150),
+                  width: 220, height: 220,
                   decoration: BoxDecoration(
-                    shape: BoxShape.circle, 
-                    color: Colors.white, 
-                    border: Border.all(color: const Color(0xFFFFD1DC), width: 4),
-                    boxShadow: [BoxShadow(color: _isPressed ? Colors.orangeAccent.withOpacity(0.5) : Colors.black12, blurRadius: 25)]
+                    shape: BoxShape.circle,
+                    color: const Color(0xFFF5F5DC),
+                    boxShadow: _isPressed 
+                      ? [
+                          // 눌렀을 때 연핑크 테두리 효과 (연속된 핑크 그림자로 빛나는 효과 연출)
+                          BoxShadow(color: const Color(0xFFFFD1DC).withOpacity(0.8), blurRadius: 20, spreadRadius: 5),
+                          BoxShadow(color: Colors.black.withOpacity(0.1), offset: const Offset(2, 2), blurRadius: 5),
+                        ]
+                      : [
+                          // 평소 입체감 (양각)
+                          BoxShadow(color: Colors.black.withOpacity(0.12), offset: const Offset(8, 8), blurRadius: 15),
+                          BoxShadow(color: Colors.white, offset: const Offset(-8, -8), blurRadius: 15),
+                        ],
                   ),
-                  child: ClipOval(
-                    child: Image.asset(
-                      'assets/smile.png', 
-                      fit: BoxFit.cover, 
-                      errorBuilder: (c, e, s) => const Icon(Icons.face, size: 120, color: Colors.orange)
+                  child: Padding(
+                    padding: const EdgeInsets.all(12.0),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 150),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Colors.white,
+                        // 눌렀을 때 선으로 된 테두리도 연핑크색으로 변경
+                        border: Border.all(
+                          color: _isPressed ? const Color(0xFFFFD1DC) : const Color(0xFFFFD1DC).withOpacity(0.3), 
+                          width: _isPressed ? 4 : 2
+                        ),
+                      ),
+                      child: ClipOval(
+                        child: Image.asset(
+                          'assets/smile.png', 
+                          fit: BoxFit.cover, 
+                          errorBuilder: (c, e, s) => const Icon(Icons.face, size: 120, color: Colors.orange)
+                        ),
+                      ),
                     ),
                   ),
                 ),
@@ -415,6 +439,43 @@ class HistoryScreenState extends State<HistoryScreen> {
   );
 }
 
+class NeumorphicSwitch extends StatelessWidget {
+  final bool value;
+  final ValueChanged<bool> onChanged;
+  const NeumorphicSwitch({super.key, required this.value, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () => onChanged(!value),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        width: 65, height: 35, padding: const EdgeInsets.all(4),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(20),
+          color: value ? const Color(0xFFFF8A65) : const Color(0xFFE0E0E0),
+          boxShadow: [
+            if (!value) BoxShadow(color: Colors.white, offset: const Offset(-2, -2), blurRadius: 3, spreadRadius: 1),
+            if (!value) BoxShadow(color: Colors.grey.withOpacity(0.4), offset: const Offset(2, 2), blurRadius: 3, spreadRadius: 1),
+            if (value) BoxShadow(color: Colors.black.withOpacity(0.1), offset: const Offset(1, 1), blurRadius: 2),
+          ],
+        ),
+        child: AnimatedAlign(
+          duration: const Duration(milliseconds: 200),
+          alignment: value ? Alignment.centerRight : Alignment.centerLeft,
+          child: Container(
+            width: 27, height: 27,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle, color: Colors.white,
+              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.2), offset: const Offset(0, 1), blurRadius: 2)],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class SettingScreen extends StatefulWidget {
   const SettingScreen({super.key});
   @override
@@ -447,11 +508,7 @@ class _SettingScreenState extends State<SettingScreen> {
               decoration: BoxDecoration(
                 color: Colors.white, 
                 borderRadius: BorderRadius.circular(20), 
-                // 스위치가 ON(true) 일 때만 연핑크 테두리 표시
-                border: Border.all(
-                  color: _autoOn ? const Color(0xFFFFD1DC) : Colors.transparent, 
-                  width: 2.5
-                ),
+                border: Border.all(color: _autoOn ? const Color(0xFFFFD1DC) : Colors.transparent, width: 2.5),
                 boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 15)]
               ),
               child: Column(
@@ -460,9 +517,8 @@ class _SettingScreenState extends State<SettingScreen> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text("실시간 감시 모드", style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)), Text("백그라운드에서 상시 감시", style: TextStyle(fontSize: 10, color: Colors.grey))]),
-                      Switch(
+                      NeumorphicSwitch(
                         value: _autoOn,
-                        activeColor: const Color(0xFFFF8A65),
                         onChanged: (v) async {
                           final p = await SharedPreferences.getInstance();
                           await p.setBool('auto_sms_enabled', v);
@@ -502,10 +558,7 @@ class _SettingScreenState extends State<SettingScreen> {
               child: ElevatedButton.icon(
                 icon: const Icon(Icons.person_add_alt_1, size: 16),
                 label: const Text("연락처 추가", style: TextStyle(fontSize: 12)),
-                style: ElevatedButton.styleFrom(
-                  minimumSize: const Size(double.infinity, 45), 
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-                ),
+                style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 45), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))),
                 onPressed: () async {
                   if (await Permission.contacts.request().isGranted) {
                     final c = await ContactsService.openDeviceContactPicker();
