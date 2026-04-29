@@ -6,7 +6,7 @@ plugins {
 }
 
 android {
-    namespace "com.sodoma.daily_safety"
+    namespace "com.sodoma.daily_safety" 
     compileSdk 35
 
     compileOptions {
@@ -22,8 +22,10 @@ android {
         applicationId "com.sodoma.daily_safety"
         minSdk 23
         targetSdk 35
-        versionCode flutter.versionCode
-        versionName flutter.versionName
+        
+        // ✅ 오류 해결: 변수 호출 방식을 최신 규격으로 수정
+        versionCode flutterVersionCode.toInteger()
+        versionName flutterVersionName
     }
 
     signingConfigs {
@@ -46,6 +48,5 @@ android {
 }
 
 dependencies {
-    // 특정 플러그인 충돌 방지를 위한 라이브러리 강제 지정
     implementation "org.jetbrains.kotlin:kotlin-stdlib:1.9.22"
 }
