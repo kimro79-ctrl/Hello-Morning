@@ -5,7 +5,7 @@ on:
     branches: [ main ]
 
 jobs:
-  # 📱 APK 빌드 (테스트용)
+  # 📱 APK 빌드
   build-apk:
     name: Create APK
     runs-on: ubuntu-latest
@@ -20,9 +20,11 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      # ✅ 라이선스 수락 단계 추가
-      - name: Accept Android Licenses
-        run: yes | sdkmanager --licenses || true
+      # 🔥 이 부분이 핵심: API 35 구성 요소 강제 설치
+      - name: Setup Android SDK
+        run: |
+          yes | sdkmanager --licenses
+          sdkmanager "platforms;android-35" "build-tools;35.0.0" "platform-tools"
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
@@ -51,7 +53,7 @@ jobs:
           name: release-apk
           path: build/app/outputs/flutter-apk/app-release.apk
 
-  # 📦 AAB 빌드 (스토어 출시용)
+  # 📦 AAB 빌드
   build-aab:
     name: Create AAB
     runs-on: ubuntu-latest
@@ -66,9 +68,11 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      # ✅ 라이선스 수락 단계 추가
-      - name: Accept Android Licenses
-        run: yes | sdkmanager --licenses || true
+      # 🔥 이 부분이 핵심: API 35 구성 요소 강제 설치
+      - name: Setup Android SDK
+        run: |
+          yes | sdkmanager --licenses
+          sdkmanager "platforms;android-35" "build-tools;35.0.0" "platform-tools"
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
