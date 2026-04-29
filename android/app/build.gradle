@@ -8,17 +8,7 @@ if (localPropertiesFile.exists()) {
 
 def flutterRoot = localProperties.getProperty('flutter.sdk')
 if (flutterRoot == null) {
-    throw new GradleException("Flutter SDK not found. Define location with flutter.sdk in the local.properties file.")
-}
-
-def flutterVersionCode = localProperties.getProperty('flutter.versionCode')
-if (flutterVersionCode == null) {
-    flutterVersionCode = '1'
-}
-
-def flutterVersionName = localProperties.getProperty('flutter.versionName')
-if (flutterVersionName == null) {
-    flutterVersionName = '1.0'
+    throw new GradleException("Flutter SDK not found.")
 }
 
 apply plugin: 'com.android.application'
@@ -26,11 +16,9 @@ apply plugin: 'kotlin-android'
 apply from: "$flutterRoot/packages/flutter_tools/gradle/flutter.gradle"
 
 android {
-    namespace "com.sodoma.daily_safety" 
-    
-    // API 35 (Android 15) 정책 대응
+    namespace "com.sodoma.daily_safety" // 사용자님의 실제 패키지명 확인
+
     compileSdkVersion 35
-    ndkVersion flutter.ndkVersion
 
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
@@ -41,21 +29,12 @@ android {
         jvmTarget = '17'
     }
 
-    sourceSets {
-        main.java.srcDirs += 'src/main/kotlin'
-    }
-
     defaultConfig {
         applicationId "com.sodoma.daily_safety"
-        
-        // ✅ 에러 해결: 플러그인 요구사항에 따라 23으로 상향
-        minSdkVersion 23 
-        
-        // 타겟 SDK 35 유지
-        targetSdkVersion 35 
-        
-        versionCode flutterVersionCode.toInteger()
-        versionName flutterVersionName
+        minSdkVersion 23 // flutter_foreground_task 대응
+        targetSdkVersion 35
+        versionCode flutter.versionCode
+        versionName flutter.versionName
     }
 
     signingConfigs {
@@ -75,10 +54,6 @@ android {
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
-}
-
-flutter {
-    source '../..'
 }
 
 dependencies {
