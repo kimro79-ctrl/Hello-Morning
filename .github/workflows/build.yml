@@ -1,37 +1,68 @@
-name: Build AAB
+name: Build Mobile Apps
 
 on:
   push:
     branches: [ main ]
 
 jobs:
-  build:
+  # 📱 APK 전용 빌드 작업
+  build-apk:
+    name: Build Release APK
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      
       - name: Set up Java
         uses: actions/setup-java@v3
         with:
           distribution: 'zulu'
           java-version: '17'
-
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.19.0'
-          
       - name: Get dependencies
         run: flutter pub get
-
-      # ✅ 빌드 서버에서 아이콘을 자동으로 만들어줍니다.
       - name: Generate Launcher Icons
         run: flutter pub run flutter_launcher_icons
+      - name: Build APK
+        run: |
+          flutter build apk --release \
+            --build-number=$(git rev-list --count HEAD) \
+            --build-name=1.0.$(git rev-list --count HEAD)
+        env:
+          STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          ALIAS: ${{ secrets.ALIAS }}
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-apk
+          path: build/app/outputs/flutter-apk/app-release.apk
 
+  # 📦 AAB 전용 빌드 작업 (구글 플레이 스토어용)
+  build-aab:
+    name: Build Release AAB
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Set up Java
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.19.0'
+      - name: Get dependencies
+        run: flutter pub get
+      - name: Generate Launcher Icons
+        run: flutter pub run flutter_launcher_icons
       - name: Build AAB
-        # ✅ 버전 코드가 중복되지 않게 자동으로 1씩 올려 빌드합니다.
         run: |
           flutter build appbundle --release \
             --build-number=$(git rev-list --count HEAD) \
@@ -40,7 +71,6 @@ jobs:
           STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
           ALIAS: ${{ secrets.ALIAS }}
-
       - name: Upload AAB
         uses: actions/upload-artifact@v4
         with:
