@@ -36,5 +36,5 @@ flutter:
 # ✅ 아이콘 설정 (최소한의 설정)
 flutter_launcher_icons:
   android: true
-  ios: true
+  ios: false
   image_path: "icon.png"
