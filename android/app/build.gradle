@@ -20,8 +20,7 @@ apply plugin: 'com.google.gms.google-services'
 apply from: "$flutterRoot/packages/flutter_tools/gradle/flutter.gradle"
 
 android {
-    // ✅ 중요: 파이어베이스(google-services.json) 설정에 맞춰 패키지명 복구
-    namespace "com.hello_morning" 
+    namespace "com.hello_morning"
     compileSdkVersion 34
 
     compileOptions {
@@ -34,7 +33,6 @@ android {
     }
 
     defaultConfig {
-        // ✅ 중요: 파이어베이스 설정과 일치시켜야 'No matching client' 에러가 사라집니다.
         applicationId "com.hello_morning"
         minSdkVersion 23
         targetSdkVersion 34
@@ -44,6 +42,7 @@ android {
 
     signingConfigs {
         release {
+            // GitHub Secrets에서 설정한 이름과 정확히 일치해야 합니다.
             storeFile file("upload-keystore.jks")
             storePassword System.getenv("STORE_PASSWORD")
             keyAlias System.getenv("ALIAS")
