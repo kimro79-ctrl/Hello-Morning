@@ -278,11 +278,13 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   void _loadData() async {
     final p = await SharedPreferences.getInstance();
-    setState(() {
-      _lastCheckIn = p.getString('lastCheckIn') ?? "오늘 하루 안부를 전해주세요"; 
-      _selectedHours = p.getInt('selectedHours') ?? 1;
-    });
-    _updateLocation();
+    if (mounted) {
+      setState(() {
+        _lastCheckIn = p.getString('lastCheckIn') ?? "오늘 하루 안부를 전해주세요"; 
+        _selectedHours = p.getInt('selectedHours') ?? 1;
+      });
+      _updateLocation();
+    }
   }
 
   Future<void> _updateLocation() async {
@@ -330,7 +332,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             const Spacer(flex: 2),
             Text("마지막 체크인: $_lastCheckIn", style: const TextStyle(fontSize: 14, color: Colors.brown, fontWeight: FontWeight.w600)),
             const SizedBox(height: 30),
-            // --- 메인 스마일 버튼 Neumorphism + 눌렀을 때 연핑크 테두리 효과 ---
             GestureDetector(
               onTapDown: (_) { setState(() => _isPressed = true); _controller.forward(); },
               onTapUp: (_) async {
@@ -357,12 +358,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     color: const Color(0xFFF5F5DC),
                     boxShadow: _isPressed 
                       ? [
-                          // 눌렀을 때 연핑크 테두리 효과
                           BoxShadow(color: const Color(0xFFFFD1DC).withOpacity(0.8), blurRadius: 20, spreadRadius: 5),
                           BoxShadow(color: Colors.black.withOpacity(0.1), offset: const Offset(2, 2), blurRadius: 5),
                         ]
                       : [
-                          // 평소 입체감 (양각)
                           BoxShadow(color: Colors.black.withOpacity(0.12), offset: const Offset(8, 8), blurRadius: 15),
                           BoxShadow(color: Colors.white, offset: const Offset(-8, -8), blurRadius: 15),
                         ],
@@ -374,14 +373,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         color: Colors.white,
-                        // 눌렀을 때 선으로 된 테두리도 연핑크색으로 변경
                         border: Border.all(
                           color: _isPressed ? const Color(0xFFFFD1DC) : const Color(0xFFFFD1DC).withOpacity(0.3), 
                           width: _isPressed ? 4 : 2
                         ),
                       ),
                       child: ClipOval(
-                        // 경로 문제 해결: smile.png 이미지를 정상적으로 적용했습니다.
                         child: Image.asset(
                           'assets/smile.png', 
                           fit: BoxFit.cover, 
@@ -488,12 +485,15 @@ class _SettingScreenState extends State<SettingScreen> {
   bool _autoOn = false;
   @override
   void initState() { super.initState(); _load(); }
-  void _load) async {
+  
+  void _load() async {
     final p = await SharedPreferences.getInstance();
-    setState(() {
-      _contacts = json.decode(p.getString('contacts_list') ?? "[]");
-      _autoOn = p.getBool('auto_sms_enabled') ?? false;
-    });
+    if (mounted) {
+      setState(() {
+        _contacts = json.decode(p.getString('contacts_list') ?? "[]");
+        _autoOn = p.getBool('auto_sms_enabled') ?? false;
+      });
+    }
   }
 
   @override
