@@ -10,34 +10,31 @@ dependencies:
   flutter:
     sdk: flutter
   cupertino_icons: ^1.0.6
-
-  # ✅ Firebase 관련 필수 패키지 (누락되었던 부분)
   firebase_core: ^2.27.0
   cloud_firestore: ^4.15.8
-
-  # ✅ 기기 식별 및 시스템 제어
   device_info_plus: ^10.1.0
   shared_preferences: ^2.2.2
-  
-  # ✅ 무료 문자 및 권한 관련
   background_sms: ^0.0.4
   permission_handler: ^11.3.0
   contacts_service: ^0.6.3
-  
-  # ✅ 위치 및 유틸리티
   geolocator: ^11.0.0
   intl: ^0.19.0
-  
-  # ✅ 백그라운드 서비스 유지용
   flutter_foreground_task: ^6.5.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^3.0.0
+  # ✅ 아이콘 생성을 위해 이 한 줄만 추가합니다.
+  flutter_launcher_icons: ^0.13.1
 
 flutter:
   uses-material-design: true
   assets:
-    - assets/icon/ic_launcher.png
-    - assets/smile.png
+    - icon.png # ✅ 업로드하신 이미지 파일
+
+# ✅ 아이콘 설정 (최소한의 설정)
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "icon.png"
