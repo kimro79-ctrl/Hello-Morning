@@ -20,7 +20,8 @@ apply plugin: 'com.google.gms.google-services'
 apply from: "$flutterRoot/packages/flutter_tools/gradle/flutter.gradle"
 
 android {
-    namespace "com.kimrc.hello_morning"
+    // ✅ 중요: 파이어베이스(google-services.json) 설정에 맞춰 패키지명 복구
+    namespace "com.hello_morning" 
     compileSdkVersion 34
 
     compileOptions {
@@ -33,14 +34,14 @@ android {
     }
 
     defaultConfig {
-        applicationId "com.kimrc.hello_morning"
+        // ✅ 중요: 파이어베이스 설정과 일치시켜야 'No matching client' 에러가 사라집니다.
+        applicationId "com.hello_morning"
         minSdkVersion 23
         targetSdkVersion 34
         versionCode flutterVersionCode.toInteger()
         versionName flutterVersionName
     }
 
-    // ✅ 이미지에 적어주신 Secrets 정보(safety1234, upload)를 여기서 연결합니다.
     signingConfigs {
         release {
             storeFile file("upload-keystore.jks")
@@ -52,7 +53,6 @@ android {
 
     buildTypes {
         release {
-            // ✅ 이제 debug 서명이 아닌 release 서명을 사용하여 정식 빌드합니다.
             signingConfig signingConfigs.release
             shrinkResources false
             minifyEnabled false
