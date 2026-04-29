@@ -14,17 +14,11 @@ jobs:
           fetch-depth: 0
 
       - name: Set up Java
-        uses: actions/setup-java@v3
+        uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
           java-version: '17'
-
-      # ✅ 안드로이드 SDK 및 API 35 강제 설치
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-        with:
-          api-level: 35
-          build-tools: 35.0.0
+          cache: 'gradle'
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
@@ -34,11 +28,7 @@ jobs:
       - name: Get dependencies
         run: flutter pub get
 
-      - name: Generate Launcher Icons
-        run: flutter pub run flutter_launcher_icons
-
       - name: Build AAB
-        # ✅ 커밋 횟수를 빌드 번호로 사용해 버전 자동 업
         run: |
           flutter build appbundle --release \
           --build-number=$(git rev-list --count HEAD) \
