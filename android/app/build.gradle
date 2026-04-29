@@ -6,6 +6,7 @@ plugins {
 }
 
 android {
+    // 패키지명은 사용자님의 설정에 맞게 유지했습니다.
     namespace "com.sodoma.daily_safety" 
     compileSdk 35
 
@@ -20,12 +21,13 @@ android {
 
     defaultConfig {
         applicationId "com.sodoma.daily_safety"
-        minSdk 23
+        minSdk 23 // flutter_foreground_task 요구사항 준수
         targetSdk 35
         
-        // ✅ 오류 해결: 변수 호출 방식을 최신 규격으로 수정
-        versionCode flutterVersionCode.toInteger()
-        versionName flutterVersionName
+        // ✅ 오류 해결: 미인식되는 변수 대신 직접 숫자를 지정합니다.
+        // 빌드할 때마다 이 숫자를 하나씩 올려주시면 됩니다.
+        versionCode 4
+        versionName "1.0.4"
     }
 
     signingConfigs {
