@@ -1,40 +1,30 @@
 name: hello_morning
-description: "A new Flutter project."
+description: A new Flutter project.
 publish_to: 'none'
 version: 1.0.0+1
 
 environment:
-  sdk: '>=3.2.0 <4.0.0'
+  sdk: '>=3.1.0 <4.0.0'
 
 dependencies:
   flutter:
     sdk: flutter
-  cupertino_icons: ^1.0.6
-  firebase_core: ^2.27.0
-  cloud_firestore: ^4.15.8
-  device_info_plus: ^10.1.0
+  cupertino_icons: ^1.0.2
   shared_preferences: ^2.2.2
-  background_sms: ^0.0.4
-  permission_handler: ^11.3.0
   contacts_service: ^0.6.3
-  geolocator: ^11.0.0
-  intl: ^0.19.0
-  flutter_foreground_task: ^6.5.0
+  permission_handler: ^11.0.1
+  intl: ^0.18.1
+  background_sms: ^0.0.1
+  geolocator: ^10.1.0
+  flutter_foreground_task: ^6.1.1
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ^3.0.0
-  # ✅ 아이콘 생성을 위해 이 한 줄만 추가합니다.
-  flutter_launcher_icons: ^0.13.1
+  flutter_lints: ^2.0.0
 
 flutter:
   uses-material-design: true
   assets:
-    - icon.png # ✅ 업로드하신 이미지 파일
-
-# ✅ 아이콘 설정 (최소한의 설정)
-flutter_launcher_icons:
-  android: true
-  ios: false
-  image_path: "icon.png"
+    - icon.png
+    - assets/smile.png  # smile.png를 에셋 시스템에 등록합니다.
