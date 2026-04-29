@@ -13,29 +13,38 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
       - name: Set up Java
         uses: actions/setup-java@v3
         with:
           distribution: 'zulu'
           java-version: '17'
+
+      # ✅ 라이선스 수락 단계 추가
+      - name: Accept Android Licenses
+        run: yes | sdkmanager --licenses || true
+
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.19.0'
+
       - name: Get dependencies
         run: flutter pub get
+
       - name: Generate Launcher Icons
         run: flutter pub run flutter_launcher_icons
+
       - name: Build APK
-        # ✅ 커밋 횟수를 빌드 번호로 사용해 버전 자동 업
         run: |
           flutter build apk --release \
-            --build-number=$(git rev-list --count HEAD) \
-            --build-name=1.0.$(git rev-list --count HEAD)
+          --build-number=$(git rev-list --count HEAD) \
+          --build-name=1.0.$(git rev-list --count HEAD)
         env:
           STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
           ALIAS: ${{ secrets.ALIAS }}
+
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
@@ -50,29 +59,38 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
       - name: Set up Java
         uses: actions/setup-java@v3
         with:
           distribution: 'zulu'
           java-version: '17'
+
+      # ✅ 라이선스 수락 단계 추가
+      - name: Accept Android Licenses
+        run: yes | sdkmanager --licenses || true
+
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.19.0'
+
       - name: Get dependencies
         run: flutter pub get
+
       - name: Generate Launcher Icons
         run: flutter pub run flutter_launcher_icons
+
       - name: Build AAB
-        # ✅ 커밋 횟수를 빌드 번호로 사용해 버전 자동 업
         run: |
           flutter build appbundle --release \
-            --build-number=$(git rev-list --count HEAD) \
-            --build-name=1.0.$(git rev-list --count HEAD)
+          --build-number=$(git rev-list --count HEAD) \
+          --build-name=1.0.$(git rev-list --count HEAD)
         env:
           STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
           ALIAS: ${{ secrets.ALIAS }}
+
       - name: Upload AAB
         uses: actions/upload-artifact@v4
         with:
