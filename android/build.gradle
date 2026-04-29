@@ -1,15 +1,14 @@
 buildscript {
-    ext.kotlin_version = '1.9.10'
+    ext.kotlin_version = '1.9.22' // 1.9.10에서 상향
     repositories {
         google()
         mavenCentral()
     }
-
     dependencies {
-        classpath 'com.android.tools.build:gradle:8.1.0'
-        // ✅ 이 줄이 누락되어 오류가 났습니다. 파이어베이스 플러그인을 추가합니다.
-        classpath 'com.google.gms:google-services:4.4.0'
+        // 빌드 도구 버전을 8.2.1 이상으로 상향 (API 35 대응)
+        classpath 'com.android.tools.build:gradle:8.2.1' 
         classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
+        classpath 'com.google.gms:google-services:4.4.0'
     }
 }
 
@@ -18,16 +17,4 @@ allprojects {
         google()
         mavenCentral()
     }
-}
-
-rootProject.buildDir = '../build'
-subprojects {
-    project.buildDir = "${rootProject.buildDir}/${project.name}"
-}
-subprojects {
-    project.evaluationDependsOn(':app')
-}
-
-tasks.register("clean", Delete) {
-    delete rootProject.buildDir
 }
