@@ -29,6 +29,7 @@ jobs:
         run: flutter pub get
 
       - name: Build AAB
+        # [span_0](start_span)[span_1](start_span)커밋 횟수를 빌드 번호로 사용해 버전 자동 업[span_0](end_span)[span_1](end_span)
         run: |
           flutter build appbundle --release \
           --build-number=$(git rev-list --count HEAD) \
