@@ -1,12 +1,12 @@
 buildscript {
-    [span_3](start_span)ext.kotlin_version = '1.9.22' // 1.9.10에서 상향[span_3](end_span)
+    ext.kotlin_version = '1.9.22'
     repositories {
         google()
         mavenCentral()
     }
     dependencies {
-        [span_4](start_span)// API 35 대응을 위해 빌드 도구를 8.2.1로 상향[span_4](end_span)
-        classpath 'com.android.tools.build:gradle:8.2.1' 
+        // API 35 대응을 위해 빌드 도구 상향
+        classpath 'com.android.tools.build:gradle:8.2.1'
         classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
         classpath 'com.google.gms:google-services:4.4.0'
     }
@@ -17,4 +17,16 @@ allprojects {
         google()
         mavenCentral()
     }
+}
+
+rootProject.buildDir = '../build'
+subprojects {
+    project.buildDir = "${rootProject.buildDir}/${project.name}"
+}
+subprojects {
+    project.evaluationDependsOn(':app')
+}
+
+tasks.register("clean", Delete) {
+    delete rootProject.buildDir
 }
