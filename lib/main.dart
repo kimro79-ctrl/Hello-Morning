@@ -135,8 +135,9 @@ class _MainNavigationState extends State<MainNavigation> {
 
     String locationStr = "좌표 확인 불가";
     try {
+      // 정확도를 low로 조정하여 속도 향상
       Position pos = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.medium, 
+        desiredAccuracy: LocationAccuracy.low, 
         timeLimit: const Duration(seconds: 5),
       );
       locationStr = "${pos.latitude.toStringAsFixed(6)}, ${pos.longitude.toStringAsFixed(6)}";
@@ -176,8 +177,26 @@ class _MainNavigationState extends State<MainNavigation> {
       context: context,
       barrierDismissible: false,
       builder: (context) => AlertDialog(
-        title: const Text("⚠️ 필수 설정 안내", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-        content: const Text("1. 위치 권한: '항상 허용'\n2. 위치 정확도: '대략적인 위치' 확인\n3. SMS: '자동권한설정' 클릭\n4. 배터리: '제한 없음' 설정\n\n미응답 시 5분마다 문자가 재발송됩니다.", style: TextStyle(fontSize: 13)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text("🚨 중요 작동 가이드", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+        content: const SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text("정상적인 안심 문자 발송을 위해 필수 확인이 필요합니다.", style: TextStyle(fontSize: 12, color: Colors.blueGrey)),
+              Divider(height: 20),
+              Text("1. 위치 권한 상시 허용", style: TextStyle(fontWeight: FontWeight.bold)),
+              Text("위치 권한을 '앱 사용 중에만'이 아닌 '항상 허용'으로 설정해야 백그라운드에서 감지가 가능합니다.", style: TextStyle(fontSize: 11)),
+              SizedBox(height: 10),
+              Text("2. 배터리 최적화 제외", style: TextStyle(fontWeight: FontWeight.bold)),
+              Text("휴대폰 설정에서 본 앱을 '배터리 제한 없음' 혹은 '최적화 제외 앱'으로 등록해야 서비스가 죽지 않습니다.", style: TextStyle(fontSize: 11)),
+              SizedBox(height: 10),
+              Text("3. 앱 종료 금지 (가장 중요)", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red)),
+              Text("최근 사용 앱 목록에서 앱을 위로 밀어서 완전히 종료하면, 시스템이 서비스를 강제 중단시켜 문자가 발송되지 않습니다. 앱은 반드시 홈 버튼으로 내려서 실행 상태를 유지해 주세요.", style: TextStyle(fontSize: 11, color: Colors.redAccent)),
+            ],
+          ),
+        ),
         actions: [
           TextButton(
             onPressed: () async {
@@ -186,9 +205,9 @@ class _MainNavigationState extends State<MainNavigation> {
               await p.setString('hide_notice_date', today);
               Navigator.pop(context);
             },
-            child: const Text("오늘 하루 보지 않기", style: TextStyle(fontSize: 12)),
+            child: const Text("오늘 하루 보지 않기", style: TextStyle(fontSize: 11, color: Colors.grey)),
           ),
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text("확인", style: TextStyle(fontSize: 12)))
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text("내용 확인", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)))
         ],
       ),
     );
@@ -268,9 +287,18 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   Future<void> _updateLocation() async {
+    // 마지막 위치를 먼저 표시하여 로딩 지연 최소화
+    Position? lastPos = await Geolocator.getLastKnownPosition();
+    if (lastPos != null && mounted) {
+      setState(() => _locationInfo = "최근 위치: ${lastPos.latitude.toStringAsFixed(4)}, ${lastPos.longitude.toStringAsFixed(4)}");
+    }
+
     try {
-      Position pos = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.medium);
-      if (mounted) setState(() => _locationInfo = "현재: ${pos.latitude.toStringAsFixed(4)}, ${pos.longitude.toStringAsFixed(4)}");
+      Position pos = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.low, // 대략적인 위치로 속도 향상
+        timeLimit: const Duration(seconds: 4),
+      );
+      if (mounted) setState(() => _locationInfo = "현재 위치: ${pos.latitude.toStringAsFixed(4)}, ${pos.longitude.toStringAsFixed(4)}");
     } catch (_) {}
   }
 
@@ -327,11 +355,16 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   decoration: BoxDecoration(
                     shape: BoxShape.circle, 
                     color: Colors.white, 
-                    // 연핑크 테두리 추가
                     border: Border.all(color: const Color(0xFFFFD1DC), width: 4),
                     boxShadow: [BoxShadow(color: _isPressed ? Colors.orangeAccent.withOpacity(0.5) : Colors.black12, blurRadius: 25)]
                   ),
-                  child: ClipOval(child: Image.asset('assets/smile.png', fit: BoxFit.cover, errorBuilder: (c, e, s) => const Icon(Icons.face, size: 120, color: Colors.orange))),
+                  child: ClipOval(
+                    child: Image.asset(
+                      'assets/smile.png', 
+                      fit: BoxFit.cover, 
+                      errorBuilder: (c, e, s) => const Icon(Icons.face, size: 120, color: Colors.orange)
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -414,8 +447,11 @@ class _SettingScreenState extends State<SettingScreen> {
               decoration: BoxDecoration(
                 color: Colors.white, 
                 borderRadius: BorderRadius.circular(20), 
-                // 연핑크 테두리 추가
-                border: Border.all(color: const Color(0xFFFFD1DC), width: 1.5),
+                // 스위치가 ON(true) 일 때만 연핑크 테두리 표시
+                border: Border.all(
+                  color: _autoOn ? const Color(0xFFFFD1DC) : Colors.transparent, 
+                  width: 2.5
+                ),
                 boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 15)]
               ),
               child: Column(
@@ -469,7 +505,6 @@ class _SettingScreenState extends State<SettingScreen> {
                 style: ElevatedButton.styleFrom(
                   minimumSize: const Size(double.infinity, 45), 
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-                  side: const BorderSide(color: Color(0xFFFFD1DC), width: 1), // 버튼에도 살짝 테두리
                 ),
                 onPressed: () async {
                   if (await Permission.contacts.request().isGranted) {
