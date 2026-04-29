@@ -26,10 +26,9 @@ apply plugin: 'kotlin-android'
 apply from: "$flutterRoot/packages/flutter_tools/gradle/flutter.gradle"
 
 android {
-    // 네임스페이스 설정
     namespace "com.sodoma.daily_safety" 
     
-    // 구글 플레이 정책 대응: API 35 (Android 15) 설정
+    // API 35 (Android 15) 정책 대응
     compileSdkVersion 35
     ndkVersion flutter.ndkVersion
 
@@ -48,19 +47,19 @@ android {
 
     defaultConfig {
         applicationId "com.sodoma.daily_safety"
-        minSdkVersion 21
         
-        // 🚨 핵심: 타겟 SDK를 35로 설정하여 정책 준수
+        // ✅ 에러 해결: 플러그인 요구사항에 따라 23으로 상향
+        minSdkVersion 23 
+        
+        // 타겟 SDK 35 유지
         targetSdkVersion 35 
         
-        // GitHub Actions 워크플로우에서 자동으로 버전이 관리됩니다.
         versionCode flutterVersionCode.toInteger()
         versionName flutterVersionName
     }
 
     signingConfigs {
         release {
-            // 보안을 위해 GitHub Secrets 환경 변수 참조
             storeFile file('key.jks')
             storePassword System.getenv("STORE_PASSWORD")
             keyAlias System.getenv("ALIAS")
@@ -71,8 +70,6 @@ android {
     buildTypes {
         release {
             signingConfig signingConfigs.release
-            
-            // 코드 최적화 활성화
             minifyEnabled true
             shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
