@@ -5,55 +5,6 @@ on:
     branches: [ main ]
 
 jobs:
-  # 📱 APK 빌드
-  build-apk:
-    name: Create APK
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Set up Java
-        uses: actions/setup-java@v3
-        with:
-          distribution: 'zulu'
-          java-version: '17'
-
-      # 🔥 이 부분이 핵심: API 35 구성 요소 강제 설치
-      - name: Setup Android SDK
-        run: |
-          yes | sdkmanager --licenses
-          sdkmanager "platforms;android-35" "build-tools;35.0.0" "platform-tools"
-
-      - name: Set up Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          flutter-version: '3.19.0'
-
-      - name: Get dependencies
-        run: flutter pub get
-
-      - name: Generate Launcher Icons
-        run: flutter pub run flutter_launcher_icons
-
-      - name: Build APK
-        run: |
-          flutter build apk --release \
-          --build-number=$(git rev-list --count HEAD) \
-          --build-name=1.0.$(git rev-list --count HEAD)
-        env:
-          STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
-          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-          ALIAS: ${{ secrets.ALIAS }}
-
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: release-apk
-          path: build/app/outputs/flutter-apk/app-release.apk
-
-  # 📦 AAB 빌드
   build-aab:
     name: Create AAB
     runs-on: ubuntu-latest
@@ -68,11 +19,12 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      # 🔥 이 부분이 핵심: API 35 구성 요소 강제 설치
+      # ✅ 안드로이드 SDK 환경 자동 설정 (API 35 포함)
       - name: Setup Android SDK
-        run: |
-          yes | sdkmanager --licenses
-          sdkmanager "platforms;android-35" "build-tools;35.0.0" "platform-tools"
+        uses: android-actions/setup-android@v3
+        with:
+          api-level: 35
+          build-tools: 35.0.0
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
