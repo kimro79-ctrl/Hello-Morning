@@ -19,7 +19,7 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      # ✅ 안드로이드 SDK 환경 자동 설정 (API 35 포함)
+      # ✅ 안드로이드 SDK 및 API 35 강제 설치
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
         with:
@@ -38,6 +38,7 @@ jobs:
         run: flutter pub run flutter_launcher_icons
 
       - name: Build AAB
+        # ✅ 커밋 횟수를 빌드 번호로 사용해 버전 자동 업
         run: |
           flutter build appbundle --release \
           --build-number=$(git rev-list --count HEAD) \
