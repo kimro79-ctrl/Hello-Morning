@@ -20,7 +20,8 @@ apply plugin: 'com.google.gms.google-services'
 apply from: "$flutterRoot/packages/flutter_tools/gradle/flutter.gradle"
 
 android {
-    namespace "com.hello_morning"
+    // ✅ google-services.json과 일치하도록 패키지명 고정
+    namespace "com.hello_morning" 
     compileSdkVersion 34
 
     compileOptions {
@@ -40,9 +41,9 @@ android {
         versionName flutterVersionName
     }
 
+    // ✅ GitHub Secrets에 등록하신 safety1234, upload 값을 자동으로 가져옵니다
     signingConfigs {
         release {
-            // GitHub Secrets에서 설정한 이름과 정확히 일치해야 합니다.
             storeFile file("upload-keystore.jks")
             storePassword System.getenv("STORE_PASSWORD")
             keyAlias System.getenv("ALIAS")
