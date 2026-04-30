@@ -18,38 +18,45 @@ allprojects {
     }
 }
 
+// 빌드 폴더 정리
 rootProject.buildDir = '../build'
-
 subprojects {
     project.buildDir = "${rootProject.buildDir}/${project.name}"
 }
 
-// ✅ clean task
+// clean
 tasks.register("clean", Delete) {
     delete rootProject.buildDir
 }
 
 //////////////////////////////////////////////////////////////
-// 🚀 핵심 수정: afterEvaluate 제거 버전
+// 🚀 핵심: evaluation 전에 namespace 강제 주입
 //////////////////////////////////////////////////////////////
-subprojects { project ->
+gradle.beforeProject { project ->
 
-    if (project.hasProperty('android')) {
+    project.plugins.whenPluginAdded { plugin ->
 
-        project.android {
+        if (plugin.class.name.contains("LibraryPlugin") ||
+            plugin.class.name.contains("AppPlugin")) {
 
-            // 👉 namespace 없으면 자동 생성
-            if (namespace == null || namespace == "") {
-                namespace "fix.namespace.${project.name}"
-            }
+            project.extensions.configure(
+                com.android.build.gradle.BaseExtension
+            ) { ext ->
 
-            // 👉 특정 플러그인 강제 지정
-            if (project.name == "background_sms") {
-                namespace "com.fix.background_sms"
-            }
+                if (ext.hasProperty("namespace")) {
+                    if (ext.namespace == null || ext.namespace == "") {
+                        ext.namespace = "fix.namespace.${project.name}"
+                    }
+                }
 
-            if (project.name == "contacts_service") {
-                namespace "com.fix.contacts_service"
+                // 특정 플러그인 강제 지정
+                if (project.name == "background_sms") {
+                    ext.namespace = "com.fix.background_sms"
+                }
+
+                if (project.name == "contacts_service") {
+                    ext.namespace = "com.fix.contacts_service"
+                }
             }
         }
     }
