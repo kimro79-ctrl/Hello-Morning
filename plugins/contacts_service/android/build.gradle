@@ -1,20 +1,7 @@
-group 'com.contacts_service'
-version '1.0-SNAPSHOT'
-
-apply plugin: 'com.android.library'
-
 android {
-    # ✅ 네임스페이스 추가 (AGP 8.x 필수)
-    namespace "com.contacts_service"
+    namespace "com.contacts.service" # 숫자 제거된 깨끗한 이름
     compileSdk 34
-
     defaultConfig {
         minSdkVersion 21
-        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
 }
-
-dependencies {
-    implementation "androidx.core:core:1.6.0"
-}
-
