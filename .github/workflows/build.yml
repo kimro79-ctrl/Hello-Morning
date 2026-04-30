@@ -1,4 +1,4 @@
-name: Build APK and AAB
+name: Ultimate Build Strategy
 
 on:
   push:
@@ -22,13 +22,15 @@ jobs:
           flutter-version: '3.22.0'
           channel: 'stable'
 
-      - name: Create google-services.json
-        run: echo '${{ secrets.GOOGLE_SERVICES_JSON }}' > android/app/google-services.json
+      # ✅ [개선] JSON 깨짐 방지를 위한 Base64 디코딩 방식 적용
+      - name: Decode Google Services JSON
+        run: echo "${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}" | base64 --decode > android/app/google-services.json
 
+      # ✅ Keystore 디코딩
       - name: Decode Keystore
         run: echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > android/app/upload-keystore.jks
 
-      - name: Install dependencies
+      - name: Pub Get
         run: flutter pub get
 
       - name: Build AAB
@@ -38,8 +40,8 @@ jobs:
           ALIAS: ${{ secrets.ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
 
-      - name: Upload AAB Artifact
+      - name: Upload AAB
         uses: actions/upload-artifact@v4
         with:
-          name: release-aab
+          name: Hello-Morning-Release
           path: build/app/outputs/bundle/release/app-release.aab
