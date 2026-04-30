@@ -8,7 +8,7 @@ if (localPropertiesFile.exists()) {
 
 def flutterRoot = localProperties.getProperty('flutter.sdk')
 if (flutterRoot == null) {
-    throw new GradleException("Flutter SDK not found.")
+    throw new GradleException("Flutter SDK not found. Define location with flutter.sdk in the local.properties file.")
 }
 
 apply plugin: 'com.android.application'
@@ -16,9 +16,9 @@ apply plugin: 'kotlin-android'
 apply from: "$flutterRoot/packages/flutter_tools/gradle/flutter.gradle"
 
 android {
-    // ✅ API 35 고정
-    compileSdkVersion 35
+    // ✅ 앱 고유 네임스페이스 (패키지명과 일치해야 함)
     namespace "com.example.hello_morning"
+    compileSdkVersion 35
 
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
@@ -32,7 +32,6 @@ android {
     defaultConfig {
         applicationId "com.example.hello_morning"
         minSdkVersion 24
-        // ✅ 구글 콘솔 업로드용 API 35 설정
         targetSdkVersion 35
         versionCode 250
         versionName "1.2.50"
@@ -40,7 +39,7 @@ android {
 
     buildTypes {
         release {
-            signingConfig signingConfigs.debug // 실제 배포 시 release 키로 변경 필요
+            signingConfig signingConfigs.debug
             shrinkResources false
             minifyEnabled false
         }
