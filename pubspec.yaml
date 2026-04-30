@@ -19,7 +19,7 @@ dependencies:
   shared_preferences: ^2.2.2
 
   # ✅ 안정 버전으로 교체 (CI 안정성 기준)
-  background_sms: ^0.0.6
+  background_sms: ^0.0.4
   contacts_service: ^0.6.3
 
   permission_handler: ^11.3.1
