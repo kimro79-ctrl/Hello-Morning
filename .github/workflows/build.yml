@@ -2,43 +2,59 @@ name: Build APK and AAB
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, master ] # 본인의 메인 브랜치 이름에 맞게 수정하세요
 
 jobs:
-  build-aab:
+  build:
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - name: Set up Java
         uses: actions/setup-java@v4
         with:
-          distribution: 'zulu'
           java-version: '17'
-          cache: 'gradle'
+          distribution: 'temurin'
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.22.0'
+          flutter-version: '3.22.0' # 안정적인 최신 버전 권장
+          channel: 'stable'
 
-      - name: Get dependencies
+      # ✅ 1. Google Services JSON 파일 생성 (GitHub Secrets에서 읽어옴)
+      - name: Create google-services.json
+        run: echo '${{ secrets.GOOGLE_SERVICES_JSON }}' > android/app/google-services.json
+
+      # ✅ 2. Keystore 파일 생성 (GitHub Secrets의 Base64 데이터를 파일로 변환)
+      - name: Decode Keystore
+        run: echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > android/app/upload-keystore.jks
+
+      - name: Install dependencies
         run: flutter pub get
 
-      - name: Build AAB
-        run: |
-          flutter build appbundle --release \
-          --build-number=$(git rev-list --count HEAD) \
-          --build-name=1.0.$(git rev-list --count HEAD)
+      # ✅ 3. APK 빌드
+      - name: Build APK
+        run: flutter build apk --release
         env:
           STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
-          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
           ALIAS: ${{ secrets.ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
 
-      - name: Upload AAB
+      # ✅ 4. AAB 빌드 (Play Store 업로드용)
+      - name: Build AAB
+        run: flutter build appbundle --release
+        env:
+          STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
+          ALIAS: ${{ secrets.ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+
+      # ✅ 5. 빌드된 파일 업로드 (GitHub Actions 결과창에서 다운로드 가능)
+      - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: release-aab
-          path: build/app/outputs/bundle/release/app-release.aab
+          name: release-builds
+          path: |
+            build/app/outputs/flutter-apk/app-release.apk
+            build/app/outputs/bundle/release/app-release.aab
