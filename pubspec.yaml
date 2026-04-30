@@ -15,7 +15,7 @@ dependencies:
   device_info_plus: ^10.1.0
   shared_preferences: ^2.2.2
   
-  # ✅ 로컬 path 대신 정식 버전으로 교체 (성공 확률 95%)
+  # ✅ 네임스페이스 주입으로 해결하므로 정식 버전 사용
   background_sms: ^0.0.4
   contacts_service: ^0.6.3
   
@@ -30,7 +30,6 @@ dev_dependencies:
   flutter_lints: ^3.0.0
   flutter_launcher_icons: ^0.13.1
 
-# ✅ 이전 성공 코드 방식 유지
 flutter_launcher_icons:
   android: true
   ios: false
