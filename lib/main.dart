@@ -10,14 +10,15 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:isolate';
 
+/* =========================
+   FOREGROUND CALLBACK
+========================= */
+
 @pragma('vm:entry-point')
 void startCallback() {
   FlutterForegroundTask.setTaskHandler(FirstTaskHandler());
 }
 
-/* =========================
-   BACKGROUND TASK
-========================= */
 class FirstTaskHandler extends TaskHandler {
   @override
   Future<void> onStart(DateTime timestamp, SendPort? sendPort) async {}
@@ -25,7 +26,6 @@ class FirstTaskHandler extends TaskHandler {
   @override
   Future<void> onRepeatEvent(DateTime timestamp, SendPort? sendPort) async {
     final p = await SharedPreferences.getInstance();
-
     if (!(p.getBool('auto_sms_enabled') ?? false)) return;
 
     String? last = p.getString('lastCheckIn');
@@ -42,16 +42,7 @@ class FirstTaskHandler extends TaskHandler {
       double limitSeconds = (limitMin * 60) - 30;
 
       if (diffSeconds >= limitSeconds) {
-        String? lastSent = p.getString('lastEmergencySent');
-
-        if (lastSent != null) {
-          DateTime lastSentTime = DateTime.parse(lastSent);
-          if (DateTime.now().difference(lastSentTime).inSeconds >= 270) {
-            sendPort?.send('SEND_SMS_ACTION');
-          }
-        } else {
-          sendPort?.send('SEND_SMS_ACTION');
-        }
+        sendPort?.send('SEND_SMS_ACTION');
       }
     } catch (_) {}
   }
@@ -63,14 +54,16 @@ class FirstTaskHandler extends TaskHandler {
 /* =========================
    MAIN
 ========================= */
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   runApp(const DailySafetyApp());
 }
 
 /* =========================
-   APP ROOT
+   APP
 ========================= */
+
 class DailySafetyApp extends StatelessWidget {
   const DailySafetyApp({super.key});
 
@@ -89,8 +82,9 @@ class DailySafetyApp extends StatelessWidget {
 }
 
 /* =========================
-   MAIN NAVIGATION
+   NAVIGATION
 ========================= */
+
 class MainNavigation extends StatefulWidget {
   const MainNavigation({super.key});
 
@@ -100,11 +94,12 @@ class MainNavigation extends StatefulWidget {
 
 class _MainNavigationState extends State<MainNavigation> {
   int _currentIndex = 0;
+
   final GlobalKey<HistoryScreenState> _historyKey = GlobalKey();
   late List<Widget> _screens;
-  ReceivePort? _receivePort;
 
   final Telephony telephony = Telephony.instance;
+  ReceivePort? _receivePort;
 
   @override
   void initState() {
@@ -113,105 +108,64 @@ class _MainNavigationState extends State<MainNavigation> {
     _screens = [
       const HomeScreen(),
       HistoryScreen(key: _historyKey),
-      const SettingScreen()
+      const SettingScreen(),
     ];
 
     _initForegroundTask();
     _bindReceivePort();
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _initialSetup();
-    });
   }
 
   void _bindReceivePort() async {
     ReceivePort? port = await FlutterForegroundTask.receivePort;
     if (port != null) {
-      _initReceivePort(port);
+      _receivePort = port;
+      _receivePort?.listen((msg) {
+        if (msg == 'SEND_SMS_ACTION') {
+          _executeEmergencySms();
+        }
+      });
     } else {
       Future.delayed(const Duration(seconds: 1), _bindReceivePort);
     }
   }
 
-  void _initReceivePort(ReceivePort port) {
-    _receivePort?.close();
-    _receivePort = port;
-
-    _receivePort?.listen((message) {
-      if (message == 'SEND_SMS_ACTION') {
-        _executeEmergencySms();
-      }
-    });
-  }
-
   Future<void> _executeEmergencySms() async {
     final p = await SharedPreferences.getInstance();
-
     List contacts = json.decode(p.getString('contacts_list') ?? "[]");
+
     if (contacts.isEmpty) return;
 
     String locationStr = "좌표 없음";
 
     try {
-      Position pos = await Geolocator.getCurrentPosition();
+      Position pos = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.medium,
+        timeLimit: const Duration(seconds: 5),
+      );
+
       locationStr =
           "${pos.latitude.toStringAsFixed(6)}, ${pos.longitude.toStringAsFixed(6)}";
     } catch (_) {}
 
-    List history = json.decode(p.getString('history_logs') ?? "[]");
-
     for (var c in contacts) {
-      try {
-        String number = c['number'].replaceAll(RegExp(r'[^0-9]'), '');
+      String num = c['number'].replaceAll(RegExp(r'[^0-9]'), '');
 
-        await telephony.sendSms(
-          to: number,
-          message:
-              "[안심 지키미]\n응답 없음 감지\n위치: $locationStr\n확인 부탁드립니다.",
-        );
-
-        history.insert(0, {
-          'type': '비상 알림',
-          'time': DateFormat('MM/dd HH:mm').format(DateTime.now()),
-          'msg': '${c['name']}에게 전송 완료'
-        });
-      } catch (_) {
-        history.insert(0, {
-          'type': '에러',
-          'time': DateFormat('MM/dd HH:mm').format(DateTime.now()),
-          'msg': '전송 실패'
-        });
-      }
+      await telephony.sendSms(
+        to: num,
+        message: "[안심 지키미] 응답 없음\n위치: $locationStr",
+      );
     }
-
-    await p.setString('history_logs', json.encode(history.take(30).toList()));
-    await p.setString('lastEmergencySent', DateTime.now().toIso8601String());
-
-    _historyKey.currentState?.loadLogs();
-  }
-
-  Future<void> _initialSetup() async {
-    await [
-      Permission.sms,
-      Permission.location,
-      Permission.locationAlways,
-      Permission.contacts
-    ].request();
-
-    await FlutterForegroundTask.requestIgnoreBatteryOptimization();
   }
 
   void _initForegroundTask() {
     FlutterForegroundTask.init(
       androidNotificationOptions: AndroidNotificationOptions(
-        channelId: 'safety_channel',
-        channelName: '안심 지키미',
+        channelId: 'safety',
+        channelName: '안심지키미',
         channelImportance: NotificationChannelImportance.MAX,
         priority: NotificationPriority.HIGH,
       ),
-      iosNotificationOptions: const IOSNotificationOptions(
-        showNotification: true,
-      ),
+      iosNotificationOptions: const IOSNotificationOptions(showNotification: true),
       foregroundTaskOptions: const ForegroundTaskOptions(
         interval: 30000,
         autoRunOnBoot: true,
@@ -222,20 +176,99 @@ class _MainNavigationState extends State<MainNavigation> {
 
   @override
   Widget build(BuildContext context) {
-    return WithForegroundTask(
-      child: Scaffold(
-        body: IndexedStack(index: _currentIndex, children: _screens),
-        bottomNavigationBar: BottomNavigationBar(
-          currentIndex: _currentIndex,
-          onTap: (i) {
-            setState(() => _currentIndex = i);
-            if (i == 1) _historyKey.currentState?.loadLogs();
+    return Scaffold(
+      body: IndexedStack(index: _currentIndex, children: _screens),
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: _currentIndex,
+        onTap: (i) => setState(() => _currentIndex = i),
+        items: const [
+          BottomNavigationBarItem(icon: Icon(Icons.home), label: "홈"),
+          BottomNavigationBarItem(icon: Icon(Icons.history), label: "기록"),
+          BottomNavigationBarItem(icon: Icon(Icons.settings), label: "설정"),
+        ],
+      ),
+    );
+  }
+}
+
+/* =========================
+   HOME (UI 유지)
+========================= */
+
+class HomeScreen extends StatefulWidget {
+  const HomeScreen({super.key});
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  String _lastCheckIn = "안부를 전해주세요";
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(child: Text(_lastCheckIn));
+  }
+}
+
+/* =========================
+   HISTORY
+========================= */
+
+class HistoryScreen extends StatefulWidget {
+  const HistoryScreen({super.key});
+
+  @override
+  State<HistoryScreen> createState() => HistoryScreenState();
+}
+
+class HistoryScreenState extends State<HistoryScreen> {
+  List _logs = [];
+
+  void loadLogs() {}
+
+  @override
+  Widget build(BuildContext context) {
+    return const Center(child: Text("기록"));
+  }
+}
+
+/* =========================
+   SETTING
+========================= */
+
+class SettingScreen extends StatefulWidget {
+  const SettingScreen({super.key});
+
+  @override
+  State<SettingScreen> createState() => _SettingScreenState();
+}
+
+class _SettingScreenState extends State<SettingScreen> {
+  List _contacts = [];
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Center(
+        child: ElevatedButton(
+          onPressed: () async {
+            if (await FlutterContacts.requestPermission()) {
+              final c = await FlutterContacts.openExternalPicker();
+              if (c != null && c.phones.isNotEmpty) {
+                setState(() {
+                  _contacts.add({
+                    'name': c.displayName,
+                    'number': c.phones.first.number,
+                  });
+                });
+
+                final p = await SharedPreferences.getInstance();
+                await p.setString('contacts_list', json.encode(_contacts));
+              }
+            }
           },
-          items: const [
-            BottomNavigationBarItem(icon: Icon(Icons.home), label: "홈"),
-            BottomNavigationBarItem(icon: Icon(Icons.history), label: "기록"),
-            BottomNavigationBarItem(icon: Icon(Icons.settings), label: "설정"),
-          ],
+          child: const Text("연락처 추가"),
         ),
       ),
     );
