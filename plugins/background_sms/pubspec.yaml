@@ -1,0 +1,15 @@
+name: background_sms
+description: A flutter plugin to send sms in background.
+version: 0.0.4
+
+environment:
+  sdk: '>=3.3.0 <4.0.0'
+  flutter: ">=1.12.13+hotfix.5"
+
+flutter:
+  plugin:
+    platforms:
+      android:
+        package: com.j.background_sms
+        pluginClass: BackgroundSmsPlugin
+
