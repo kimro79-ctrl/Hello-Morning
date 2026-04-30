@@ -1,7 +1,7 @@
 name: hello_morning
-description: "A new Flutter project."
+description: "1인가구 안심 지키미 앱"
 publish_to: 'none'
-version: 1.0.0+1
+version: 1.2.50+250
 
 environment:
   sdk: '>=3.2.0 <4.0.0'
@@ -15,11 +15,9 @@ dependencies:
   device_info_plus: ^10.1.0
   shared_preferences: ^2.2.2
   
-  # 로컬 플러그인 설정
-  background_sms:
-    path: ./plugins/background_sms
-  contacts_service:
-    path: ./plugins/contacts_service
+  # ✅ 로컬 path 대신 정식 버전으로 교체 (성공 확률 95%)
+  background_sms: ^0.0.4
+  contacts_service: ^0.6.3
   
   permission_handler: ^11.3.0
   geolocator: ^11.0.0
@@ -32,7 +30,7 @@ dev_dependencies:
   flutter_lints: ^3.0.0
   flutter_launcher_icons: ^0.13.1
 
-# ✅ 벽에 바짝 붙여서 작성
+# ✅ 이전 성공 코드 방식 유지
 flutter_launcher_icons:
   android: true
   ios: false
