@@ -13,8 +13,8 @@ android {
         applicationId "com.hello_morning"
         minSdk 23
         targetSdk 35
-        versionCode 90
-        versionName "1.0.90"
+        versionCode 110
+        versionName "1.1.10"
     }
 
     signingConfigs {
@@ -34,8 +34,4 @@ android {
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
-}
-
-dependencies {
-    // 의존성은 pubspec.yaml에 의해 관리됨
 }
