@@ -6,31 +6,22 @@ plugins {
 }
 
 android {
-    // 1. 네임스페이스를 com.hello_morning으로 고정
+    // 1. 네임스페이스를 JSON 파일의 패키지명과 일치시킵니다.
     namespace "com.hello_morning"
     compileSdk 35
 
-    compileOptions {
-        sourceCompatibility JavaVersion.VERSION_17
-        targetCompatibility JavaVersion.VERSION_17
-    }
-
-    kotlinOptions {
-        jvmTarget = '17'
-    }
-
     defaultConfig {
-        // 2. 실제 앱 아이디도 동일하게 맞춤
+        // 2. 애플리케이션 아이디도 동일하게 맞춥니다.
         applicationId "com.hello_morning"
         minSdk 23 
         targetSdk 35
-        versionCode 10
-        versionName "1.0.10"
+        versionCode 11
+        versionName "1.0.11"
     }
 
     signingConfigs {
         release {
-            // 3. 업로드하신 키 파일 이름으로 정확히 지정
+            [span_0](start_span)// 3. 실제 존재하는 키 파일명으로 지정합니다.[span_0](end_span)
             storeFile file('upload-keystore.jks')
             storePassword System.getenv("STORE_PASSWORD")
             keyAlias System.getenv("ALIAS")
