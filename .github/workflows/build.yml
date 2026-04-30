@@ -1,4 +1,4 @@
-name: Ultimate Success Build (Safe Deep Patch)
+name: Success Build (Stable Architecture)
 
 on:
   push:
@@ -22,44 +22,17 @@ jobs:
           flutter-version: '3.22.0'
           channel: 'stable'
 
-      # ✅ 1. 의존성 설치
+      # ✅ 1. 의존성 설치 (로컬 플러그인 경로 자동 인식)
       - name: Install dependencies
         run: flutter pub get
 
-      # ✅ 2. [완성형] Namespace 전체 패치 + Manifest 정밀 타격
-      - name: Safe Deep Patch Flutter plugins
+      # ✅ 2. 보안 파일 복원
+      - name: Decode Secrets
         run: |
-          echo "Step 1: Patching namespaces with reinforced logic..."
-          find $HOME/.pub-cache -type f -name "build.gradle" | while read FILE; do
-            if grep -q "com.android.library" "$FILE"; then
-              # Kotlin DSL(=) 및 Groovy("") 형식을 모두 체크하여 중복 방지
-              if ! grep -E -q 'namespace[[:space:]]*=' "$FILE" && ! grep -q 'namespace "' "$FILE"; then
-                PKG_DIR_NAME=$(basename $(dirname $(dirname "$FILE")))
-                SAFE_PKG_NAME=$(echo "$PKG_DIR_NAME" | sed 's/[^a-zA-Z0-9]/./g')
-                echo "Patching Namespace: $SAFE_PKG_NAME"
-                sed -i '/android[[:space:]]*{/a\    namespace "com.auto.generated.'"$SAFE_PKG_NAME"'"' "$FILE"
-              fi
-            fi
-          done
+          echo "${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}" | base64 --decode > android/app/google-services.json
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > android/app/upload-keystore.jks
 
-          echo "Step 2: Fixing only background_sms manifest (Targeted)..."
-          # 문제가 확실한 background_sms의 매니페스트만 package 속성 제거
-          find $HOME/.pub-cache -type f -path "*background_sms*/AndroidManifest.xml" | while read FILE; do
-            echo "Targeted Manifest Patch: $FILE"
-            sed -i 's/package="[^"]*"//g' "$FILE"
-          done
-          
-          echo "Deep patch completed safely."
-
-      # ✅ 3. Google Services JSON 복원 (Base64)
-      - name: Decode Google Services JSON
-        run: echo "${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}" | base64 --decode > android/app/google-services.json
-
-      # ✅ 4. Keystore 복원
-      - name: Decode Keystore
-        run: echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > android/app/upload-keystore.jks
-
-      # ✅ 5. AAB 빌드
+      # ✅ 3. AAB 빌드 (로컬에서 이미 수정된 코드를 사용하므로 실패 없음)
       - name: Build AAB
         run: flutter build appbundle --release
         env:
@@ -70,5 +43,5 @@ jobs:
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Hello-Morning-Success-AAB
+          name: Hello-Morning-Final-AAB
           path: build/app/outputs/bundle/release/app-release.aab
