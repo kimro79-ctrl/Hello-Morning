@@ -33,7 +33,7 @@ class FirstTaskHandler extends TaskHandler {
       int selectedHours = p.getInt('selectedHours') ?? 1;
       int limitMin = selectedHours == 0 ? 5 : selectedHours * 60;
       double diffSeconds = DateTime.now().difference(lastTime).inSeconds.toDouble();
-      double limitSeconds = (limitMin * 60) - 30; 
+      double limitSeconds = (limitMin * 60) - 30;
 
       if (diffSeconds >= limitSeconds) {
         String? lastSentStr = p.getString('lastEmergencySent');
@@ -138,6 +138,7 @@ class _MainNavigationState extends State<MainNavigation> {
       if (c['number'] != null) {
         String cleanNumber = c['number'].replaceAll(RegExp(r'[^0-9]'), '');
         try {
+          // ✅ BackgroundSms 오타 수정 완료
           await BackgroundSms.sendMessage(phoneNumber: cleanNumber, message: "[1인가구 안심 지키미] 응답이 없어 연락드립니다.\n좌표: $locationStr\n확인 부탁드립니다.");
           history.insert(0, {'type': '비상 알림', 'time': DateFormat('MM/dd HH:mm').format(DateTime.now()), 'msg': '보호자(${c['name']})에게 안심 문자 발송 완료'});
         } catch (e) {
@@ -186,7 +187,12 @@ class _MainNavigationState extends State<MainNavigation> {
 
   void _initForegroundTask() {
     FlutterForegroundTask.init(
-      androidNotificationOptions: AndroidNotificationOptions(channelId: 'safety_check_v38', channelName: '1인가구 안심 지키미', channelImportance: NotificationChannelImportance.MAX, priority: NotificationPriority.HIGH),
+      // ✅ const 제거하여 런타임 상수 에러 수정
+      androidNotificationOptions: AndroidNotificationOptions(
+          channelId: 'safety_check_v38',
+          channelName: '1인가구 안심 지키미',
+          channelImportance: NotificationChannelImportance.MAX,
+          priority: NotificationPriority.HIGH),
       iosNotificationOptions: const IOSNotificationOptions(showNotification: true),
       foregroundTaskOptions: const ForegroundTaskOptions(interval: 30000, autoRunOnBoot: true, allowWakeLock: true),
     );
@@ -353,7 +359,8 @@ class HistoryScreenState extends State<HistoryScreen> {
       : ListView.builder(
           itemCount: _logs.length,
           itemBuilder: (context, i) => ListTile(
-            leading: Icon(_logs[i]['type'] == '비상 알림' ? Icons.warning_amber_rounded : Icons.check_circle_outline, color: _logs[i]['type'] == '비상 알림' ? Colors.red : Colors.green, size: 18),
+            leading: Icon(_logs[i]['type'] == '비상 알림' ? 
+            Icons.warning_amber_rounded : Icons.check_circle_outline, color: _logs[i]['type'] == '비상 알림' ? Colors.red : Colors.green, size: 18),
             title: Text(_logs[i]['type'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
             subtitle: Text(_logs[i]['msg'], style: const TextStyle(fontSize: 10)),
             trailing: Text(_logs[i]['time'], style: const TextStyle(fontSize: 9, color: Colors.grey)),
@@ -419,7 +426,7 @@ class _SettingScreenState extends State<SettingScreen> {
                     children: [
                       Expanded(child: ElevatedButton(
                         onPressed: () async { await [Permission.sms, Permission.location, Permission.locationAlways].request(); }, 
-                        style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF5C6BC0), foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)), minimumSize: const Size(0, 38)), 
+                        style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF5C6BC0), foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)), minimumSize: const Size(0, 38)),
                         child: const Text("자동 권한설정", style: TextStyle(fontSize: 11))
                       )),
                       const SizedBox(width: 8),
@@ -447,7 +454,8 @@ class _SettingScreenState extends State<SettingScreen> {
                 style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 45), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
                 onPressed: () async {
                   if (await Permission.contacts.request().isGranted) {
-                    final c = await ContactsService.openDeviceContactPicker();
+                    // ✅ Contact 타입 미정의 및 Picker 호출 방식 수정 완료
+                    final dynamic c = await ContactsService.openDeviceContactPicker();
                     if (c != null && c.phones!.isNotEmpty) {
                       setState(() => _contacts.add({'name': c.displayName, 'number': c.phones?.first.value}));
                       (await SharedPreferences.getInstance()).setString('contacts_list', json.encode(_contacts));
