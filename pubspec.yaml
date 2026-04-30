@@ -6,11 +6,15 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  # ✅ 로컬 경로 설정
+  
+  # ✅ 로컬 플러그인 경로
   background_sms:
     path: ./plugins/background_sms
   contacts_service:
     path: ./plugins/contacts_service
+
+  # ✅ 누락된 패키지 추가 (빌드 에러 해결 핵심)
+  shared_preferences: ^2.2.2
   firebase_core: ^2.27.0
   firebase_messaging: ^14.7.19
 
