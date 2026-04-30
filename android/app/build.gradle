@@ -2,11 +2,10 @@ plugins {
     id "com.android.application"
     id "kotlin-android"
     id "dev.flutter.flutter-gradle-plugin"
-    id "com.google.gms.google-services"
+    id "com.google.gms.google-services" // 루트의 classpath가 있어야 작동함
 }
 
 android {
-    // 1. namespace와 applicationId를 google-services.json과 완벽히 일치시킵니다.
     namespace "com.hello_morning"
     compileSdk 35
 
@@ -23,13 +22,12 @@ android {
         applicationId "com.hello_morning"
         minSdk 23
         targetSdk 35
-        versionCode 18 
-        versionName "1.0.18"
+        versionCode 21
+        versionName "1.0.21"
     }
 
     signingConfigs {
         release {
-            [span_0](start_span)// 2. 업로드하신 키 파일명 'upload-keystore.jks'를 정확히 입력합니다.[span_0](end_span)
             storeFile file('upload-keystore.jks')
             storePassword System.getenv("STORE_PASSWORD")
             keyAlias System.getenv("ALIAS")
@@ -48,7 +46,5 @@ android {
 }
 
 dependencies {
-    // 3. 핵심: 소스 코드에서 'io.flutter'를 인식할 수 있도록 플러터 엔진과 코틀린 라이브러리를 강제로 연결합니다.
-    implementation "org.jetbrains.kotlin:kotlin-stdlib:1.9.22"
-    implementation "io.flutter:flutter_embedding_release:1.0.0-f6344b7dcf861d8bf1f1322780b8811f982e31a"
+    // ✅ Flutter가 자동 관리하므로 비워둡니다.
 }
