@@ -1,0 +1,16 @@
+name: contacts_service
+description: Flutter plugin for reading and managing contacts.
+version: 0.6.3
+homepage: https://github.com/baseflow/flutter-contacts_service
+
+environment:
+  sdk: '>=3.3.0 <4.0.0'
+  flutter: ">=1.10.0"
+
+flutter:
+  plugin:
+    platforms:
+      android:
+        package: com.baseflow.contacts_service
+        pluginClass: ContactsServicePlugin
+
