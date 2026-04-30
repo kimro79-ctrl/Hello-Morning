@@ -5,7 +5,6 @@ buildscript {
         mavenCentral()
     }
     dependencies {
-        // ✅ 구글 서비스 플러그인 등록 (이게 없어서 터졌던 것입니다)
         classpath 'com.google.gms:google-services:4.4.0'
         classpath 'com.android.tools.build:gradle:8.2.1'
         classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
@@ -25,6 +24,17 @@ subprojects {
 }
 subprojects {
     project.evaluationDependsOn(':app')
+}
+
+// ✅ 추가: 외부 패키지(background_sms 등)의 Namespace 에러를 강제로 해결하는 코드
+subprojects {
+    afterEvaluate { project ->
+        if (project.hasProperty('android')) {
+            if (project.android.namespace == null) {
+                project.android.namespace = project.group
+            }
+        }
+    }
 }
 
 tasks.register("clean", Delete) {
