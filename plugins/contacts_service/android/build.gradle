@@ -1,7 +1,4 @@
 android {
-    namespace "com.contacts.service" # 숫자 제거된 깨끗한 이름
+    namespace "com.contacts.service"
     compileSdk 34
-    defaultConfig {
-        minSdkVersion 21
-    }
 }
