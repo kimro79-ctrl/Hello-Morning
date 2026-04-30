@@ -9,32 +9,25 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-
   cupertino_icons: ^1.0.6
-
-  firebase_core: ^2.27.0
-  cloud_firestore: ^4.15.8
-
-  device_info_plus: ^10.1.0
   shared_preferences: ^2.2.2
-
-  # ✅ 안정 버전으로 교체 (CI 안정성 기준)
-  background_sms: ^0.0.4
-  contacts_service: ^0.6.3
-
-  permission_handler: ^11.3.1
-  geolocator: ^11.0.0
+  # ✅ 빌드 에러 원인인 contacts_service 제거 -> flutter_contacts로 교체
+  flutter_contacts: ^1.1.9.2
+  permission_handler: ^11.3.0
   intl: ^0.19.0
-  flutter_foreground_task: ^6.5.0
+  # ✅ 빌드 에러 원인인 background_sms 제거 -> telephony로 교체
+  telephony: ^0.2.0
+  geolocator: ^11.0.0
+  flutter_foreground_task: ^6.1.1
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-
   flutter_lints: ^3.0.0
-
+  # ✅ 현재 루트에 있는 icon.png를 안드로이드 시스템 아이콘으로 연결해주는 도구
   flutter_launcher_icons: ^0.13.1
 
+# 🚀 어플 아이콘 연결 (이미 있는 icon.png를 그대로 사용)
 flutter_launcher_icons:
   android: true
   ios: false
@@ -42,7 +35,6 @@ flutter_launcher_icons:
 
 flutter:
   uses-material-design: true
-
   assets:
-    - icon.png
-    - assets/smile.png
+    - icon.png         # 루트의 아이콘 파일
+    - assets/smile.png  # 내부 버튼용 이미지
