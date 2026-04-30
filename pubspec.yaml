@@ -1,28 +1,39 @@
 name: hello_morning
-version: 1.2.50+250
+description: "A new Flutter project."
+publish_to: 'none'
+version: 1.0.0+1
+
 environment:
   sdk: '>=3.3.0 <4.0.0'
 
 dependencies:
   flutter:
     sdk: flutter
-  
-  # 로컬 플러그인 (경로 유지)
-  background_sms:
-    path: ./plugins/background_sms
-  contacts_service:
-    path: ./plugins/contacts_service
+  cupertino_icons: ^1.0.6
 
-  # ✅ 빌드 에러 해결을 위해 반드시 추가되어야 함
-  shared_preferences: ^2.2.2
+  # Firebase 및 필수 패키지
   firebase_core: ^2.27.0
-  firebase_messaging: ^14.7.19
-  permission_handler: ^11.3.1
-  intl: ^0.19.0
+  cloud_firestore: ^4.15.8
+  device_info_plus: ^10.1.0
+  shared_preferences: ^2.2.2
+  
+  # 문자 및 권한 (버전 고정으로 충돌 방지)
+  background_sms: ^0.0.4
+  permission_handler: ^11.3.0
+  contacts_service: ^0.6.3
+  
+  # 위치 및 유틸리티
   geolocator: ^11.0.0
-  flutter_foreground_task: ^6.1.1
+  intl: ^0.19.0
+  flutter_foreground_task: ^6.5.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
 
 flutter:
   uses-material-design: true
   assets:
+    - assets/icon/ic_launcher.png
     - assets/smile.png
