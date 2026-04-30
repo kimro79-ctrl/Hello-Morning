@@ -1,4 +1,4 @@
-name: Ultimate Success Build (99% Stability)
+name: Ultimate Success Build (Zero-Defect Patch)
 
 on:
   push:
@@ -26,22 +26,33 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      # ✅ 2. background_sms 네임스페이스 강제 패치 (중복 방지 로직 포함)
-      - name: Fix background_sms namespace
+      # ✅ 2. [완전판] 모든 플러그인 Namespace 자동 패치 및 검증
+      - name: Fix ALL Flutter plugin namespace
         run: |
-          BG_PATH=$(find $HOME/.pub-cache -type d -name "background_sms*" | head -n 1)
-          if [ -d "$BG_PATH/android" ]; then
-            FILE="$BG_PATH/android/build.gradle"
-            echo "Patching $FILE"
-            if ! grep -q "namespace" "$FILE"; then
-              sed -i '/android {/a \    namespace "com.background.sms"' "$FILE"
-              echo "Namespace added successfully."
-            else
-              echo "Namespace already exists, skipping."
-            fi
-          fi
+          echo "Scanning all plugins in pub-cache..."
 
-      # ✅ 3. Google Services JSON 복원 (Base64 방식 - 가장 안전)
+          find $HOME/.pub-cache -type f -name "build.gradle" | while read FILE; do
+            if grep -q "com.android.library" "$FILE"; then
+              if ! grep -q 'namespace "' "$FILE" && ! grep -q "namespace =" "$FILE"; then
+                
+                # 변수 오타 수정 및 안전한 네임스페이스 생성
+                PKG_DIR_NAME=$(basename $(dirname $(dirname "$FILE")))
+                SAFE_PKG_NAME=$(echo "$PKG_DIR_NAME" | sed 's/[^a-zA-Z0-9]/./g')
+
+                echo "Patching: $FILE → $SAFE_PKG_NAME"
+
+                # 공백 대응 정규식 패턴 적용
+                sed -i '/android[[:space:]]*{/a\    namespace "com.auto.generated.'"$SAFE_PKG_NAME"'"' "$FILE"
+              fi
+            fi
+          done
+
+          echo "---------------------------------------"
+          echo "Verification: Count of patched namespaces"
+          grep -r "namespace \"com.auto.generated" $HOME/.pub-cache | wc -l
+          echo "Global patching completed."
+
+      # ✅ 3. Google Services JSON 복원 (Base64)
       - name: Decode Google Services JSON
         run: echo "${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}" | base64 --decode > android/app/google-services.json
 
@@ -60,5 +71,5 @@ jobs:
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Hello-Morning-Final-AAB
+          name: Hello-Morning-Perfect-Release
           path: build/app/outputs/bundle/release/app-release.aab
