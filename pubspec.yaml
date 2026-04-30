@@ -1,10 +1,11 @@
 name: hello_morning
-description: "A new Flutter project."
+description: "1인가구 안심 지키미"
 publish_to: 'none'
+
 version: 1.0.0+1
 
 environment:
-  sdk: '>=3.2.0 <4.0.0'
+  sdk: ">=3.2.0 <4.0.0"
 
 dependencies:
   flutter:
@@ -12,47 +13,31 @@ dependencies:
 
   cupertino_icons: ^1.0.6
 
-  # Firebase
-  firebase_core: ^2.27.0
-  cloud_firestore: ^4.15.8
-
-  # Device / Utils
-  device_info_plus: ^10.1.0
-  shared_preferences: ^2.2.2
-  permission_handler: ^11.3.0
-  geolocator: ^11.0.0
+  # 기본
+  shared_preferences: ^2.2.3
   intl: ^0.19.0
+  permission_handler: ^11.3.1
+  geolocator: ^11.0.0
 
-  # SMS / Contacts (현재 코드 기준 유지)
-  background_sms: ^0.0.4
-  contacts_service: ^0.6.3
+  # foreground service
+  flutter_foreground_task: ^8.0.0
 
-  # Foreground service
-  flutter_foreground_task: ^6.5.0
+  # 연락처 (안정 버전)
+  flutter_contacts: ^1.1.7+1
+
+  # SMS (안드로이드 최신 대응)
+  telephony: ^0.2.0
 
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-
   flutter_lints: ^3.0.0
-
-  # 앱 아이콘 생성용
-  flutter_launcher_icons: ^0.13.1
-
-
-# =========================
-# APP ICON 설정
-# =========================
-flutter_launcher_icons:
-  android: true
-  ios: false
-  image_path: "icon.png"
 
 
 flutter:
   uses-material-design: true
 
   assets:
-    - icon.png
     - assets/
+    - icon.png
