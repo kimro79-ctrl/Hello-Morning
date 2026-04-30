@@ -2,7 +2,7 @@ plugins {
     id "com.android.application"
     id "kotlin-android"
     id "dev.flutter.flutter-gradle-plugin"
-    id "com.google.gms.google-services" // 루트의 classpath가 있어야 작동함
+    id "com.google.gms.google-services"
 }
 
 android {
@@ -20,10 +20,10 @@ android {
 
     defaultConfig {
         applicationId "com.hello_morning"
-        minSdk 23
+        minSdk 23 
         targetSdk 35
-        versionCode 21
-        versionName "1.0.21"
+        versionCode 25
+        versionName "1.0.25"
     }
 
     signingConfigs {
@@ -46,5 +46,5 @@ android {
 }
 
 dependencies {
-    // ✅ Flutter가 자동 관리하므로 비워둡니다.
+    // Flutter가 자동으로 관리합니다.
 }
