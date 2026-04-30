@@ -26,7 +26,7 @@ subprojects {
     project.evaluationDependsOn(':app')
 }
 
-// ✅ [최종 해결] afterEvaluate 타이밍 문제를 방지하기 위해 플러크인 구성 단계에서 즉시 주입
+// ✅ [Namespace 패치] 타이밍 이슈를 해결하기 위해 플러그인 로드 즉시 실행
 subprojects { project ->
     project.plugins.configureEach { plugin ->
         if (plugin.class.name.contains("com.android.build.gradle.BasePlugin")) {
