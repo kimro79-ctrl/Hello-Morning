@@ -2,36 +2,68 @@ plugins {
     id "com.android.application"
     id "kotlin-android"
     id "dev.flutter.flutter-gradle-plugin"
-    id "com.google.gms.google-services"
+}
+
+def localProperties = new Properties()
+def localPropertiesFile = rootProject.file('local.properties')
+if (localPropertiesFile.exists()) {
+    localPropertiesFile.withReader('UTF-8') { reader ->
+        localProperties.load(reader)
+    }
+}
+
+def flutterVersionCode = localProperties.getProperty('flutter.versionCode')
+if (flutterVersionCode == null) {
+    flutterVersionCode = '1'
+}
+
+def flutterVersionName = localProperties.getProperty('flutter.versionName')
+if (flutterVersionName == null) {
+    flutterVersionName = '1.0'
 }
 
 android {
-    namespace "com.hello_morning"
-    compileSdk 35
+    // ✅ 핵심 수정: 네임스페이스 명시 (오류 로그 해결용)
+    namespace "com.example.hello_morning"
+    compileSdk 34
 
-    defaultConfig {
-        applicationId "com.hello_morning"
-        minSdk 23
-        targetSdk 35
-        versionCode 150
-        versionName "1.1.50"
+    sourceSets {
+        main.java.srcDirs += 'src/main/kotlin'
     }
 
-    signingConfigs {
-        release {
-            storeFile file('upload-keystore.jks')
-            storePassword System.getenv("STORE_PASSWORD")
-            keyAlias System.getenv("ALIAS")
-            keyPassword System.getenv("KEY_PASSWORD")
-        }
+    defaultConfig {
+        applicationId "com.example.hello_morning"
+        minSdkVersion 21
+        targetSdkVersion 34
+        versionCode flutterVersionCode.toInteger()
+        versionName flutterVersionName
+
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    // ✅ Java 17 호환성 설정
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    kotlinOptions {
+        jvmTarget = '17'
     }
 
     buildTypes {
         release {
-            signingConfig signingConfigs.release
-            minifyEnabled true
-            shrinkResources true
-            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            signingConfig signingConfigs.debug // 실제 배포 시 release 키 설정 필요
+            minifyEnabled false
+            shrinkResources false
         }
     }
+}
+
+flutter {
+    source '../..'
+}
+
+dependencies {
+    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.9.10"
 }
