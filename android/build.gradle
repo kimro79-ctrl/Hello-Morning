@@ -21,19 +21,10 @@ allprojects {
 rootProject.buildDir = '../build'
 subprojects {
     project.buildDir = "${rootProject.buildDir}/${project.name}"
-}
-subprojects {
-    project.evaluationDependsOn(':app')
-}
-
-tasks.register("clean", Delete) {
-    delete rootProject.buildDir
-}
-
-// ✅ background_sms 네임스페이스 오류 해결 코드
-subprojects {
-    afterEvaluate { project ->
-        if (project.hasProperty('android')) {
+    
+    // ✅ Namespace 오류 해결을 위한 안전한 주입 로직
+    project.configurations.all {
+        resolutionStrategy.eachDependency { details ->
             if (project.name == 'background_sms') {
                 project.android {
                     namespace = 'com.github.clans.background_sms'
@@ -41,4 +32,11 @@ subprojects {
             }
         }
     }
+}
+subprojects {
+    project.evaluationDependsOn(':app')
+}
+
+tasks.register("clean", Delete) {
+    delete rootProject.buildDir
 }
