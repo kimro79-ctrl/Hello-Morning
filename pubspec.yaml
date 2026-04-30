@@ -17,7 +17,7 @@ dependencies:
   device_info_plus: ^10.1.0
   shared_preferences: ^2.2.2
   
-  # ✅ 로컬 플러그인 (외부 패키지 중복 제거됨)
+  # ✅ 로컬 플러그인 설정 (중복 없이 이것만 남김)
   background_sms:
     path: ./plugins/background_sms
   contacts_service:
