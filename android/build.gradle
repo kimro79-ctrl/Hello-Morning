@@ -4,10 +4,8 @@ buildscript {
         google()
         mavenCentral()
     }
-
     dependencies {
-        // ✅ 최신 AGP 버전 사용
-        classpath 'com.android.tools.build:gradle:8.2.1'
+        classpath 'com.android.tools.build:gradle:8.1.0'
         classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
         classpath 'com.google.gms:google-services:4.4.0'
     }
@@ -30,4 +28,17 @@ subprojects {
 
 tasks.register("clean", Delete) {
     delete rootProject.buildDir
+}
+
+// ✅ background_sms 네임스페이스 오류 해결 코드
+subprojects {
+    afterEvaluate { project ->
+        if (project.hasProperty('android')) {
+            if (project.name == 'background_sms') {
+                project.android {
+                    namespace = 'com.github.clans.background_sms'
+                }
+            }
+        }
+    }
 }
