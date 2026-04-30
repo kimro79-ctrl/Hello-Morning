@@ -1,24 +1,21 @@
-def localProperties = new Properties()
-def localPropertiesFile = rootProject.file('local.properties')
-if (localPropertiesFile.exists()) {
-    localPropertiesFile.withReader('UTF-8') { reader ->
-        localProperties.load(reader)
-    }
+plugins {
+    id "com.android.application"
+    id "kotlin-android"
+    id "dev.flutter.flutter-gradle-plugin"
 }
-
-def flutterRoot = localProperties.getProperty('flutter.sdk')
-if (flutterRoot == null) {
-    throw new GradleException("Flutter SDK not found. Define location with flutter.sdk in the local.properties file.")
-}
-
-apply plugin: 'com.android.application'
-apply plugin: 'kotlin-android'
-apply from: "$flutterRoot/packages/flutter_tools/gradle/flutter.gradle"
 
 android {
-    // ✅ 앱 고유 네임스페이스 (패키지명과 일치해야 함)
     namespace "com.example.hello_morning"
+
     compileSdkVersion 35
+
+    defaultConfig {
+        applicationId "com.example.hello_morning"
+        minSdkVersion 24
+        targetSdkVersion 35
+        versionCode 250
+        versionName "1.2.50"
+    }
 
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
@@ -27,14 +24,6 @@ android {
 
     kotlinOptions {
         jvmTarget = '17'
-    }
-
-    defaultConfig {
-        applicationId "com.example.hello_morning"
-        minSdkVersion 24
-        targetSdkVersion 35
-        versionCode 250
-        versionName "1.2.50"
     }
 
     buildTypes {
@@ -47,11 +36,5 @@ android {
 }
 
 flutter {
-    source '../..'
-}
-
-dependencies {
-    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8:$kotlin_version"
-    implementation platform('com.google.firebase:firebase-bom:32.7.2')
-    implementation 'com.google.firebase:firebase-analytics-ktx'
+    source "../.."
 }
