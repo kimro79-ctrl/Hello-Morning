@@ -7,7 +7,8 @@ buildscript {
         mavenCentral()
     }
     dependencies {
-        classpath 'com.android.tools.build:gradle:8.2.1'
+        // 🔥 프로젝트와 동일하게 맞추는게 중요
+        classpath 'com.android.tools.build:gradle:8.1.0'
         classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:1.9.10"
     }
 }
@@ -23,9 +24,11 @@ apply plugin: 'com.android.library'
 apply plugin: 'kotlin-android'
 
 android {
-    // ✅ 플러그인용 네임스페이스 명시
-    namespace "com.background.sms"
-    compileSdk 34
+    // 🔥 핵심 (이미 잘함)
+    namespace "com.fix.background_sms"
+
+    // 🔥 프로젝트와 동일하게 맞춰야 충돌 안남
+    compileSdk 35
 
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
