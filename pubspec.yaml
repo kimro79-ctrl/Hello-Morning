@@ -17,7 +17,7 @@ dependencies:
   device_info_plus: ^10.1.0
   shared_preferences: ^2.2.2
   
-  # ✅ 로컬 플러그인 설정 (중복 없이 로컬 경로만 사용)
+  # ✅ 로컬 플러그인 설정
   background_sms:
     path: ./plugins/background_sms
   contacts_service:
@@ -33,10 +33,10 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^3.0.0
-  # ✅ 아이콘 생성을 위한 패키지
+  # ✅ 아이콘 생성 패키지
   flutter_launcher_icons: ^0.13.1
 
-# ✅ 이전 성공 코드 방식 그대로 적용
+# ✅ 반드시 가장 왼쪽(벽)에 붙여서 작성해야 합니다.
 flutter_launcher_icons:
   android: true
   ios: false
@@ -45,5 +45,5 @@ flutter_launcher_icons:
 flutter:
   uses-material-design: true
   assets:
-    - icon.png           # 루트 폴더의 아이콘
-    - assets/smile.png    # 에셋 폴더의 미소 이미지
+    - icon.png
+    - assets/smile.png
