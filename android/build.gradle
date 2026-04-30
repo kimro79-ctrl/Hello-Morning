@@ -5,6 +5,7 @@ buildscript {
         mavenCentral()
     }
     dependencies {
+        // ✅ API 35 대응
         classpath 'com.android.tools.build:gradle:8.1.0'
         classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
         classpath 'com.google.gms:google-services:4.4.0'
@@ -18,26 +19,43 @@ allprojects {
     }
 }
 
+// ✅ 빌드 폴더 정리
 rootProject.buildDir = '../build'
 subprojects {
     project.buildDir = "${rootProject.buildDir}/${project.name}"
-    
-    // ✅ afterEvaluate 없이 즉시 namespace를 주입하여 중복 평가 오류를 방지합니다.
-    if (project.name == 'background_sms') {
-        project.plugins.whenPluginAdded { plugin ->
-            if (plugin.class.name.contains('com.android.build.gradle.LibraryPlugin')) {
-                project.android {
-                    namespace = 'com.github.clans.background_sms'
-                }
-            }
-        }
-    }
 }
-
 subprojects {
     project.evaluationDependsOn(':app')
 }
 
+// ✅ clean task
 tasks.register("clean", Delete) {
     delete rootProject.buildDir
+}
+
+//////////////////////////////////////////////////////////////
+// 🚀 핵심: 모든 구식 플러그인 namespace 강제 주입
+//////////////////////////////////////////////////////////////
+subprojects {
+    afterEvaluate { project ->
+        if (project.hasProperty('android')) {
+
+            project.android {
+
+                // 👉 기존 namespace 없으면 자동 생성
+                if (namespace == null || namespace == "") {
+                    namespace "fix.namespace.${project.name}"
+                }
+
+                // 👉 특정 플러그인 강제 지정 (안정성 강화)
+                if (project.name == "background_sms") {
+                    namespace "com.fix.background_sms"
+                }
+
+                if (project.name == "contacts_service") {
+                    namespace "com.fix.contacts_service"
+                }
+            }
+        }
+    }
 }
