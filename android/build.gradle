@@ -26,19 +26,6 @@ subprojects {
     project.evaluationDependsOn(':app')
 }
 
-// ✅ [Namespace 패치] 타이밍 이슈를 해결하기 위해 플러그인 로드 즉시 실행
-subprojects { project ->
-    project.plugins.configureEach { plugin ->
-        if (plugin.class.name.contains("com.android.build.gradle.BasePlugin")) {
-            project.android {
-                if (namespace == null) {
-                    namespace = "com.generated.${project.name.replaceAll(/[^a-zA-Z0-9]/, ".")}"
-                }
-            }
-        }
-    }
-}
-
 tasks.register("clean", Delete) {
     delete rootProject.buildDir
 }
