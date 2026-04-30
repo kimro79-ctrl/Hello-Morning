@@ -9,21 +9,12 @@ android {
     namespace "com.hello_morning"
     compileSdk 35
 
-    compileOptions {
-        sourceCompatibility JavaVersion.VERSION_17
-        targetCompatibility JavaVersion.VERSION_17
-    }
-
-    kotlinOptions {
-        jvmTarget = '17'
-    }
-
     defaultConfig {
         applicationId "com.hello_morning"
         minSdk 23
         targetSdk 35
-        versionCode 55
-        versionName "1.0.55"
+        versionCode 90
+        versionName "1.0.90"
     }
 
     signingConfigs {
@@ -46,5 +37,5 @@ android {
 }
 
 dependencies {
-    // Flutter가 엔진 및 플러그인을 자동으로 관리합니다.
+    // 의존성은 pubspec.yaml에 의해 관리됨
 }
