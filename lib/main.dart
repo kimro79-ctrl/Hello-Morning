@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:flutter_contacts/flutter_contacts.dart';
+import 'package:contacts_service/contacts_service.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:intl/intl.dart';
-import 'package:telephony/telephony.dart';
+import 'package:background_sms/background_sms.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'dart:async';
@@ -29,23 +29,30 @@ class FirstTaskHandler extends TaskHandler {
 
     if (!(p.getBool('auto_sms_enabled') ?? false)) return;
 
-    String? last = p.getString('lastCheckIn');
-    String? contactsJson = p.getString('contacts_list');
+    final last = p.getString('lastCheckIn');
+    final contactsJson = p.getString('contacts_list');
 
-    if (last == null || contactsJson == null || contactsJson == "[]") return;
+    if (last == null || contactsJson == null || contactsJson.isEmpty) return;
 
     try {
-      DateTime lastTime = DateFormat('yyyy-MM-dd HH:mm').parse(last);
-      int selectedHours = p.getInt('selectedHours') ?? 1;
-      int limitMin = selectedHours == 0 ? 5 : selectedHours * 60;
+      final lastTime = DateFormat('yyyy-MM-dd HH:mm').parse(last);
 
-      double diffSeconds =
-          DateTime.now().difference(lastTime).inSeconds.toDouble();
+      final selectedHours = p.getInt('selectedHours') ?? 1;
+      final limitMin = selectedHours == 0 ? 5 : selectedHours * 60;
 
-      double limitSeconds = (limitMin * 60) - 30;
+      final diffSeconds = DateTime.now().difference(lastTime).inSeconds;
+      final limitSeconds = (limitMin * 60) - 30;
 
       if (diffSeconds >= limitSeconds) {
-        sendPort?.send('SEND_SMS_ACTION');
+        final lastSentStr = p.getString('lastEmergencySent');
+
+        if (lastSentStr == null ||
+            DateTime.now()
+                    .difference(DateTime.parse(lastSentStr))
+                    .inSeconds >=
+                270) {
+          sendPort?.send('SEND_SMS_ACTION');
+        }
       }
     } catch (_) {}
   }
@@ -78,6 +85,10 @@ class DailySafetyApp extends StatelessWidget {
         scaffoldBackgroundColor: const Color(0xFFF5F5DC),
         useMaterial3: true,
         colorSchemeSeed: const Color(0xFFFF8A65),
+        textTheme: const TextTheme(
+          bodyLarge: TextStyle(fontSize: 12),
+          bodyMedium: TextStyle(fontSize: 11),
+        ),
       ),
       home: const MainNavigation(),
     );
@@ -97,11 +108,9 @@ class MainNavigation extends StatefulWidget {
 
 class _MainNavigationState extends State<MainNavigation> {
   int _currentIndex = 0;
-
   final GlobalKey<HistoryScreenState> _historyKey = GlobalKey();
-  late List<Widget> _screens;
 
-  final Telephony telephony = Telephony.instance;
+  late List<Widget> _screens;
   ReceivePort? _receivePort;
 
   @override
@@ -116,14 +125,22 @@ class _MainNavigationState extends State<MainNavigation> {
 
     _initForegroundTask();
     _bindReceivePort();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _initialSetup();
+      _showGuideDialog();
+    });
   }
 
   void _bindReceivePort() async {
-    ReceivePort? port = await FlutterForegroundTask.receivePort;
+    final port = await FlutterForegroundTask.receivePort;
+
     if (port != null) {
+      _receivePort?.close();
       _receivePort = port;
-      _receivePort?.listen((msg) {
-        if (msg == 'SEND_SMS_ACTION') {
+
+      _receivePort!.listen((message) {
+        if (message == 'SEND_SMS_ACTION') {
           _executeEmergencySms();
         }
       });
@@ -134,14 +151,16 @@ class _MainNavigationState extends State<MainNavigation> {
 
   Future<void> _executeEmergencySms() async {
     final p = await SharedPreferences.getInstance();
-    List contacts = json.decode(p.getString('contacts_list') ?? "[]");
+
+    final contactsJson = p.getString('contacts_list');
+    final List contacts = json.decode(contactsJson ?? "[]");
 
     if (contacts.isEmpty) return;
 
-    String locationStr = "좌표 없음";
+    String locationStr = "좌표 확인 불가";
 
     try {
-      Position pos = await Geolocator.getCurrentPosition(
+      final pos = await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.medium,
         timeLimit: const Duration(seconds: 5),
       );
@@ -150,21 +169,60 @@ class _MainNavigationState extends State<MainNavigation> {
           "${pos.latitude.toStringAsFixed(6)}, ${pos.longitude.toStringAsFixed(6)}";
     } catch (_) {}
 
-    for (var c in contacts) {
-      String num = c['number'].replaceAll(RegExp(r'[^0-9]'), '');
+    final List history =
+        json.decode(p.getString('history_logs') ?? "[]");
 
-      await telephony.sendSms(
-        to: num,
-        message: "[안심 지키미] 응답 없음\n위치: $locationStr",
-      );
+    for (final c in contacts) {
+      final raw = (c['number'] ?? '').toString();
+      if (raw.isEmpty) continue;
+
+      final clean = raw.replaceAll(RegExp(r'[^0-9]'), '');
+
+      try {
+        await BackgroundSms.sendMessage(
+          phoneNumber: clean,
+          message:
+              "[1인가구 안심 지키미] 응답 없음\n좌표: $locationStr",
+        );
+
+        history.insert(0, {
+          'type': '비상 알림',
+          'time': DateFormat('MM/dd HH:mm').format(DateTime.now()),
+          'msg': '보호자(${c['name']}) 발송 완료',
+        });
+      } catch (_) {
+        history.insert(0, {
+          'type': '에러',
+          'time': DateFormat('MM/dd HH:mm').format(DateTime.now()),
+          'msg': 'SMS 실패',
+        });
+      }
     }
+
+    await p.setString('history_logs', json.encode(history.take(30).toList()));
+    await p.setString('lastEmergencySent', DateTime.now().toIso8601String());
+
+    _historyKey.currentState?.loadLogs();
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _initialSetup() async {
+    await [
+      Permission.sms,
+      Permission.location,
+      Permission.locationAlways,
+      Permission.contacts,
+      Permission.notification,
+    ].request();
+
+    await FlutterForegroundTask.requestIgnoreBatteryOptimization();
   }
 
   void _initForegroundTask() {
     FlutterForegroundTask.init(
       androidNotificationOptions: AndroidNotificationOptions(
-        channelId: 'safety',
-        channelName: '안심지키미',
+        channelId: 'safety_check_v38',
+        channelName: '1인가구 안심 지키미',
         channelImportance: NotificationChannelImportance.MAX,
         priority: NotificationPriority.HIGH,
       ),
@@ -178,30 +236,51 @@ class _MainNavigationState extends State<MainNavigation> {
     );
   }
 
+  void _showGuideDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => AlertDialog(
+        title: const Text("안심 지키미 안내"),
+        content: const Text("권한 설정 후 정상 동작합니다."),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("확인"),
+          )
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: IndexedStack(index: _currentIndex, children: _screens),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _currentIndex,
-        onTap: (i) => setState(() => _currentIndex = i),
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: "홈"),
-          BottomNavigationBarItem(icon: Icon(Icons.history), label: "기록"),
-          BottomNavigationBarItem(icon: Icon(Icons.settings), label: "설정"),
-        ],
+    return WithForegroundTask(
+      child: Scaffold(
+        body: IndexedStack(
+          index: _currentIndex,
+          children: _screens,
+        ),
+        bottomNavigationBar: BottomNavigationBar(
+          currentIndex: _currentIndex,
+          onTap: (i) => setState(() => _currentIndex = i),
+          items: const [
+            BottomNavigationBarItem(icon: Icon(Icons.home), label: '홈'),
+            BottomNavigationBarItem(icon: Icon(Icons.history), label: '기록'),
+            BottomNavigationBarItem(icon: Icon(Icons.settings), label: '설정'),
+          ],
+        ),
       ),
     );
   }
 }
 
 /* =========================
-   HOME (UI 유지)
+   HOME (UI 그대로 유지)
 ========================= */
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
-
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
@@ -221,7 +300,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
 class HistoryScreen extends StatefulWidget {
   const HistoryScreen({super.key});
-
   @override
   State<HistoryScreen> createState() => HistoryScreenState();
 }
@@ -229,7 +307,12 @@ class HistoryScreen extends StatefulWidget {
 class HistoryScreenState extends State<HistoryScreen> {
   List _logs = [];
 
-  void loadLogs() {}
+  Future<void> loadLogs() async {
+    final p = await SharedPreferences.getInstance();
+    setState(() {
+      _logs = json.decode(p.getString('history_logs') ?? "[]");
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -238,12 +321,11 @@ class HistoryScreenState extends State<HistoryScreen> {
 }
 
 /* =========================
-   SETTING (핵심 수정 부분)
+   SETTING
 ========================= */
 
 class SettingScreen extends StatefulWidget {
   const SettingScreen({super.key});
-
   @override
   State<SettingScreen> createState() => _SettingScreenState();
 }
@@ -257,26 +339,20 @@ class _SettingScreenState extends State<SettingScreen> {
       body: Center(
         child: ElevatedButton(
           onPressed: () async {
-            if (!await FlutterContacts.requestPermission()) return;
+            if (await Permission.contacts.request().isGranted) {
+              final c = await ContactsService.openDeviceContactPicker();
 
-            // 🔥 안정 방식 (CI 통과 핵심)
-            List<Contact> contacts =
-                await FlutterContacts.getContacts(withProperties: true);
-
-            if (contacts.isEmpty) return;
-
-            final c = contacts.first;
-
-            if (c.phones.isNotEmpty) {
-              setState(() {
-                _contacts.add({
-                  'name': c.displayName,
-                  'number': c.phones.first.number,
+              if (c != null && c.phones != null && c.phones!.isNotEmpty) {
+                setState(() {
+                  _contacts.add({
+                    'name': c.displayName ?? '',
+                    'number': c.phones!.first.value ?? '',
+                  });
                 });
-              });
 
-              final p = await SharedPreferences.getInstance();
-              await p.setString('contacts_list', json.encode(_contacts));
+                final p = await SharedPreferences.getInstance();
+                await p.setString('contacts_list', json.encode(_contacts));
+              }
             }
           },
           child: const Text("연락처 추가"),
