@@ -1,40 +1,30 @@
 name: hello_morning
 description: "A new Flutter project."
 publish_to: 'none'
-version: 1.0.0+1
+
+version: 1.2.50+250
 
 environment:
-  sdk: '>=3.2.0 <4.0.0'
+  sdk: '>=3.3.0 <4.0.0'
 
 dependencies:
   flutter:
     sdk: flutter
   cupertino_icons: ^1.0.6
+  
+  # ✅ 외부 pub.dev가 아닌 프로젝트 내부의 plugins 폴더를 바라봅니다.
+  background_sms:
+    path: ./plugins/background_sms
+  contacts_service:
+    path: ./plugins/contacts_service
+
   firebase_core: ^2.27.0
-  cloud_firestore: ^4.15.8
-  device_info_plus: ^10.1.0
-  shared_preferences: ^2.2.2
-  background_sms: ^0.0.4
-  permission_handler: ^11.3.0
-  contacts_service: ^0.6.3
-  geolocator: ^11.0.0
-  intl: ^0.19.0
-  flutter_foreground_task: ^6.5.0
+  firebase_messaging: ^14.7.19
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^3.0.0
-  # ✅ 아이콘 생성을 위해 이 줄이 반드시 포함되어야 합니다.
-  flutter_launcher_icons: ^0.13.1
-
-flutter_launcher_icons:
-  android: true
-  ios: false
-  image_path: "icon.png" # 루트에 icon.png가 있어야 합니다.
 
 flutter:
   uses-material-design: true
-  assets:
-    - icon.png
-    - assets/smile.png
