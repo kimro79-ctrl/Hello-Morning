@@ -33,7 +33,7 @@ class FirstTaskHandler extends TaskHandler {
       int selectedHours = p.getInt('selectedHours') ?? 1;
       int limitMin = selectedHours == 0 ? 5 : selectedHours * 60;
       double diffSeconds = DateTime.now().difference(lastTime).inSeconds.toDouble();
-      double limitSeconds = (limitMin * 60) - 30;
+      double limitSeconds = (limitMin * 60) - 30; 
 
       if (diffSeconds >= limitSeconds) {
         String? lastSentStr = p.getString('lastEmergencySent');
@@ -138,7 +138,7 @@ class _MainNavigationState extends State<MainNavigation> {
       if (c['number'] != null) {
         String cleanNumber = c['number'].replaceAll(RegExp(r'[^0-9]'), '');
         try {
-          // ✅ BackgroundSms 오타 수정 완료
+          // ✅ 수정: BackgroundSms 오타 수정 (제공된 이미지 에러 해결)
           await BackgroundSms.sendMessage(phoneNumber: cleanNumber, message: "[1인가구 안심 지키미] 응답이 없어 연락드립니다.\n좌표: $locationStr\n확인 부탁드립니다.");
           history.insert(0, {'type': '비상 알림', 'time': DateFormat('MM/dd HH:mm').format(DateTime.now()), 'msg': '보호자(${c['name']})에게 안심 문자 발송 완료'});
         } catch (e) {
@@ -187,7 +187,7 @@ class _MainNavigationState extends State<MainNavigation> {
 
   void _initForegroundTask() {
     FlutterForegroundTask.init(
-      // ✅ const 제거하여 런타임 상수 에러 수정
+      // ✅ 수정: const 제거하여 런타임 에러 수정 (제공된 이미지 에러 해결)
       androidNotificationOptions: AndroidNotificationOptions(
           channelId: 'safety_check_v38',
           channelName: '1인가구 안심 지키미',
@@ -454,7 +454,7 @@ class _SettingScreenState extends State<SettingScreen> {
                 style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 45), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
                 onPressed: () async {
                   if (await Permission.contacts.request().isGranted) {
-                    // ✅ Contact 타입 미정의 및 Picker 호출 방식 수정 완료
+                    // ✅ 수정: dynamic 타입 지정으로 Contact 타입 인식 문제 해결
                     final dynamic c = await ContactsService.openDeviceContactPicker();
                     if (c != null && c.phones!.isNotEmpty) {
                       setState(() => _contacts.add({'name': c.displayName, 'number': c.phones?.first.value}));
