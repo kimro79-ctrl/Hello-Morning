@@ -22,11 +22,12 @@ jobs:
           flutter-version: '3.22.0'
           channel: 'stable'
 
-      # ✅ JSON 깨짐 방지를 위해 Base64 디코딩 사용
-      - name: Decode Google Services JSON
-        run: echo "${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}" | base64 --decode > android/app/google-services.json
+      # ✅ [수정] Base64 인코딩을 안 하셨으므로, 원문을 그대로 파일로 만듭니다.
+      - name: Create Google Services JSON
+        run: |
+          echo '${{ secrets.GOOGLE_SERVICES_JSON }}' > android/app/google-services.json
 
-      # ✅ Keystore 디코딩
+      # ✅ Keystore는 이진 파일이라 원문 등록이 안 되므로, 이건 Base64 방식 유지 필수입니다.
       - name: Decode Keystore
         run: echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > android/app/upload-keystore.jks
 
@@ -40,8 +41,8 @@ jobs:
           ALIAS: ${{ secrets.ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
 
-      - name: Upload AAB
+      - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Hello-Morning-Release-AAB
+          name: Hello-Morning-Release
           path: build/app/outputs/bundle/release/app-release.aab
