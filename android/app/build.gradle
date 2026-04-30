@@ -1,9 +1,3 @@
-plugins {
-    id "com.android.application"
-    id "kotlin-android"
-    id "dev.flutter.flutter-gradle-plugin"
-}
-
 def localProperties = new Properties()
 def localPropertiesFile = rootProject.file('local.properties')
 if (localPropertiesFile.exists()) {
@@ -12,36 +6,20 @@ if (localPropertiesFile.exists()) {
     }
 }
 
-def flutterVersionCode = localProperties.getProperty('flutter.versionCode')
-if (flutterVersionCode == null) {
-    flutterVersionCode = '1'
+def flutterRoot = localProperties.getProperty('flutter.sdk')
+if (flutterRoot == null) {
+    throw new GradleException("Flutter SDK not found.")
 }
 
-def flutterVersionName = localProperties.getProperty('flutter.versionName')
-if (flutterVersionName == null) {
-    flutterVersionName = '1.0'
-}
+apply plugin: 'com.android.application'
+apply plugin: 'kotlin-android'
+apply from: "$flutterRoot/packages/flutter_tools/gradle/flutter.gradle"
 
 android {
-    // ✅ 핵심 수정: 네임스페이스 명시 (오류 로그 해결용)
+    // ✅ API 35 고정
+    compileSdkVersion 35
     namespace "com.example.hello_morning"
-    compileSdk 34
 
-    sourceSets {
-        main.java.srcDirs += 'src/main/kotlin'
-    }
-
-    defaultConfig {
-        applicationId "com.example.hello_morning"
-        minSdkVersion 21
-        targetSdkVersion 34
-        versionCode flutterVersionCode.toInteger()
-        versionName flutterVersionName
-
-        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
-    }
-
-    // ✅ Java 17 호환성 설정
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
@@ -51,11 +29,20 @@ android {
         jvmTarget = '17'
     }
 
+    defaultConfig {
+        applicationId "com.example.hello_morning"
+        minSdkVersion 24
+        // ✅ 구글 콘솔 업로드용 API 35 설정
+        targetSdkVersion 35
+        versionCode 250
+        versionName "1.2.50"
+    }
+
     buildTypes {
         release {
-            signingConfig signingConfigs.debug // 실제 배포 시 release 키 설정 필요
-            minifyEnabled false
+            signingConfig signingConfigs.debug // 실제 배포 시 release 키로 변경 필요
             shrinkResources false
+            minifyEnabled false
         }
     }
 }
@@ -65,5 +52,7 @@ flutter {
 }
 
 dependencies {
-    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.9.10"
+    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8:$kotlin_version"
+    implementation platform('com.google.firebase:firebase-bom:32.7.2')
+    implementation 'com.google.firebase:firebase-analytics-ktx'
 }
