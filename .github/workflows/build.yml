@@ -1,4 +1,4 @@
-name: Final Success Build
+name: Ultimate Success Build (99% Stability)
 
 on:
   push:
@@ -22,18 +22,34 @@ jobs:
           flutter-version: '3.22.0'
           channel: 'stable'
 
-      # ✅ [Base64 방식] JSON 데이터 무결성 보장
-      - name: Decode Google Services JSON
-        run: echo "${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}" | base64 --decode > android/app/google-services.json
-
-      # ✅ Keystore 복구
-      - name: Decode Keystore
-        run: echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > android/app/upload-keystore.jks
-
+      # ✅ 1. 의존성 설치
       - name: Install dependencies
         run: flutter pub get
 
-      # ✅ AAB 빌드
+      # ✅ 2. background_sms 네임스페이스 강제 패치 (중복 방지 로직 포함)
+      - name: Fix background_sms namespace
+        run: |
+          BG_PATH=$(find $HOME/.pub-cache -type d -name "background_sms*" | head -n 1)
+          if [ -d "$BG_PATH/android" ]; then
+            FILE="$BG_PATH/android/build.gradle"
+            echo "Patching $FILE"
+            if ! grep -q "namespace" "$FILE"; then
+              sed -i '/android {/a \    namespace "com.background.sms"' "$FILE"
+              echo "Namespace added successfully."
+            else
+              echo "Namespace already exists, skipping."
+            fi
+          fi
+
+      # ✅ 3. Google Services JSON 복원 (Base64 방식 - 가장 안전)
+      - name: Decode Google Services JSON
+        run: echo "${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}" | base64 --decode > android/app/google-services.json
+
+      # ✅ 4. Keystore 복원
+      - name: Decode Keystore
+        run: echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > android/app/upload-keystore.jks
+
+      # ✅ 5. AAB 빌드
       - name: Build AAB
         run: flutter build appbundle --release
         env:
@@ -44,5 +60,5 @@ jobs:
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Hello-Morning-Release
+          name: Hello-Morning-Final-AAB
           path: build/app/outputs/bundle/release/app-release.aab
