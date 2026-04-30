@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:shared_preferences/shared_preferences.dart'; // ✅ 필수 임포트
 import 'package:contacts_service/contacts_service.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:intl/intl.dart';
@@ -27,7 +27,6 @@ class FirstTaskHandler extends TaskHandler {
     String? last = p.getString('lastCheckIn');
     String? contactsJson = p.getString('contacts_list');
     if (last == null || contactsJson == null || contactsJson == "[]") return;
-
     try {
       DateTime lastTime = DateFormat('yyyy-MM-dd HH:mm').parse(last);
       int selectedHours = p.getInt('selectedHours') ?? 1;
@@ -185,7 +184,7 @@ class _MainNavigationState extends State<MainNavigation> {
 
   void _initForegroundTask() {
     FlutterForegroundTask.init(
-      androidNotificationOptions: AndroidNotificationOptions(channelId: 'safety_check_v38', channelName: '1인가구 안심 지키미', channelImportance: NotificationChannelImportance.MAX, priority: NotificationPriority.HIGH),
+      androidNotificationOptions: const AndroidNotificationOptions(channelId: 'safety_check_v38', channelName: '1인가구 안심 지키미', channelImportance: NotificationChannelImportance.MAX, priority: NotificationPriority.HIGH),
       iosNotificationOptions: const IOSNotificationOptions(showNotification: true),
       foregroundTaskOptions: const ForegroundTaskOptions(interval: 30000, autoRunOnBoot: true, allowWakeLock: true),
     );
@@ -280,7 +279,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   selected: _selectedHours == h,
                   onSelected: (v) async {
                     setState(() => _selectedHours = h);
-                    (await SharedPreferences.getInstance()).setInt('selectedHours', h);
+                    final prefs = await SharedPreferences.getInstance(); // ✅ 에러 수정
+                    await prefs.setInt('selectedHours', h);
                   },
                 ),
               )).toList(),
@@ -310,7 +310,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   decoration: BoxDecoration(
                     shape: BoxShape.circle, 
                     color: Colors.white, 
-                    // 눌렀을 때만 핑크빛 테두리 적용
                     border: _isPressed ? Border.all(color: const Color(0xFFFFD1DC), width: 6) : null,
                     boxShadow: _isPressed 
                         ? [BoxShadow(color: const Color(0xFFFFD1DC).withOpacity(0.8), blurRadius: 15, spreadRadius: 3)]
@@ -353,7 +352,8 @@ class HistoryScreenState extends State<HistoryScreen> {
       : ListView.builder(
           itemCount: _logs.length,
           itemBuilder: (context, i) => ListTile(
-            leading: Icon(_logs[i]['type'] == '비상 알림' ? Icons.warning_amber_rounded : Icons.check_circle_outline, color: _logs[i]['type'] == '비상 알림' ? Colors.red : Colors.green, size: 18),
+            leading: Icon(_logs[i]['type'] == '비상 알림' ? 
+              Icons.warning_amber_rounded : Icons.check_circle_outline, color: _logs[i]['type'] == '비상 알림' ? Colors.red : Colors.green, size: 18),
             title: Text(_logs[i]['type'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
             subtitle: Text(_logs[i]['msg'], style: const TextStyle(fontSize: 10)),
             trailing: Text(_logs[i]['time'], style: const TextStyle(fontSize: 9, color: Colors.grey)),
@@ -436,7 +436,8 @@ class _SettingScreenState extends State<SettingScreen> {
               subtitle: Text(entry.value['number'], style: const TextStyle(fontSize: 10)),
               trailing: IconButton(icon: const Icon(Icons.remove_circle_outline, color: Colors.redAccent, size: 18), onPressed: () async {
                 setState(() => _contacts.removeAt(entry.key));
-                (await SharedPreferences.getInstance()).setString('contacts_list', json.encode(_contacts));
+                final prefs = await SharedPreferences.getInstance(); // ✅ 에러 수정
+                await prefs.setString('contacts_list', json.encode(_contacts));
               }),
             )),
             Padding(
@@ -450,7 +451,8 @@ class _SettingScreenState extends State<SettingScreen> {
                     final c = await ContactsService.openDeviceContactPicker();
                     if (c != null && c.phones!.isNotEmpty) {
                       setState(() => _contacts.add({'name': c.displayName, 'number': c.phones?.first.value}));
-                      (await SharedPreferences.getInstance()).setString('contacts_list', json.encode(_contacts));
+                      final prefs = await SharedPreferences.getInstance(); // ✅ 에러 수정
+                      await prefs.setString('contacts_list', json.encode(_contacts));
                     }
                   }
                 },
