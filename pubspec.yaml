@@ -4,7 +4,7 @@ publish_to: 'none'
 version: 1.2.50+250
 
 environment:
-  sdk: '>=3.3.0 <4.0.0'
+  sdk: '>=3.2.0 <4.0.0'
 
 dependencies:
   flutter:
@@ -33,9 +33,17 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^3.0.0
+  # ✅ 아이콘 생성을 위한 패키지
+  flutter_launcher_icons: ^0.13.1
+
+# ✅ 이전 성공 코드 방식 그대로 적용
+flutter_launcher_icons:
+  android: true
+  ios: false
+  image_path: "icon.png"
 
 flutter:
   uses-material-design: true
   assets:
-    - assets/icon/ic_launcher.png  # 메인 아이콘 경로
-    - assets/smile.png             # 메인 미소 이미지 경로
+    - icon.png           # 루트 폴더의 아이콘
+    - assets/smile.png    # 에셋 폴더의 미소 이미지
