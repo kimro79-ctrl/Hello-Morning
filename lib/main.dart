@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart'; // ✅ 필수 임포트
-import 'package:contacts_service/contacts_service.dart';
+import 'package:shared_preferences/shared_preferences.dart'; // 필수 임포트
+import 'package:contacts_service/contacts_service.dart'; // 필수 임포트
 import 'package:permission_handler/permission_handler.dart';
 import 'package:intl/intl.dart';
 import 'package:background_sms/background_sms.dart';
@@ -21,7 +21,7 @@ class FirstTaskHandler extends TaskHandler {
 
   @override
   Future<void> onRepeatEvent(DateTime timestamp, SendPort? sendPort) async {
-    final p = await SharedPreferences.getInstance();
+    final SharedPreferences p = await SharedPreferences.getInstance();
     if (!(p.getBool('auto_sms_enabled') ?? false)) return;
 
     String? last = p.getString('lastCheckIn');
@@ -117,7 +117,7 @@ class _MainNavigationState extends State<MainNavigation> {
   }
 
   Future<void> _executeEmergencySms() async {
-    final p = await SharedPreferences.getInstance();
+    final SharedPreferences p = await SharedPreferences.getInstance();
     String? contactsJson = p.getString('contacts_list');
     List contacts = json.decode(contactsJson ?? "[]");
     if (contacts.isEmpty) return;
@@ -236,7 +236,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   void _loadData() async {
-    final p = await SharedPreferences.getInstance();
+    final SharedPreferences p = await SharedPreferences.getInstance();
     setState(() {
       _lastCheckIn = p.getString('lastCheckIn') ?? "안부를 전해주세요";
       _selectedHours = p.getInt('selectedHours') ?? 1;
@@ -279,7 +279,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   selected: _selectedHours == h,
                   onSelected: (v) async {
                     setState(() => _selectedHours = h);
-                    final prefs = await SharedPreferences.getInstance(); // ✅ 에러 수정
+                    final SharedPreferences prefs = await SharedPreferences.getInstance();
                     await prefs.setInt('selectedHours', h);
                   },
                 ),
@@ -293,7 +293,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               onTapUp: (_) async {
                 setState(() => _isPressed = false); _controller.reverse();
                 String now = DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now());
-                final p = await SharedPreferences.getInstance();
+                final SharedPreferences p = await SharedPreferences.getInstance();
                 await p.setString('lastCheckIn', now);
                 await p.remove('lastEmergencySent');
                 List history = json.decode(p.getString('history_logs') ?? "[]");
@@ -340,7 +340,7 @@ class HistoryScreenState extends State<HistoryScreen> {
   @override
   void initState() { super.initState(); loadLogs(); }
   Future<void> loadLogs() async {
-    final p = await SharedPreferences.getInstance();
+    final SharedPreferences p = await SharedPreferences.getInstance();
     if (mounted) setState(() => _logs = json.decode(p.getString('history_logs') ?? "[]"));
   }
 
@@ -374,7 +374,7 @@ class _SettingScreenState extends State<SettingScreen> {
   @override
   void initState() { super.initState(); _load(); }
   void _load() async {
-    final p = await SharedPreferences.getInstance();
+    final SharedPreferences p = await SharedPreferences.getInstance();
     if (mounted) setState(() {
       _contacts = json.decode(p.getString('contacts_list') ?? "[]");
       _autoOn = p.getBool('auto_sms_enabled') ?? false;
@@ -402,7 +402,7 @@ class _SettingScreenState extends State<SettingScreen> {
                         value: _autoOn,
                         activeColor: const Color(0xFFFF8A65),
                         onChanged: (v) async {
-                          final p = await SharedPreferences.getInstance();
+                          final SharedPreferences p = await SharedPreferences.getInstance();
                           await p.setBool('auto_sms_enabled', v);
                           setState(() => _autoOn = v);
                           if (v) {
@@ -436,7 +436,7 @@ class _SettingScreenState extends State<SettingScreen> {
               subtitle: Text(entry.value['number'], style: const TextStyle(fontSize: 10)),
               trailing: IconButton(icon: const Icon(Icons.remove_circle_outline, color: Colors.redAccent, size: 18), onPressed: () async {
                 setState(() => _contacts.removeAt(entry.key));
-                final prefs = await SharedPreferences.getInstance(); // ✅ 에러 수정
+                final SharedPreferences prefs = await SharedPreferences.getInstance();
                 await prefs.setString('contacts_list', json.encode(_contacts));
               }),
             )),
@@ -448,10 +448,10 @@ class _SettingScreenState extends State<SettingScreen> {
                 style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 45), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
                 onPressed: () async {
                   if (await Permission.contacts.request().isGranted) {
-                    final c = await ContactsService.openDeviceContactPicker();
+                    final Contact? c = await ContactsService.openDeviceContactPicker();
                     if (c != null && c.phones!.isNotEmpty) {
                       setState(() => _contacts.add({'name': c.displayName, 'number': c.phones?.first.value}));
-                      final prefs = await SharedPreferences.getInstance(); // ✅ 에러 수정
+                      final SharedPreferences prefs = await SharedPreferences.getInstance();
                       await prefs.setString('contacts_list', json.encode(_contacts));
                     }
                   }
