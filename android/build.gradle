@@ -21,20 +21,21 @@ allprojects {
 rootProject.buildDir = '../build'
 subprojects {
     project.buildDir = "${rootProject.buildDir}/${project.name}"
-}
-subprojects {
-    project.evaluationDependsOn(':app')
-}
-
-// ✅ 추가: 외부 패키지(background_sms 등)의 Namespace 에러를 강제로 해결하는 코드
-subprojects {
-    afterEvaluate { project ->
-        if (project.hasProperty('android')) {
-            if (project.android.namespace == null) {
-                project.android.namespace = project.group
+    
+    // ✅ 수정된 Namespace 해결 코드: 에러를 피하기 위해 더 안전한 방식을 사용합니다.
+    project.configurations.all {
+        resolutionStrategy.eachDependency { details ->
+            if (project.hasProperty('android')) {
+                if (project.android.namespace == null) {
+                    project.android.namespace = "com.hello_morning.generated"
+                }
             }
         }
     }
+}
+
+subprojects {
+    project.evaluationDependsOn(':app')
 }
 
 tasks.register("clean", Delete) {
