@@ -26,12 +26,14 @@ subprojects {
     project.evaluationDependsOn(':app')
 }
 
-// ✅ [Namespace 패치] 모듈별 고유 네임스페이스 자동 부여 (완벽한 해결책)
-subprojects {
-    afterEvaluate { project ->
-        if (project.hasProperty("android")) {
-            if (project.android.namespace == null) {
-                project.android.namespace = "com.generated.${project.name.replaceAll(/[^a-zA-Z0-9]/, ".")}"
+// ✅ [최종 해결] afterEvaluate 타이밍 문제를 방지하기 위해 플러크인 구성 단계에서 즉시 주입
+subprojects { project ->
+    project.plugins.configureEach { plugin ->
+        if (plugin.class.name.contains("com.android.build.gradle.BasePlugin")) {
+            project.android {
+                if (namespace == null) {
+                    namespace = "com.generated.${project.name.replaceAll(/[^a-zA-Z0-9]/, ".")}"
+                }
             }
         }
     }
