@@ -14,11 +14,14 @@ dependencies:
   cloud_firestore: ^4.15.8
   device_info_plus: ^10.1.0
   shared_preferences: ^2.2.2
-  
-  # ✅ 네임스페이스 주입으로 해결하므로 정식 버전 사용
-  background_sms: ^0.0.4
-  contacts_service: ^0.6.3
-  
+
+  # 🔥 핵심 (이걸로 바꿔야 함)
+  background_sms:
+    path: ./plugins/background_sms
+
+  contacts_service:
+    path: ./plugins/contacts_service
+
   permission_handler: ^11.3.0
   geolocator: ^11.0.0
   intl: ^0.19.0
