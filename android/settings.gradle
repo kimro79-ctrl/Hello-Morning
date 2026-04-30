@@ -23,3 +23,16 @@ plugins {
 }
 
 include ":app"
+def flutterProjectRoot = rootProject.projectDir.parentFile
+def pluginsFile = new File(flutterProjectRoot, '.flutter-plugins')
+if (pluginsFile.exists()) {
+    pluginsFile.withReader('UTF-8') { reader ->
+        reader.eachLine { line ->
+            def plugin = line.split('=')
+            if (plugin.length == 2) {
+                include ":${plugin[0]}"
+                project(":${plugin[0]}").projectDir = new File(plugin[1], 'android')
+            }
+        }
+    }
+}
