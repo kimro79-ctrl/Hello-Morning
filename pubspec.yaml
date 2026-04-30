@@ -12,7 +12,7 @@ dependencies:
     sdk: flutter
   cupertino_icons: ^1.0.6
   
-  # ✅ 외부 pub.dev가 아닌 프로젝트 내부의 plugins 폴더를 바라봅니다.
+  # ✅ 외부 pub.dev가 아닌 내 폴더를 봅니다.
   background_sms:
     path: ./plugins/background_sms
   contacts_service:
