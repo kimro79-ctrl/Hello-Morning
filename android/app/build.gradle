@@ -22,8 +22,8 @@ android {
         applicationId "com.hello_morning"
         minSdk 23
         targetSdk 35
-        versionCode 40
-        versionName "1.0.40"
+        versionCode 45
+        versionName "1.0.45"
     }
 
     signingConfigs {
@@ -46,4 +46,5 @@ android {
 }
 
 dependencies {
+    // Flutter 플러그인 엔진에서 자동 관리
 }
