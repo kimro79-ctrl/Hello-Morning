@@ -23,6 +23,7 @@ apply plugin: 'com.android.library'
 apply plugin: 'kotlin-android'
 
 android {
+    // ✅ 플러그인용 네임스페이스 명시
     namespace "com.background.sms"
     compileSdk 34
 
