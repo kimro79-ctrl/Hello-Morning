@@ -1,5 +1,5 @@
 android {
-    namespace "com.background.sms" # 숫자 제거된 깨끗한 이름
+    namespace "com.background.sms"
     compileSdk 34
     defaultConfig {
         minSdkVersion 21
