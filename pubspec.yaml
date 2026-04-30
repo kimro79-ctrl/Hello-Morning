@@ -1,7 +1,7 @@
 name: hello_morning
-description: "1인가구 안심 지키미 앱"
+description: "A new Flutter project."
 publish_to: 'none'
-version: 1.2.50+250
+version: 1.0.0+1
 
 environment:
   sdk: '>=3.2.0 <4.0.0'
@@ -9,20 +9,20 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+
   cupertino_icons: ^1.0.6
+
   firebase_core: ^2.27.0
   cloud_firestore: ^4.15.8
+
   device_info_plus: ^10.1.0
   shared_preferences: ^2.2.2
 
-  # 🔥 핵심 (이걸로 바꿔야 함)
-  background_sms:
-    path: ./plugins/background_sms
+  # ✅ 안정 버전으로 교체 (CI 안정성 기준)
+  background_sms: ^0.0.6
+  contacts_service: ^0.6.3
 
-  contacts_service:
-    path: ./plugins/contacts_service
-
-  permission_handler: ^11.3.0
+  permission_handler: ^11.3.1
   geolocator: ^11.0.0
   intl: ^0.19.0
   flutter_foreground_task: ^6.5.0
@@ -30,7 +30,9 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
+
   flutter_lints: ^3.0.0
+
   flutter_launcher_icons: ^0.13.1
 
 flutter_launcher_icons:
@@ -40,6 +42,7 @@ flutter_launcher_icons:
 
 flutter:
   uses-material-design: true
+
   assets:
     - icon.png
     - assets/smile.png
