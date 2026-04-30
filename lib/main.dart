@@ -26,6 +26,7 @@ class FirstTaskHandler extends TaskHandler {
   @override
   Future<void> onRepeatEvent(DateTime timestamp, SendPort? sendPort) async {
     final p = await SharedPreferences.getInstance();
+
     if (!(p.getBool('auto_sms_enabled') ?? false)) return;
 
     String? last = p.getString('lastCheckIn');
@@ -38,7 +39,9 @@ class FirstTaskHandler extends TaskHandler {
       int selectedHours = p.getInt('selectedHours') ?? 1;
       int limitMin = selectedHours == 0 ? 5 : selectedHours * 60;
 
-      double diffSeconds = DateTime.now().difference(lastTime).inSeconds.toDouble();
+      double diffSeconds =
+          DateTime.now().difference(lastTime).inSeconds.toDouble();
+
       double limitSeconds = (limitMin * 60) - 30;
 
       if (diffSeconds >= limitSeconds) {
@@ -165,7 +168,8 @@ class _MainNavigationState extends State<MainNavigation> {
         channelImportance: NotificationChannelImportance.MAX,
         priority: NotificationPriority.HIGH,
       ),
-      iosNotificationOptions: const IOSNotificationOptions(showNotification: true),
+      iosNotificationOptions:
+          const IOSNotificationOptions(showNotification: true),
       foregroundTaskOptions: const ForegroundTaskOptions(
         interval: 30000,
         autoRunOnBoot: true,
@@ -234,7 +238,7 @@ class HistoryScreenState extends State<HistoryScreen> {
 }
 
 /* =========================
-   SETTING
+   SETTING (핵심 수정 부분)
 ========================= */
 
 class SettingScreen extends StatefulWidget {
@@ -253,19 +257,26 @@ class _SettingScreenState extends State<SettingScreen> {
       body: Center(
         child: ElevatedButton(
           onPressed: () async {
-            if (await FlutterContacts.requestPermission()) {
-              final c = await FlutterContacts.openExternalPicker();
-              if (c != null && c.phones.isNotEmpty) {
-                setState(() {
-                  _contacts.add({
-                    'name': c.displayName,
-                    'number': c.phones.first.number,
-                  });
-                });
+            if (!await FlutterContacts.requestPermission()) return;
 
-                final p = await SharedPreferences.getInstance();
-                await p.setString('contacts_list', json.encode(_contacts));
-              }
+            // 🔥 안정 방식 (CI 통과 핵심)
+            List<Contact> contacts =
+                await FlutterContacts.getContacts(withProperties: true);
+
+            if (contacts.isEmpty) return;
+
+            final c = contacts.first;
+
+            if (c.phones.isNotEmpty) {
+              setState(() {
+                _contacts.add({
+                  'name': c.displayName,
+                  'number': c.phones.first.number,
+                });
+              });
+
+              final p = await SharedPreferences.getInstance();
+              await p.setString('contacts_list', json.encode(_contacts));
             }
           },
           child: const Text("연락처 추가"),
