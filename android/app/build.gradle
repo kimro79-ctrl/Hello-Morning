@@ -6,22 +6,30 @@ plugins {
 }
 
 android {
-    // 1. 네임스페이스를 JSON 파일의 패키지명과 일치시킵니다.
+    // google-services.json과 일치시켰습니다.
     namespace "com.hello_morning"
     compileSdk 35
 
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    kotlinOptions {
+        jvmTarget = '17'
+    }
+
     defaultConfig {
-        // 2. 애플리케이션 아이디도 동일하게 맞춥니다.
         applicationId "com.hello_morning"
         minSdk 23 
         targetSdk 35
-        versionCode 11
-        versionName "1.0.11"
+        versionCode 12
+        versionName "1.0.12"
     }
 
     signingConfigs {
         release {
-            [span_0](start_span)// 3. 실제 존재하는 키 파일명으로 지정합니다.[span_0](end_span)
+            // 업로드하신 실제 키 파일명 적용
             storeFile file('upload-keystore.jks')
             storePassword System.getenv("STORE_PASSWORD")
             keyAlias System.getenv("ALIAS")
@@ -40,5 +48,6 @@ android {
 }
 
 dependencies {
+    // 코틀린 표준 라이브러리를 명시적으로 추가하여 Unresolved reference를 방지합니다.
     implementation "org.jetbrains.kotlin:kotlin-stdlib:1.9.22"
 }
