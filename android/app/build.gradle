@@ -8,7 +8,7 @@ if (localPropertiesFile.exists()) {
 
 def flutterRoot = localProperties.getProperty('flutter.sdk')
 if (flutterRoot == null) {
-    throw new GradleException("Flutter SDK not found. Define location with flutter.sdk in the local.properties file.")
+    throw new GradleException("Flutter SDK not found.")
 }
 
 apply plugin: 'com.android.application'
@@ -16,9 +16,8 @@ apply plugin: 'kotlin-android'
 apply from: "$flutterRoot/packages/flutter_tools/gradle/flutter.gradle"
 
 android {
-    // API 35 (Android 15) 대응을 위한 설정
-    compileSdkVersion 35
     namespace "com.hello_morning"
+    compileSdkVersion 35
 
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
@@ -31,19 +30,14 @@ android {
 
     defaultConfig {
         applicationId "com.hello_morning"
-        // 최소 SDK 버전은 필요에 따라 21~24 사이로 설정 가능합니다.
         minSdkVersion 21
-        targetSdkVersion 35 // 구글 플레이 콘솔 업로드 필수 조건
+        targetSdkVersion 35
         versionCode 1
         versionName "1.0.0"
-
-        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
 
     buildTypes {
         release {
-            // 현재는 디버그 키로 설정되어 있습니다. 
-            // 실제 출시 시에는 release 키 설정이 필요합니다.
             signingConfig signingConfigs.debug
             minifyEnabled false
             shrinkResources false
@@ -52,10 +46,7 @@ android {
 }
 
 dependencies {
-    // 코틀린 및 기본 안드로이드 지원 라이브러리
     implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8:$kotlin_version"
     implementation 'androidx.window:window:1.2.0'
     implementation 'androidx.window:window-java:1.2.0'
-    
-    // 추가적인 네이티브 의존성이 필요하면 이 아래에 작성하세요.
 }
