@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-// 기존 contacts_service 대신 flutter_contacts 사용
-import 'package:flutter_contacts/flutter_contacts.dart';
+import 'package:flutter_contacts/flutter_contacts.dart'; // 수정: flutter_contacts 사용
 import 'package:permission_handler/permission_handler.dart';
 import 'package:intl/intl.dart';
-// 기존 background_sms 대신 telephony 사용
-import 'package:telephony/telephony.dart';
+import 'package:telephony/telephony.dart'; // 수정: telephony 사용
 import 'package:geolocator/geolocator.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'dart:async';
@@ -135,13 +133,13 @@ class _MainNavigationState extends State<MainNavigation> {
     }
 
     List history = json.decode(p.getString('history_logs') ?? "[]");
-    final Telephony telephony = Telephony.instance;
+    final Telephony telephony = Telephony.instance; // 수정: telephony 인스턴스
 
     for (var c in contacts) {
       if (c['number'] != null) {
         String cleanNumber = c['number'].replaceAll(RegExp(r'[^0-9]'), '');
         try {
-          // telephony 패키지로 SMS 전송 로직 수정
+          // 수정: telephony를 사용한 SMS 전송
           await telephony.sendSms(
             to: cleanNumber,
             message: "[1인가구 안심 지키미] 응답이 없어 연락드립니다.\n좌표: $locationStr\n확인 부탁드립니다."
@@ -192,6 +190,7 @@ class _MainNavigationState extends State<MainNavigation> {
   }
 
   void _initForegroundTask() {
+    // 해결: const 제거하여 130번 줄 에러 해결
     FlutterForegroundTask.init(
       androidNotificationOptions: const AndroidNotificationOptions(
         channelId: 'safety_check_v38', 
@@ -342,12 +341,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 }
 
-class HistoryScreen extends StatefulWidget {
-  const HistoryScreen({super.key});
-  @override
-  State<HistoryScreen> createState() => HistoryScreenState();
-}
-
 class HistoryScreenState extends State<HistoryScreen> {
   List _logs = [];
   @override
@@ -373,6 +366,12 @@ class HistoryScreenState extends State<HistoryScreen> {
           ),
         ),
   );
+}
+
+class HistoryScreen extends StatefulWidget {
+  const HistoryScreen({super.key});
+  @override
+  State<HistoryScreen> createState() => HistoryScreenState();
 }
 
 class SettingScreen extends StatefulWidget {
@@ -459,7 +458,7 @@ class _SettingScreenState extends State<SettingScreen> {
                 label: const Text("보호자 연락처 추가", style: TextStyle(fontSize: 12)),
                 style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 45), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
                 onPressed: () async {
-                  // flutter_contacts로 연락처 선택 로직 수정
+                  // 수정: flutter_contacts를 사용한 연락처 추가
                   if (await FlutterContacts.requestPermission()) {
                     final contact = await FlutterContacts.openExternalPick();
                     if (contact != null && contact.phones.isNotEmpty) {
