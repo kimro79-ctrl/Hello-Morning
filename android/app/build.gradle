@@ -1,21 +1,24 @@
-plugins {
-    id "com.android.application"
-    id "kotlin-android"
-    id "dev.flutter.flutter-gradle-plugin"
+def localProperties = new Properties()
+def localPropertiesFile = rootProject.file('local.properties')
+if (localPropertiesFile.exists()) {
+    localPropertiesFile.withReader('UTF-8') { reader ->
+        localProperties.load(reader)
+    }
 }
 
+def flutterRoot = localProperties.getProperty('flutter.sdk')
+if (flutterRoot == null) {
+    throw new GradleException("Flutter SDK not found. Define location with flutter.sdk in the local.properties file.")
+}
+
+apply plugin: 'com.android.application'
+apply plugin: 'kotlin-android'
+apply from: "$flutterRoot/packages/flutter_tools/gradle/flutter.gradle"
+
 android {
-    namespace "com.example.hello_morning"
-
+    // API 35 대응을 위해 필수 설정
     compileSdkVersion 35
-
-    defaultConfig {
-        applicationId "com.example.hello_morning"
-        minSdkVersion 24
-        targetSdkVersion 35
-        versionCode 250
-        versionName "1.2.50"
-    }
+    namespace "com.example.hello_morning" // 반드시 본인의 패키지명과 일치시키세요
 
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
@@ -26,15 +29,26 @@ android {
         jvmTarget = '17'
     }
 
+    defaultConfig {
+        applicationId "com.example.hello_morning" // 본인의 패키지명
+        minSdkVersion 21    // 최소 버전 (필요에 따라 23으로 상향 권장)
+        targetSdkVersion 35  // 구글 콘솔 업로드 필수 조건
+        versionCode 1
+        versionName "1.0.0"
+
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+    }
+
     buildTypes {
         release {
-            signingConfig signingConfigs.debug
-            shrinkResources false
+            signingConfig signingConfigs.debug // 실제 배포 시에는 release 키 설정 필요
+            shrinkResources false // 빌드 오류 방지를 위해 일단 false
             minifyEnabled false
         }
     }
 }
 
-flutter {
-    source "../.."
+dependencies {
+    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8:$kotlin_version"
+    // 필요한 추가 라이브러리는 여기에 최소한으로만 유지
 }
