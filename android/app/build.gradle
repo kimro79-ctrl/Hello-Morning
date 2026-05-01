@@ -16,9 +16,9 @@ apply plugin: 'kotlin-android'
 apply from: "$flutterRoot/packages/flutter_tools/gradle/flutter.gradle"
 
 android {
-    // API 35 대응을 위해 필수 설정
+    // API 35 (Android 15) 대응을 위한 설정
     compileSdkVersion 35
-    namespace "com.example.hello_morning" // 반드시 본인의 패키지명과 일치시키세요
+    namespace "com.hello_morning"
 
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
@@ -30,9 +30,10 @@ android {
     }
 
     defaultConfig {
-        applicationId "com.example.hello_morning" // 본인의 패키지명
-        minSdkVersion 21    // 최소 버전 (필요에 따라 23으로 상향 권장)
-        targetSdkVersion 35  // 구글 콘솔 업로드 필수 조건
+        applicationId "com.hello_morning"
+        // 최소 SDK 버전은 필요에 따라 21~24 사이로 설정 가능합니다.
+        minSdkVersion 21
+        targetSdkVersion 35 // 구글 플레이 콘솔 업로드 필수 조건
         versionCode 1
         versionName "1.0.0"
 
@@ -41,14 +42,20 @@ android {
 
     buildTypes {
         release {
-            signingConfig signingConfigs.debug // 실제 배포 시에는 release 키 설정 필요
-            shrinkResources false // 빌드 오류 방지를 위해 일단 false
+            // 현재는 디버그 키로 설정되어 있습니다. 
+            // 실제 출시 시에는 release 키 설정이 필요합니다.
+            signingConfig signingConfigs.debug
             minifyEnabled false
+            shrinkResources false
         }
     }
 }
 
 dependencies {
+    // 코틀린 및 기본 안드로이드 지원 라이브러리
     implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8:$kotlin_version"
-    // 필요한 추가 라이브러리는 여기에 최소한으로만 유지
+    implementation 'androidx.window:window:1.2.0'
+    implementation 'androidx.window:window-java:1.2.0'
+    
+    // 추가적인 네이티브 의존성이 필요하면 이 아래에 작성하세요.
 }
