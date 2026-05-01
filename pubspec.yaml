@@ -27,13 +27,13 @@ dev_dependencies:
   flutter_lints: ^3.0.0
   flutter_launcher_icons: ^0.13.1
 
-# ✅ 줄 맨 앞(0칸)에서 시작해야 합니다.
+# ✅ 앱 아이콘 설정
 flutter_launcher_icons:
   android: true
   ios: false
   image_path: "icon.png"
 
-# ✅ 줄 맨 앞(0칸)에서 시작해야 합니다.
+# ✅ Flutter 설정 (여기에 모든 설정 통합)
 flutter:
   uses-material-design: true
   assets:
