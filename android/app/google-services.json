@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1058354038342",
+    "project_id": "safety-life-app-8b8fd",
+    "storage_bucket": "safety-life-app-8b8fd.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1058354038342:android:7d88b4c3168d2aaf6eac47",
+        "android_client_info": {
+          "package_name": "com.hello_morning"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD8fhX6BWpyM4fPcvcQiuwx1P9Zj-wZX5Q"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
