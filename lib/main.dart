@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:flutter_contacts/flutter_contacts.dart'; // 수정: flutter_contacts 사용
+import 'package:flutter_contacts/flutter_contacts.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:intl/intl.dart';
-import 'package:telephony/telephony.dart'; // 수정: telephony 사용
+import 'package:telephony/telephony.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'dart:async';
@@ -84,7 +84,7 @@ class MainNavigation extends StatefulWidget {
 
 class _MainNavigationState extends State<MainNavigation> {
   int _currentIndex = 0;
-  final GlobalKey<HistoryScreenState> _historyKey = GlobalKey();
+  final GlobalKey<HistoryScreenState> _historyKey = GlobalKey<HistoryScreenState>();
   late List<Widget> _screens;
   ReceivePort? _receivePort;
 
@@ -139,7 +139,6 @@ class _MainNavigationState extends State<MainNavigation> {
       if (c['number'] != null) {
         String cleanNumber = c['number'].replaceAll(RegExp(r'[^0-9]'), '');
         try {
-          // 수정: BackgroundSms 대신 telephony 사용
           await telephony.sendSms(
             to: cleanNumber,
             message: "[1인가구 안심 지키미] 응답이 없어 연락드립니다.\n좌표: $locationStr\n확인 부탁드립니다."
@@ -190,7 +189,6 @@ class _MainNavigationState extends State<MainNavigation> {
   }
 
   void _initForegroundTask() {
-    // 수정: const 제거
     FlutterForegroundTask.init(
       androidNotificationOptions: AndroidNotificationOptions(
         channelId: 'safety_check_v38', 
@@ -342,7 +340,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 }
 
 class HistoryScreen extends StatefulWidget {
-  const HistoryScreen({super.key, required GlobalKey<HistoryScreenState> key});
+  const HistoryScreen({super.key}); // 수정됨: 중복 파라미터 제거
   @override
   State<HistoryScreen> createState() => HistoryScreenState();
 }
@@ -458,7 +456,6 @@ class _SettingScreenState extends State<SettingScreen> {
                 label: const Text("보호자 연락처 추가", style: TextStyle(fontSize: 12)),
                 style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 45), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
                 onPressed: () async {
-                  // 수정: flutter_contacts 방식의 연락처 피커 사용
                   if (await FlutterContacts.requestPermission()) {
                     final contact = await FlutterContacts.openExternalPick();
                     if (contact != null && contact.phones.isNotEmpty) {
