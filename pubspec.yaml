@@ -4,32 +4,20 @@ publish_to: 'none'
 version: 1.0.0+1
 
 environment:
-  # API 35 빌드 호환성을 위해 SDK 범위를 최신으로 유지합니다.
   sdk: '>=3.2.0 <4.0.0'
 
 dependencies:
   flutter:
     sdk: flutter
-
   cupertino_icons: ^1.0.8
-  
-  # Firebase 관련 - 안드로이드 최신 SDK 및 API 35 호환 버전
   firebase_core: ^3.1.1
   cloud_firestore: ^5.0.2
-  
-  # 설정 및 권한 관리 - 안드로이드 15(API 35) 필수 대응 버전
   shared_preferences: ^2.2.3
   permission_handler: ^11.3.1
-  
-  # 연락처 및 위치 정보
   flutter_contacts: ^1.1.9
   geolocator: ^12.0.0
-  
-  # 유틸리티
   intl: ^0.19.0
   telephony: ^0.2.0
-  
-  # 백그라운드 작업 - 안드로이드 15 포그라운드 서비스 정책 준수 버전
   flutter_foreground_task: ^6.1.0
 
 dev_dependencies:
@@ -39,7 +27,6 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
-
   assets:
     - assets/smile.png
     - icon.png
