@@ -3,7 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_contacts/flutter_contacts.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:intl/intl.dart';
-import 'package:telephony/telephony.dart';
+import 'package:flutter_sms_plus/flutter_sms_plus.dart'; 
 import 'package:geolocator/geolocator.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'dart:async';
@@ -133,13 +133,13 @@ class _MainNavigationState extends State<MainNavigation> {
     }
 
     List history = json.decode(p.getString('history_logs') ?? "[]");
-    final Telephony telephony = Telephony.instance;
-
+    
     for (var c in contacts) {
       if (c['number'] != null) {
         String cleanNumber = c['number'].replaceAll(RegExp(r'[^0-9]'), '');
         try {
-          await telephony.sendSms(
+          // 수정된 SMS 발송 라이브러리 사용
+          await FlutterSmsPlus().sendSms(
             to: cleanNumber,
             message: "[1인가구 안심 지키미] 응답이 없어 연락드립니다.\n좌표: $locationStr\n확인 부탁드립니다."
           );
@@ -340,7 +340,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 }
 
 class HistoryScreen extends StatefulWidget {
-  const HistoryScreen({super.key}); // 수정됨: 중복 파라미터 제거
+  const HistoryScreen({super.key});
   @override
   State<HistoryScreen> createState() => HistoryScreenState();
 }
