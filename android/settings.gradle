@@ -17,22 +17,32 @@ pluginManagement {
 }
 
 plugins {
+    // 여기서 1.9.10으로 못을 박아버리면 하위 설정들이 이 버전을 따르게 됩니다.
     id "dev.flutter.flutter-gradle-plugin" version "1.0.0" apply false
-    id "com.android.application" version "8.2.1" apply false
-    id "org.jetbrains.kotlin.android" version "1.9.22" apply false
+    id "com.android.application" version "7.3.0" apply false
+    id "org.jetbrains.kotlin.android" version "1.9.10" apply false
 }
 
-include ":app"
-def flutterProjectRoot = rootProject.projectDir.parentFile
-def pluginsFile = new File(flutterProjectRoot, '.flutter-plugins')
-if (pluginsFile.exists()) {
-    pluginsFile.withReader('UTF-8') { reader ->
-        reader.eachLine { line ->
-            def plugin = line.split('=')
-            if (plugin.length == 2) {
-                include ":${plugin[0]}"
-                project(":${plugin[0]}").projectDir = new File(plugin[1], 'android')
-            }
-        }
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.PREFER_PROJECT)
+    repositories {
+        google()
+        mavenCentral()
     }
+}
+
+rootProject.name = "android"
+include ":app"
+
+// 플러그인 자동 연결 로직
+def plugins = new Properties()
+def pluginsFile = new File(settingsDir.parentFile, '.flutter-plugins')
+if (pluginsFile.exists()) {
+    pluginsFile.withReader('UTF-8') { reader -> plugins.load(reader) }
+}
+
+plugins.each { name, path ->
+    def pluginDirectory = file(path).absoluteFile
+    include ":$name"
+    project(":$name").projectDir = file("$pluginDirectory/android")
 }
