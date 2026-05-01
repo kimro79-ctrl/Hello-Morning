@@ -11,7 +11,7 @@ dependencies:
     sdk: flutter
   cupertino_icons: ^1.0.6
   shared_preferences: ^2.3.3
-  # 최신 안드로이드 빌드 호환을 위해 flutter_sms_plus 사용
+  # 최신 안드로이드 SDK 35 빌드 대응을 위해 교체
   flutter_sms_plus: ^0.0.1
   flutter_contacts: ^1.1.9+2
   permission_handler: ^11.3.1
@@ -27,7 +27,7 @@ dev_dependencies:
 flutter:
   uses-material-design: true
 
-  # 사진에 나온 파일 위치대로 정확히 등록
+  # 들여쓰기 주의: flutter: 보다 2칸 안으로, assets: 보다 2칸 안으로 작성됨
   assets:
     - icon.png
     - assets/smile.png
