@@ -2,49 +2,100 @@ name: Success Build Final
 
 on:
   push:
-    branches: [ main, master ]
+    branches:
+      - main
+      - master
 
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout code
+      # 1. 저장소 가져오기
+      - name: Checkout Repository
         uses: actions/checkout@v4
 
+      # 2. Java 17 설치
       - name: Set up Java
         uses: actions/setup-java@v4
         with:
+          distribution: temurin
           java-version: '17'
-          distribution: 'temurin'
 
+      # 3. Flutter 설치
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.22.0'
-          channel: 'stable'
+          channel: stable
 
+      # 4. Flutter 캐시
+      - name: Cache Flutter dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.pub-cache
+            .dart_tool
+          key: ${{ runner.os }}-flutter-${{ hashFiles('pubspec.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-flutter-
+
+      # 5. 앱 버전 자동 증가
+      - name: Auto Increment Version
+        run: |
+          CURRENT_VERSION=$(grep '^version:' pubspec.yaml | awk '{print $2}')
+
+          VERSION_NAME=$(echo $CURRENT_VERSION | cut -d+ -f1)
+          VERSION_CODE=$(echo $CURRENT_VERSION | cut -d+ -f2)
+
+          NEW_VERSION_CODE=$((VERSION_CODE + 1))
+
+          MAJOR=$(echo $VERSION_NAME | cut -d. -f1)
+          MINOR=$(echo $VERSION_NAME | cut -d. -f2)
+          PATCH=$(echo $VERSION_NAME | cut -d. -f3)
+
+          NEW_PATCH=$((PATCH + 1))
+
+          NEW_VERSION_NAME="$MAJOR.$MINOR.$NEW_PATCH"
+
+          sed -i "s/^version:.*/version: $NEW_VERSION_NAME+$NEW_VERSION_CODE/" pubspec.yaml
+
+          echo "Updated version:"
+          cat pubspec.yaml | grep version
+
+      # 6. 의존성 설치
       - name: Install dependencies
         run: flutter pub get
 
-      # ✅ [수정] 최신 Flutter 버전에서는 'dart run' 권장
-      - name: Generate Launcher Icons
-        run: dart run flutter_launcher_icons
+      # 7. launcher icon 생성
+      - name: Generate launcher icons
+        run: flutter pub run flutter_launcher_icons
 
-      - name: Decode Secrets
+      # 8. google-services.json 복원
+      - name: Decode google-services.json
         run: |
-          mkdir -p android/app
           echo "${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}" | base64 --decode > android/app/google-services.json
+
+      # 9. keystore 복원
+      - name: Decode keystore
+        run: |
           echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > android/app/upload-keystore.jks
 
-      - name: Build AAB
+      # 10. Flutter 환경 확인
+      - name: Flutter Doctor
+        run: flutter doctor -v
+
+      # 11. Release AAB 빌드
+      - name: Build Release AAB
         run: flutter build appbundle --release
         env:
           STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
           ALIAS: ${{ secrets.ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
 
-      - name: Upload Artifact
+      # 12. 결과 업로드
+      - name: Upload AAB
         uses: actions/upload-artifact@v4
         with:
-          name: Hello-Morning-Release
+          name: hello-morning-release-aab
           path: build/app/outputs/bundle/release/app-release.aab
