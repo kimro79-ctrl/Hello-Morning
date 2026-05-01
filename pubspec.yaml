@@ -1,39 +1,54 @@
-name: hello_morning
-description: "A new Flutter project."
-publish_to: 'none'
-version: 1.0.0+1
+name: Success Build Final
 
-environment:
-  sdk: '>=3.2.0 <4.0.0'
+on:
+  push:
+    branches: [ main ]
 
-dependencies:
-  flutter:
-    sdk: flutter
-  cupertino_icons: ^1.0.6
-  firebase_core: ^2.27.0
-  cloud_firestore: ^4.15.8
-  device_info_plus: ^10.1.0
-  shared_preferences: ^2.2.2
-  background_sms: ^0.0.4
-  permission_handler: ^11.3.0
-  contacts_service: ^0.6.3
-  geolocator: ^11.0.0
-  intl: ^0.19.0
-  flutter_foreground_task: ^6.5.0
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
 
-dev_dependencies:
-  flutter_test:
-    sdk: flutter
-  flutter_lints: ^3.0.0
-  flutter_launcher_icons: ^0.13.1
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
 
-flutter_launcher_icons:
-  android: true
-  ios: false
-  image_path: "assets/icon.png"
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.22.0'
+          channel: 'stable'
 
-flutter:
-  uses-material-design: true
-  assets:
-    - assets/icon.png
-    - assets/smile.png
+      - name: Decode Secrets
+        run: |
+          mkdir -p android/app
+          # ✅ 환경변수 방식을 사용하여 데이터 깨짐을 방지합니다.
+          echo "$GOOGLE_SERVICES_BASE64" | base64 --decode --ignore-garbage > android/app/google-services.json
+          echo "$KEYSTORE_BASE64" | base64 --decode --ignore-garbage > android/app/upload-keystore.jks
+        env:
+          GOOGLE_SERVICES_BASE64: ${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Generate launcher icons (Optional)
+        # 아이콘 파일이 없어도 빌드가 중단되지 않도록 설정합니다.
+        run: flutter pub run flutter_launcher_icons || echo "Icon generation failed, skipping..."
+
+      - name: Build Release AAB
+        run: flutter build appbundle --release
+        env:
+          STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
+          ALIAS: ${{ secrets.ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+
+      - name: Upload AAB
+        uses: actions/upload-artifact@v4
+        with:
+          name: hello-morning-release-aab
+          path: build/app/outputs/bundle/release/app-release.aab
