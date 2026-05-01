@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:flutter_contacts/flutter_contacts.dart';
+import 'package:contacts_service/contacts_service.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:intl/intl.dart';
-import 'package:flutter_sms_plus/flutter_sms_plus.dart'; 
+import 'package:background_sms/background_sms.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'dart:async';
@@ -84,7 +84,7 @@ class MainNavigation extends StatefulWidget {
 
 class _MainNavigationState extends State<MainNavigation> {
   int _currentIndex = 0;
-  final GlobalKey<HistoryScreenState> _historyKey = GlobalKey<HistoryScreenState>();
+  final GlobalKey<HistoryScreenState> _historyKey = GlobalKey();
   late List<Widget> _screens;
   ReceivePort? _receivePort;
 
@@ -133,16 +133,11 @@ class _MainNavigationState extends State<MainNavigation> {
     }
 
     List history = json.decode(p.getString('history_logs') ?? "[]");
-    
     for (var c in contacts) {
       if (c['number'] != null) {
         String cleanNumber = c['number'].replaceAll(RegExp(r'[^0-9]'), '');
         try {
-          // 수정된 SMS 발송 라이브러리 사용
-          await FlutterSmsPlus().sendSms(
-            to: cleanNumber,
-            message: "[1인가구 안심 지키미] 응답이 없어 연락드립니다.\n좌표: $locationStr\n확인 부탁드립니다."
-          );
+          await BackgroundSms.sendMessage(phoneNumber: cleanNumber, message: "[1인가구 안심 지키미] 응답이 없어 연락드립니다.\n좌표: $locationStr\n확인 부탁드립니다.");
           history.insert(0, {'type': '비상 알림', 'time': DateFormat('MM/dd HH:mm').format(DateTime.now()), 'msg': '보호자(${c['name']})에게 안심 문자 발송 완료'});
         } catch (e) {
           history.insert(0, {'type': '에러', 'time': DateFormat('MM/dd HH:mm').format(DateTime.now()), 'msg': 'SMS 전송 실패'});
@@ -190,12 +185,7 @@ class _MainNavigationState extends State<MainNavigation> {
 
   void _initForegroundTask() {
     FlutterForegroundTask.init(
-      androidNotificationOptions: AndroidNotificationOptions(
-        channelId: 'safety_check_v38', 
-        channelName: '1인가구 안심 지키미', 
-        channelImportance: NotificationChannelImportance.MAX, 
-        priority: NotificationPriority.HIGH
-      ),
+      androidNotificationOptions: AndroidNotificationOptions(channelId: 'safety_check_v38', channelName: '1인가구 안심 지키미', channelImportance: NotificationChannelImportance.MAX, priority: NotificationPriority.HIGH),
       iosNotificationOptions: const IOSNotificationOptions(showNotification: true),
       foregroundTaskOptions: const ForegroundTaskOptions(interval: 30000, autoRunOnBoot: true, allowWakeLock: true),
     );
@@ -320,6 +310,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   decoration: BoxDecoration(
                     shape: BoxShape.circle, 
                     color: Colors.white, 
+                    // 눌렀을 때만 핑크빛 테두리 적용
                     border: _isPressed ? Border.all(color: const Color(0xFFFFD1DC), width: 6) : null,
                     boxShadow: _isPressed 
                         ? [BoxShadow(color: const Color(0xFFFFD1DC).withOpacity(0.8), blurRadius: 15, spreadRadius: 3)]
@@ -362,8 +353,7 @@ class HistoryScreenState extends State<HistoryScreen> {
       : ListView.builder(
           itemCount: _logs.length,
           itemBuilder: (context, i) => ListTile(
-            leading: Icon(_logs[i]['type'] == '비상 알림' ? 
-              Icons.warning_amber_rounded : Icons.check_circle_outline, color: _logs[i]['type'] == '비상 알림' ? Colors.red : Colors.green, size: 18),
+            leading: Icon(_logs[i]['type'] == '비상 알림' ? Icons.warning_amber_rounded : Icons.check_circle_outline, color: _logs[i]['type'] == '비상 알림' ? Colors.red : Colors.green, size: 18),
             title: Text(_logs[i]['type'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
             subtitle: Text(_logs[i]['msg'], style: const TextStyle(fontSize: 10)),
             trailing: Text(_logs[i]['time'], style: const TextStyle(fontSize: 9, color: Colors.grey)),
@@ -456,13 +446,10 @@ class _SettingScreenState extends State<SettingScreen> {
                 label: const Text("보호자 연락처 추가", style: TextStyle(fontSize: 12)),
                 style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 45), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
                 onPressed: () async {
-                  if (await FlutterContacts.requestPermission()) {
-                    final contact = await FlutterContacts.openExternalPick();
-                    if (contact != null && contact.phones.isNotEmpty) {
-                      setState(() => _contacts.add({
-                        'name': contact.displayName, 
-                        'number': contact.phones.first.number
-                      }));
+                  if (await Permission.contacts.request().isGranted) {
+                    final c = await ContactsService.openDeviceContactPicker();
+                    if (c != null && c.phones!.isNotEmpty) {
+                      setState(() => _contacts.add({'name': c.displayName, 'number': c.phones?.first.value}));
                       (await SharedPreferences.getInstance()).setString('contacts_list', json.encode(_contacts));
                     }
                   }
