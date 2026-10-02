@@ -33,8 +33,7 @@ flutter:
   # assets:
   #   - assets/smile.png
 
-# 아이콘 이미지를 assets/icon/icon.png 에 넣었을 때만 주석을 푸세요.
-# flutter_launcher_icons:
-#   android: true
-#   ios: false
-#   image_path: "assets/icon/icon.png"
+flutter_launcher_icons:
+  android: true
+  ios: false
+  image_path: "icon.png"
