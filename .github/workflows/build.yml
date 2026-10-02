@@ -23,37 +23,28 @@ jobs:
           flutter-version: '3.22.0'
           channel: 'stable'
 
-      # pubspec.yaml에 SDK 제약이 없거나 잘못돼 있으면 러너 안에서 보정합니다.
-      # (저장소 파일은 바뀌지 않으니 pubspec.yaml도 직접 고치는 걸 권장합니다.)
-      - name: Fix SDK constraint
-        run: |
-          if grep -q '^  sdk:' pubspec.yaml; then
-            sed -i "s|^  sdk:.*|  sdk: '>=3.4.0 <4.0.0'|" pubspec.yaml
-          elif grep -q '^environment:' pubspec.yaml; then
-            sed -i "/^environment:/a\\  sdk: '>=3.4.0 <4.0.0'" pubspec.yaml
-          else
-            printf "\nenvironment:\n  sdk: '>=3.4.0 <4.0.0'\n" >> pubspec.yaml
-          fi
-          grep -A3 '^environment:' pubspec.yaml
-
-      - name: Decode Secrets
+      # 키스토어(android/app/upload-keystore.jks)는 저장소에 있는 파일을 그대로 씁니다.
+      - name: Decode google-services.json
         run: |
           mkdir -p android/app
           echo "$GOOGLE_SERVICES_BASE64" | base64 --decode --ignore-garbage > android/app/google-services.json
-          echo "$KEYSTORE_BASE64" | base64 --decode --ignore-garbage > android/app/upload-keystore.jks
         env:
           GOOGLE_SERVICES_BASE64: ${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}
-          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+
+      - name: Check keystore
+        run: |
+          ls -l android/app/upload-keystore.jks
+          keytool -list -keystore android/app/upload-keystore.jks -storepass "$STORE_PASSWORD"
+        env:
+          STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
 
       - name: Install dependencies
         run: flutter pub get
 
       - name: Generate launcher icons (Optional)
-        # 아이콘 설정이 없어도 빌드가 중단되지 않도록 합니다.
-        run: flutter pub run flutter_launcher_icons || echo "Icon generation failed, skipping..."
+        run: flutter pub run flutter_launcher_icons || echo "Icon generation skipped"
 
       - name: Build Release AAB
-        # 빌드 번호를 실행 횟수로 지정해 Play Console 버전 코드 중복을 피합니다.
         run: flutter build appbundle --release --build-number=${{ github.run_number }}
         env:
           STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
