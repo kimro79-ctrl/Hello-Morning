@@ -13,9 +13,13 @@ dependencies:
   firebase_core: ^2.27.0
   firebase_messaging: ^14.7.19
   firebase_analytics: ^10.8.9
-  permission_handler: ^11.3.1
   shared_preferences: ^2.2.3
   contacts_service: ^0.6.3
+  permission_handler: ^11.3.1
+  intl: ^0.19.0
+  background_sms: ^0.0.4
+  geolocator: ^11.0.0
+  flutter_foreground_task: ^6.5.0
 
 dev_dependencies:
   flutter_test:
@@ -25,6 +29,9 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  # 저장소에 assets/smile.png 파일이 있을 때만 아래 두 줄의 주석을 푸세요.
+  # assets:
+  #   - assets/smile.png
 
 # 아이콘 이미지를 assets/icon/icon.png 에 넣었을 때만 주석을 푸세요.
 # flutter_launcher_icons:
